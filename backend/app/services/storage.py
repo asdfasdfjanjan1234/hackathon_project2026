@@ -122,6 +122,12 @@ class Database:
             return f"DATE(FROM_UNIXTIME({column}))"  # session time zone is set to local time on connect
         return f"date({column}, 'unixepoch', 'localtime')"
 
+    def hour(self, column="ts"):
+        """SQL for the local hour of day (0-23) of a Unix timestamp column."""
+        if self.dialect == "mysql":
+            return f"HOUR(FROM_UNIXTIME({column}))"
+        return f"CAST(strftime('%H', {column}, 'unixepoch', 'localtime') AS INTEGER)"
+
     def _sql(self, sql):
         return sql.replace("?", "%s") if self.dialect == "mysql" else sql
 
@@ -332,6 +338,18 @@ def daily_usage(conn, days=30, device_id=None):
     return [{"date": str(r["date"]), "model": r["model"], "kind": r["kind"],
              "kwh": round(r["kwh"], 6), "active_hours": round(r["active_hours"] or 0, 4),
              "source": "measured"} for r in rows]
+
+
+def hourly_usage(conn, days=30, device_id=None):
+    """{hour of day: kWh} of AI use in the last `days` days, summed over those days."""
+    since = time.time() - days * 86400
+    where, params = _device_filter(device_id)
+    rows = conn.execute(
+        f"SELECT {conn.hour()} AS hour, SUM(watts * interval_s) / 3600000.0 AS kwh "
+        f"FROM ai_samples WHERE ts >= ?{where} GROUP BY 1",
+        (since, *params),
+    ).fetchall()
+    return {int(r["hour"]): r["kwh"] or 0.0 for r in rows}
 
 
 def measured_days(conn, days=60, device_id=None):

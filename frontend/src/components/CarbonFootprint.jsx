@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Leaf, Cloud, Laptop, Target, TreePine, ArrowRight, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { formatCo2, formatKwh, shortDate, peso } from "../format";
+import CleanHours from "./CleanHours";
 
 // Validated pair (dataviz validator, dark surface #121927): device vs data center.
 const DEVICE = "#059669";
@@ -184,6 +185,8 @@ export default function CarbonFootprint({ carbon, onOpenDirectives }) {
         </div>
       </section>
 
+      <CleanHours info={carbon.clean_hours} />
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-w-0">
         {/* Per-model footprint */}
         <section className="dash-card p-4 sm:p-5 lg:col-span-7 min-w-0">
@@ -266,7 +269,11 @@ export default function CarbonFootprint({ carbon, onOpenDirectives }) {
                   </div>
                   <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">{a.message}</p>
                   <p className="text-[10px] text-slate-400 mt-1 font-mono">
-                    {a.scope === "datacenter" ? "Data-center CO₂ · not on your bill" : `Also saves ${peso(a.monthly_savings)} / mo`}
+                    {a.scope === "datacenter"
+                      ? "Data-center CO₂ · not on your bill"
+                      : a.scope === "carbon"
+                      ? "Same energy, cleaner hours · bill unchanged"
+                      : `Also saves ${peso(a.monthly_savings)} / mo`}
                   </p>
                 </div>
               ))

@@ -151,6 +151,8 @@ export default function Recommendations({ recs, liveReading, onApplied }) {
                     <span className="text-[9px] text-slate-400 uppercase tracking-wider block">
                       {rec.scope === "datacenter"
                         ? "DATA CENTER · NOT ON BILL"
+                        : rec.scope === "carbon"
+                        ? "CO₂ ONLY · BILL UNCHANGED"
                         : rec.alternative
                         ? "ALTERNATIVE"
                         : rec.rule === "budget" && !rec.monthly_savings
@@ -160,11 +162,13 @@ export default function Recommendations({ recs, liveReading, onApplied }) {
                     <span className="text-xs font-bold text-sky-300 tabular-nums">
                       {rec.scope === "datacenter"
                         ? `-${formatWh(rec.wh_saved)} / mo`
+                        : rec.scope === "carbon"
+                        ? `-${formatCo2(rec.co2_saved_kg)} / mo`
                         : rec.rule === "budget" && !rec.monthly_savings
                         ? "—"
                         : `-${peso(rec.monthly_savings)} / mo`}
                     </span>
-                    {rec.co2_saved_kg > 0 && (
+                    {rec.co2_saved_kg > 0 && rec.scope !== "carbon" && (
                       <span className="text-[10px] text-emerald-300 tabular-nums block">
                         -{formatCo2(rec.co2_saved_kg)} / mo
                       </span>
@@ -215,7 +219,7 @@ export default function Recommendations({ recs, liveReading, onApplied }) {
       {/* Footer */}
       <div className="pt-2 border-t border-white/5 flex flex-wrap items-center justify-between text-[10px] text-slate-400 gap-2">
         <span>
-          RULES: BUDGET · SMALLER MODEL · QUANTIZATION · IDLE LOADED · COST PER HOUR · TOOL RUNS · CLOUD · GROWTH
+          RULES: BUDGET · SMALLER MODEL · QUANTIZATION · IDLE LOADED · COST PER HOUR · TOOL RUNS · CLOUD · GROWTH · CLEAN HOURS
         </span>
         <span>
           {recs?.bill_with_recommendations != null && `THIS CYCLE WITH RECS: ${peso(recs.bill_with_recommendations)}`}

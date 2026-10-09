@@ -9,6 +9,7 @@ from functools import lru_cache
 from flask import current_app
 
 from . import storage
+from .clean_hours import clean_hours
 from .local_models import installed_local_models
 from .model_usage import model_usage
 from .system_info import machine_id
@@ -55,15 +56,29 @@ def usage_window(window_id, end=None):
             "since_ts": datetime.combine(start, datetime.min.time()).timestamp()}
 
 
+def get_hourly_usage(days=30):
+    """{hour of day: average AI kWh a day in that hour}, over the days the device reader ran."""
+    with connect() as conn:
+        device = this_device_id(conn)
+        totals = storage.hourly_usage(conn, days=days, device_id=device)
+        measured = len(storage.measured_days(conn, days=days, device_id=device))
+    return {h: kwh / measured for h, kwh in totals.items()} if measured else {}
+
+
+def get_clean_hours():
+    return clean_hours(get_hourly_usage(), current_app.config)
+
+
 def get_signals():
     """What recommendations and the forecast need besides daily kWh: which days were measured,
-    loaded-but-idle models, installed local models, and the cloud-model switch hint."""
+    loaded-but-idle models, installed local models, the cloud-model switch hint, and the
+    grid's cleanest hours."""
     with connect() as conn:
         device = this_device_id(conn)
         measured = storage.measured_days(conn, device_id=device)
         idle = storage.idle_loaded(conn, device_id=device)
     return {"measured_days": measured, "idle_loaded": idle, "installed": installed_local_models(),
-            "cloud": model_usage()["switch_hint"]}
+            "cloud": model_usage()["switch_hint"], "clean_hours": get_clean_hours()}
 
 
 def summarize_by_model(daily, rate):

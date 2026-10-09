@@ -10,6 +10,7 @@ Every rule works from what was measured or read on this device:
   per hour    the local model that costs clearly the most per hour of use
   tool runs   an agent's commands (tests, builds) used more energy than the agent itself
   big cloud   most cloud tokens go to a large model (data-center energy, not on the bill)
+  clean hours AI use runs in hours the grid is dirtier than its cleanest window (CO2, not on the bill)
   growing     usage growing fastest, for a model no other rule covers
 
 monthly_savings is in pesos on this bill. "alternative" recommendations are another way
@@ -20,6 +21,7 @@ Data-center savings (wh_saved) are never on the bill.
 from datetime import date
 from math import prod
 
+from .clean_hours import clean_hours_rec
 from .models_catalog import LOCAL_MODELS, RECOMMENDED_QUANT, local_name, model_bytes, quant_bits
 
 MOVABLE_SHARE = 0.5     # assumed share of a model's use that suits a smaller model, or can stop
@@ -242,6 +244,10 @@ def build_recommendations(daily, forecast, rate, budget, signals=None, today=Non
     if hint:
         recs.append(_rec("SWITCH", "big cloud", ", ".join(hint["models"]), hint["message"], 0.0,
                          scope="datacenter", wh_saved=hint["wh_saved"]))
+
+    shift = clean_hours_rec(signals.get("clean_hours"))
+    if shift:
+        recs.append(shift)
 
     recs += _budget(forecast, budget, today, reductions(recs, forecast))
     return sorted(recs, key=lambda r: (r["rule"] != "budget", r["scope"] != "bill", r["alternative"],

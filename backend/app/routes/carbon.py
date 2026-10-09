@@ -3,7 +3,7 @@ from flask import current_app, jsonify, request
 from ..services.carbon import carbon_report, with_carbon
 from ..services.model_usage import model_usage
 from ..services.outlook import outlook
-from ..services.usage_store import equivalence_factors, get_daily_usage, usage_window
+from ..services.usage_store import equivalence_factors, get_clean_hours, get_daily_usage, usage_window
 from . import api_bp, bill_params
 
 
@@ -33,4 +33,6 @@ def carbon():
         budget_kg=request.args.get("carbon_budget", type=float, default=cfg["CARBON_BUDGET_KG"]),
     )
     return jsonify({**report, "factors": {**report["factors"], **equivalence_factors(),
-                                          "datacenter_source": cfg["DATACENTER_CO2_SOURCE"]}})
+                                          "datacenter_source": cfg["DATACENTER_CO2_SOURCE"]},
+                    # The grid's cleanest hours and this device's AI use by hour of day.
+                    "clean_hours": get_clean_hours()})

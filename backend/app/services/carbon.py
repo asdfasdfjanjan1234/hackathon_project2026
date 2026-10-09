@@ -24,6 +24,8 @@ def _kg(x):
 def rec_co2(rec, rate, grid, datacenter):
     """Monthly CO2 a recommendation avoids: {co2_saved_kg} or, for moving work to the cloud,
     {co2_shifted_kg} (the CO2 leaves this grid but is emitted on the data center's)."""
+    if rec["scope"] == "carbon":  # computed in CO2 already (clean hours)
+        return {"co2_saved_kg": rec["co2_saved_kg"]}
     if rec["scope"] == "datacenter":
         return {"co2_saved_kg": _kg((rec.get("wh_saved") or 0) / 1000 * datacenter)}
     kwh = rec["monthly_savings"] / rate if rate else 0.0
@@ -81,7 +83,10 @@ def carbon_report(device_daily, cloud_daily, forecast, recs, window, rate, grid,
     cycle_days = forecast["cycle"]["days"]
     cycle_device = sum(d["ai_kwh"] for d in forecast["daily"]) * grid
     cycle_device_recs = (forecast["ai_cost_with_recommendations"] / rate * grid) if rate else cycle_device
+    # Clean hours saves CO2 on this device without lowering its kWh, so it isn't in the bill's path.
+    shift_saved_month = sum(r.get("co2_saved_kg") or 0 for r in recs if r["scope"] == "carbon")
     future_share = max(forecast["days_left"] - 1, 0) / cycle_days  # recommendations start tomorrow
+    cycle_device_recs = max(cycle_device_recs - shift_saved_month * future_share, 0.0)
     dc_saved_month = sum(r.get("co2_saved_kg") or 0 for r in recs if r["scope"] == "datacenter")
     cycle_dc = dc_per_day * cycle_days
     cycle_dc_recs = max(cycle_dc - dc_saved_month * future_share, 0.0)
@@ -107,7 +112,8 @@ def carbon_report(device_daily, cloud_daily, forecast, recs, window, rate, grid,
                      if rate else year["ai_kwh"])
     year_dc = dc_per_day * 365
     year_kg = year["ai_kwh"] * grid + year_dc
-    year_kg_recs = year_kwh_recs * grid + max(year_dc - dc_saved_month * 12, 0.0)
+    year_kg_recs = (max(year_kwh_recs * grid - shift_saved_month * 12, 0.0)
+                    + max(year_dc - dc_saved_month * 12, 0.0))
     avoided = max(year_kg - year_kg_recs, 0.0)
 
     actions = sorted((r for r in recs if (r.get("co2_saved_kg") or 0) > 0 and not r["alternative"]),

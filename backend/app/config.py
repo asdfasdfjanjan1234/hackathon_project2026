@@ -28,3 +28,8 @@ class Config:
     DATACENTER_CO2_SOURCE = os.getenv("DATACENTER_CO2_SOURCE", "World-average grid intensity (IEA), approximate")
     # Monthly AI carbon budget in kg CO2 (local + cloud); 0 turns it off.
     CARBON_BUDGET_KG = float(os.getenv("CARBON_BUDGET_KG", 10))
+    # Hourly grid carbon intensity from Electricity Maps (free personal token from
+    # app.electricitymaps.com), for "run heavy jobs in the cleanest hours". Unset: no hourly data.
+    ELECTRICITYMAPS_TOKEN = os.getenv("ELECTRICITYMAPS_TOKEN", "")
+    ELECTRICITYMAPS_ZONE = os.getenv("ELECTRICITYMAPS_ZONE", "PH-LU")  # Luzon; PH-VI Visayas, PH-MI Mindanao
+    CLEAN_WINDOW_HOURS = int(os.getenv("CLEAN_WINDOW_HOURS", 3))

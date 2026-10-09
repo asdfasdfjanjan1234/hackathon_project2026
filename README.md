@@ -48,6 +48,7 @@ backend/                  Flask API (port 5001)
       forecasting.py      Billing cycle, weekday/weekend pattern, damped trend → bill per day and 1/3/12 months
       recommendations.py  Rule-based recommendations with savings (budget, smaller model, quantization, idle, …)
       carbon.py           CO₂ per model and day, two grid factors, carbon budget, CO₂ avoided by recommendations
+      clean_hours.py      Hourly grid CO₂ (Electricity Maps) → cleanest window to run batch AI jobs
       outlook.py          Forecast + recommendations together ("with recommendations" path)
       actions.py          Unloads / switches Ollama models when a recommendation is applied
       validation.py       Compares our whole-machine readings with a plug-in wall meter
