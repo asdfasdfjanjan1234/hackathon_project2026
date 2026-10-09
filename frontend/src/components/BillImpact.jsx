@@ -3,47 +3,35 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { peso, formatKwh, formatCo2, formatDuration } from "../format";
 import { color } from "../theme";
 import { Leaf, Smartphone, Car, Wind } from "lucide-react";
+import { CardHeader, MiniTile } from "./Card";
 
 const VERDICT_CONFIG = {
   major: {
     status: "Major driver",
-    desc: "Empirical telemetry confirms AI local GPU/CPU workload accounts for ≥50% of the bill increase.",
+    desc: "AI on this computer explains half or more of the increase over your bill before AI.",
     badgeClass: "tech-tag-alert",
   },
   contributing: {
     status: "Partial driver",
-    desc: "AI explains 20% to 50% of monthly variance; baseline appliances share attribution.",
+    desc: "AI explains 20% to 50% of the increase; the rest comes from other use and the rate.",
     badgeClass: "tech-tag-sim",
   },
   minor: {
-    status: "Negligible",
-    desc: "AI workload accounts for <20% of bill increase. Primary surge is non-AI appliances.",
+    status: "Small part",
+    desc: "AI explains less than 20% of the increase. Most of it is other appliances or the rate.",
     badgeClass: "tech-tag-neutral",
   },
   none: {
-    status: "Zero impact",
-    desc: "Zero local hardware energy increase detected for AI processes.",
+    status: "No impact",
+    desc: "AI on this computer added no measurable energy to the bill.",
     badgeClass: "tech-tag-pos",
   },
   no_increase: {
-    status: "Stable cycle",
-    desc: "Current billing cycle does not exceed baseline consumption.",
+    status: "No increase",
+    desc: "This cycle's bill isn't above your bill before AI.",
     badgeClass: "tech-tag-pos",
   },
 };
-
-function EqTile({ icon: Icon, label, value, sub }) {
-  return (
-    <div className="p-3 inset-panel flex flex-col gap-1">
-      <div className="flex items-center gap-1.5 text-xs text-ink-muted">
-        <Icon className="w-3.5 h-3.5" />
-        <span>{label}</span>
-      </div>
-      <div className="text-base font-bold text-ink tabular-nums">{value}</div>
-      <div className="text-[11px] text-ink-muted">{sub}</div>
-    </div>
-  );
-}
 
 export default function BillImpact({ impact }) {
   const safeImpact = impact || {};
@@ -52,9 +40,9 @@ export default function BillImpact({ impact }) {
 
   const donutData = useMemo(
     () => [
-      { name: "Local AI Metal/CUDA Draw", value: safeImpact.ai_effect, color: color("accent") },
-      { name: "Utility Rate Hike", value: safeImpact.rate_effect, color: color("viz-grey") },
-      { name: "Base Non-AI Household", value: safeImpact.other_effect, color: color("viz-amber") },
+      { name: "AI on this computer", value: safeImpact.ai_effect, color: color("accent") },
+      { name: "Rate change", value: safeImpact.rate_effect, color: color("viz-grey") },
+      { name: "Other household use", value: safeImpact.other_effect, color: color("viz-amber") },
     ].filter((item) => item.value > 0),
     [safeImpact]
   );
@@ -76,7 +64,7 @@ export default function BillImpact({ impact }) {
           <span>{item.name}</span>
         </div>
         <div className="text-ink-muted">
-          Surcharge: <strong className="text-ink tabular-nums">{peso(item.value)}</strong> ({pct}%)
+          Adds <strong className="text-ink tabular-nums">{peso(item.value)}</strong> ({pct}%)
         </div>
       </div>
     );
@@ -84,14 +72,12 @@ export default function BillImpact({ impact }) {
 
   return (
     <section className="dash-card p-5 flex flex-col justify-between min-w-0">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between pb-4 border-b border-line gap-2">
-        <div className="min-w-0">
-          <h2 className="card-title">Causal tariff decomposition</h2>
-          <div className="card-sub mt-0.5 tabular-nums">Factor analysis: +{peso(safeImpact.increase)} total variance</div>
-        </div>
-        <span className={`tech-tag shrink-0 ${verdict.badgeClass}`}>{verdict.status}</span>
-      </div>
+      <CardHeader
+        title="Did AI raise my bill?"
+        sub={`This month's bill is ${peso(safeImpact.increase)} above your bill before AI, split into rate change, AI and other use`}
+      >
+        <span className={`tech-tag ${verdict.badgeClass}`}>{verdict.status}</span>
+      </CardHeader>
 
       {/* Main Grid: Donut + Causal Breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center my-4 min-w-0">
@@ -129,7 +115,7 @@ export default function BillImpact({ impact }) {
         <div className="md:col-span-7 space-y-3 min-w-0">
           <div className="p-3 inset-panel space-y-1">
             <div className="text-sm font-bold text-ink">
-              {verdict.status}: {aiSharePct}% of surge
+              {verdict.status}: {aiSharePct}% of the increase
             </div>
             <p className="text-xs text-ink-soft leading-relaxed">
               {verdict.desc} AI apps and local models used{" "}
@@ -142,7 +128,7 @@ export default function BillImpact({ impact }) {
           {/* Attribution Items */}
           <div className="divide-y divide-line">
             {donutData.length === 0 && (
-              <div className="p-3 inset-panel text-xs text-ink-muted">
+              <div className="empty-state">
                 This cycle's bill is not above the baseline, so there is nothing to attribute.
               </div>
             )}
@@ -168,7 +154,7 @@ export default function BillImpact({ impact }) {
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
             <span className="font-semibold text-ink flex items-center gap-1.5">
               <Leaf className="w-4 h-4 text-pos" />
-              Green computing & eco equivalencies
+              What that energy equals
             </span>
             {safeImpact.factors && (
               <span className="text-xs text-ink-muted" title={safeImpact.factors.co2_source}>
@@ -177,17 +163,16 @@ export default function BillImpact({ impact }) {
             )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <EqTile icon={Leaf} label="Emissions" value={formatCo2(eq.co2_kg)} sub="Carbon footprint" />
-            <EqTile icon={Wind} label="Offset" value={`${eq.trees_offset || 0} Trees`} sub="Monthly absorption" />
-            <EqTile icon={Smartphone} label="Phone draw" value={`${(eq.smartphone_charges || 0).toLocaleString()}x`} sub="Full battery charges" />
-            <EqTile icon={Car} label="EV range" value={`${eq.ev_km || 0} km`} sub="EV highway equivalent" />
+            <MiniTile icon={Leaf} title="Emissions" value={formatCo2(eq.co2_kg)} sub="Carbon footprint" />
+            <MiniTile icon={Wind} title="Offset" value={`${eq.trees_offset || 0} trees`} sub="Absorbing for a month" />
+            <MiniTile icon={Smartphone} title="Phone charges" value={`${(eq.smartphone_charges || 0).toLocaleString()}×`} sub="Full battery charges" />
+            <MiniTile icon={Car} title="EV range" value={`${eq.ev_km || 0} km`} sub="Highway driving" />
           </div>
         </div>
       )}
 
-      <div className="mt-4 pt-3 border-t border-line flex flex-wrap items-center justify-between text-xs text-ink-muted gap-2">
+      <div className="card-foot">
         <span>Cloud AI runs in provider data centers, so it isn't counted in your bill.</span>
-        <span>Math: rate · AI · other usage decomposition</span>
       </div>
     </section>
   );

@@ -1,0 +1,883 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kilo What? promo (60 s)</title>
+<!--
+  The Kilo What? promo, drawn as a 1920x1080 page whose look depends only on a time in seconds.
+  build.py calls window.seek(t) for every frame and encodes the screenshots, and reads window.SFX
+  (the sound effects, placed by the same clock) to make the effects track.
+  Opened in a browser, it plays with out/audio.m4a: click or Space to play, arrow keys to step.
+
+  When something appears is tied to the narration (narration.json), not to fixed seconds:
+    data-in="sensors"        when the line "sensors" starts
+    data-in="sensors#1"      when its 2nd spoken segment starts (after the first pause)
+    data-in="local@0.24"     24% of the way through the line
+    data-in="isit.end+0.4"   0.4 s after the line ends
+    data-in="$sense+0.2"     0.2 s after the scene "sense" starts
+  data-fx picks the entrance (rise, fade, pop, left, right, drop, zoomout, stamp, tilt, growx, growy, draw);
+  data-out fades it away. data-sfx="pop pitch=1.2 gain=0.6" plays a sound effect (kilowhat/sound.py) when
+  the element enters; at=<time> moves it.
+
+  Every figure on screen is read from assets/shots/shots.js (window.FACTS, taken with shots.py from the
+  running app) or is labelled as typical, an example or an illustration.
+-->
+<script src="out/timeline.js"></script>
+<script src="assets/shots/shots.js"></script>
+<style>
+  @font-face {
+    font-family: "DM Sans"; font-style: normal; font-weight: 400 700;
+    src: url(../assets/fonts/dmsans-latin-ext.woff2) format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F;
+  }
+  @font-face {
+    font-family: "DM Sans"; font-style: normal; font-weight: 400 700;
+    src: url(../assets/fonts/dmsans-latin.woff2) format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+
+  /* The app's dark theme ("a grid at night", frontend/src/App.css), so the video matches the product. */
+  :root {
+    --canvas: 9 13 22; --surface: 15 21 34; --sunken: 11 16 27;
+    --line: 30 39 58; --line-strong: 46 58 84;
+    --ink: 232 237 245; --ink-soft: 178 188 205; --ink-muted: 132 145 168;
+    --accent: 56 182 255; --on-accent: 4 16 32; --volt: 255 214 51;
+    --pos: 52 211 153; --warn: 251 146 60; --neg: 248 113 113; --violet: 167 139 250;
+  }
+  html, body { margin: 0; height: 100%; background: rgb(4 6 10); overflow: hidden; }
+  #stage {
+    position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden;
+    transform-origin: 0 0; background: rgb(var(--canvas)); color: rgb(var(--ink));
+    font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif; font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased; line-height: 1.2;
+  }
+  /* Blueprint grid behind everything */
+  #grid {
+    position: absolute; inset: -64px;
+    background-image: linear-gradient(rgb(var(--ink) / 0.035) 1px, transparent 1px),
+                      linear-gradient(90deg, rgb(var(--ink) / 0.035) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+  #world { position: absolute; inset: 0; }
+  .scene { position: absolute; inset: 0; opacity: 0; visibility: hidden; }
+  .cam { position: absolute; inset: 0; transform-origin: 50% 50%; }
+  .abs { position: absolute; }
+  .center { left: 0; right: 0; text-align: center; }
+  [data-in] { opacity: 0; will-change: opacity, transform; }
+  .ic { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
+
+  .h1 { font-size: 96px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
+  .h2 { font-size: 64px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.08; }
+  .w { display: inline-block; }
+  .soft { color: rgb(var(--ink-soft)); }
+  .muted { color: rgb(var(--ink-muted)); }
+  .volt { color: rgb(var(--volt)); }
+  .blue { color: rgb(var(--accent)); }
+  .green { color: rgb(var(--pos)); }
+
+  .card { background: rgb(var(--surface)); border: 1.5px solid rgb(var(--line)); border-radius: 28px; box-sizing: border-box;
+          box-shadow: 0 2px 4px rgb(0 4 12 / 0.4), 0 18px 40px -10px rgb(0 4 12 / 0.7); }
+  .eyebrow { font-size: 26px; font-weight: 500; color: rgb(var(--ink-muted)); }
+  /* Status pills stay neutral; the colour goes on the dot (as tech-tag does in the app) */
+  .pill { display: inline-flex; align-items: center; gap: 12px; white-space: nowrap; border-radius: 999px;
+          border: 1.5px solid rgb(var(--line-strong)); background: rgb(var(--surface)); color: rgb(var(--ink-soft));
+          padding: 8px 22px; font-size: 26px; font-weight: 500; line-height: 1.3; }
+  .pill i { width: 12px; height: 12px; border-radius: 50%; background: rgb(var(--accent)); flex: none; }
+  .pill i.pos { background: rgb(var(--pos)); } .pill i.warn { background: rgb(var(--warn)); }
+  .pill i.volt { background: rgb(var(--volt)); } .pill i.grey { background: rgb(var(--ink-muted)); }
+  .pill .ic { width: 28px; height: 28px; }
+
+  .logo { position: absolute; }
+  .logo img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  /* Single-colour logos are drawn in the ink colour, as in the app (BrandIcon.jsx) */
+  .mono { filter: brightness(0) invert(93%); }
+  .shot { position: absolute; overflow: hidden; border-radius: 20px; border: 1.5px solid rgb(var(--line-strong));
+          box-shadow: 0 30px 80px -20px rgb(0 0 0 / 0.75); background: rgb(var(--surface)); }
+  .shot img { display: block; width: 100%; }
+
+  /* ---- hook ---- */
+  #bill { left: 560px; top: 300px; width: 800px; height: 380px; padding: 40px 48px; }
+  #billnum { margin-top: 14px; font-size: 140px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; }
+  #billnum small { font-size: 0.62em; font-weight: 600; margin-right: 6px; color: rgb(var(--ink-soft)); }
+  .bars { right: 56px; bottom: 44px; display: flex; gap: 26px; align-items: flex-end; height: 250px; }
+  .bars div { display: flex; flex-direction: column; align-items: center; gap: 12px; font-size: 21px; color: rgb(var(--ink-muted)); }
+  .bars b { display: block; width: 74px; border-radius: 10px 10px 4px 4px; transform-origin: 50% 100%; }
+  .bubble { padding: 18px 30px; border-radius: 26px; font-size: 36px; font-weight: 600; background: rgb(var(--surface));
+            border: 1.5px solid rgb(var(--line-strong)); box-shadow: 0 16px 34px -10px rgb(0 0 0 / 0.6); white-space: nowrap; }
+  .bubble::after { content: ""; position: absolute; bottom: -13px; width: 24px; height: 24px; background: rgb(var(--surface));
+                   border-right: 1.5px solid rgb(var(--line-strong)); border-bottom: 1.5px solid rgb(var(--line-strong)); transform: rotate(45deg); }
+  .bubble.l::after { left: 44px; } .bubble.r::after { right: 44px; }
+  .dim { inset: 0; background: rgb(var(--canvas)); }
+
+  /* ---- guess ---- */
+  #calc { left: 410px; top: 330px; width: 1100px; height: 300px; padding: 44px 56px; }
+  #calc .row { display: flex; align-items: center; justify-content: space-between; margin-top: 30px; }
+  #guessnum { font-size: 150px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; color: rgb(var(--ink-muted)); }
+  #stamp { left: 1240px; top: 286px; transform: rotate(-7deg); }
+  #stamp .pill { font-size: 48px; font-weight: 700; padding: 12px 36px; border-width: 3px; color: rgb(var(--ink)); background: rgb(var(--sunken)); }
+  #stamp .pill i { width: 18px; height: 18px; }
+
+  /* ---- meet ---- */
+  .chips { display: flex; justify-content: center; gap: 22px; }
+  .chips .pill { font-size: 34px; padding: 12px 30px 12px 22px; color: rgb(var(--ink)); }
+  .chips .pill .ic { color: rgb(var(--pos)); stroke-width: 2.6; }
+
+  /* ---- sense ---- */
+  .tile { width: 250px; height: 96px; margin: -48px 0 0 -125px; padding: 16px 20px; box-sizing: border-box; border-radius: 18px;
+          background: rgb(var(--sunken)); border: 2px solid rgb(var(--line)); }
+  .tile b { display: block; font-size: 28px; font-weight: 600; }
+  .tile span { display: flex; align-items: center; gap: 9px; margin-top: 4px; font-size: 21px; color: rgb(var(--ink-muted)); white-space: nowrap; }
+  .tile span i { width: 11px; height: 11px; border-radius: 50%; }
+  #hub { left: 434px; top: 524px; width: 172px; height: 172px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+         background: rgb(var(--surface)); border: 2px solid rgb(var(--line-strong)); }
+  #hub .ic { width: 84px; height: 84px; stroke-width: 1.5; }
+  .app { width: 176px; height: 160px; border-radius: 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+         background: rgb(var(--surface)); border: 1.5px solid rgb(var(--line)); font-size: 21px; font-weight: 500; color: rgb(var(--ink-soft)); }
+  .app img { width: 64px; height: 64px; }
+  .formula { padding: 16px 30px; border-radius: 18px; background: rgb(var(--sunken)); border: 1.5px solid rgb(var(--line-strong));
+             font-size: 32px; font-weight: 600; white-space: nowrap; }
+  .formula em { font-style: normal; color: rgb(var(--violet)); }
+
+  /* ---- verdict ---- */
+  .bignum { font-size: 220px; font-weight: 700; letter-spacing: -0.05em; line-height: 0.9; }
+  .bignum small { font-size: 0.42em; font-weight: 600; letter-spacing: -0.01em; margin-left: 14px; color: rgb(var(--ink-soft)); }
+  .legend { display: flex; align-items: center; justify-content: space-between; gap: 30px; padding: 16px 0; border-bottom: 1.5px solid rgb(var(--line));
+            font-size: 30px; }
+  .legend span { display: flex; align-items: center; gap: 14px; color: rgb(var(--ink-soft)); }
+  .legend i { width: 16px; height: 16px; border-radius: 50%; }
+  .legend b { font-weight: 700; }
+  .meter-row .top { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+  .meter-row .lab { display: flex; align-items: center; gap: 16px; font-size: 34px; font-weight: 500; }
+  .meter-row .val { font-size: 62px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+  .track { height: 54px; border-radius: 14px; background: rgb(var(--sunken)); border: 1.5px solid rgb(var(--line)); overflow: hidden; }
+  .fill { height: 100%; border-radius: 12px; transform-origin: 0 50%; }
+
+  /* ---- fix ---- */
+  #directive { left: 260px; top: 280px; width: 1400px; height: 440px; padding: 40px 48px; }
+  .model { display: inline-flex; align-items: center; gap: 14px; padding: 16px 26px; border-radius: 18px; font-size: 36px; font-weight: 600;
+           background: rgb(var(--sunken)); border: 2px solid rgb(var(--line-strong)); white-space: nowrap; }
+  #switchbtn { right: 48px; top: 112px; width: 250px; height: 80px; border-radius: 18px; background: rgb(var(--accent)); color: rgb(var(--on-accent));
+               display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 700; }
+  #cursor { left: 0; top: 0; width: 54px; height: 54px; color: rgb(var(--ink)); opacity: 0; filter: drop-shadow(0 4px 8px rgb(0 0 0 / 0.6)); }
+  #cursor .ic { width: 100%; height: 100%; fill: rgb(var(--canvas)); stroke-width: 1.8; }
+
+  /* ---- more ---- */
+  .feat { width: 840px; height: 380px; padding: 34px 38px; overflow: hidden; }
+  .feat .t { margin-top: 18px; font-size: 40px; font-weight: 700; letter-spacing: -0.015em; line-height: 1.12; }
+  .feat .s { margin-top: 10px; font-size: 24px; color: rgb(var(--ink-muted)); }
+  .msg { position: absolute; max-width: 600px; padding: 14px 22px; border-radius: 20px; font-size: 27px; line-height: 1.3; }
+  .msg.me { right: 38px; background: rgb(var(--accent)); color: rgb(var(--on-accent)); font-weight: 600; border-bottom-right-radius: 6px; }
+  .msg.kilo { left: 38px; background: rgb(var(--sunken)); border: 1.5px solid rgb(var(--line-strong)); border-bottom-left-radius: 6px; }
+
+  /* ---- persistent ---- */
+  #bug { left: 72px; top: 44px; width: 210px; }
+  #flash { inset: 0; background: rgb(225 236 255); opacity: 0; pointer-events: none; }
+  #cap { left: 0; right: 0; bottom: 44px; display: flex; justify-content: center; opacity: 0; }
+  #cap span.box {
+    max-width: 1560px; padding: 12px 30px 14px; border-radius: 16px; text-align: center;
+    background: rgb(5 8 14 / 0.88); border: 1.5px solid rgb(var(--line));
+    font-size: 36px; font-weight: 500; line-height: 1.25; color: rgb(var(--ink));
+  }
+  #hint { position: fixed; left: 16px; bottom: 12px; font: 13px -apple-system, sans-serif; color: rgb(150 150 150); }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-laptop" viewBox="0 0 24 24"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 19V5"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></symbol>
+  <symbol id="i-pointer" viewBox="0 0 24 24"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></symbol>
+  <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.94 14.06 4 20M14.5 4l1 3 3 1-3 1-1 3-1-3-3-1 3-1z"/><path d="M19 13l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+</svg>
+
+<div id="stage">
+ <div id="grid"></div>
+ <div id="world">
+
+  <!-- ============ 1. Hook: the bill jumped, everyone blames AI ============ -->
+  <section class="scene" data-scene="hook"><div class="cam">
+    <div class="abs center h1" style="top:118px">
+      <span class="w" data-in="jumped-0.15" data-dur="0.45">Your</span>
+      <span class="w" data-in="jumped@0.14-0.15" data-dur="0.45">electric</span>
+      <span class="w" data-in="jumped@0.36-0.15" data-dur="0.45">bill</span>
+      <span class="w" data-in="jumped@0.5-0.15" data-dur="0.45">just</span>
+      <span class="w volt" data-in="jumped@0.66-0.15" data-dur="0.45" data-fx="pop">jumped.</span>
+    </div>
+
+    <svg class="abs" style="left:0; top:700px" width="1920" height="120" viewBox="0 0 1920 120">
+      <line x1="0" y1="60" x2="1920" y2="60" stroke="rgb(46 58 84)" stroke-width="3"/>
+      <line id="hookflow" x1="0" y1="60" x2="1920" y2="60" stroke="rgb(255 214 51)" stroke-width="5" stroke-linecap="round" stroke-dasharray="18 42"/>
+    </svg>
+
+    <div id="bill" class="abs card" data-in="jumped+0.05" data-fx="rise" data-dur="0.6" data-sfx="whoosh dur=0.5 gain=0.5">
+      <div class="eyebrow">Electric bill · this month</div>
+      <div id="billnum"><small>₱</small><span id="billval">1,500</span></div>
+      <div style="margin-top:26px" data-in="jumped.end+0.45" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=0.9">
+        <span class="pill" style="font-size:30px; color:rgb(var(--ink))"><svg class="ic" style="color:rgb(var(--warn))"><use href="#i-up"/></svg><span id="incr">+₱1,000</span> vs last month</span>
+      </div>
+      <div class="abs bars">
+        <div><b id="barlast" style="background:rgb(var(--line-strong))"></b>Last</div>
+        <div><b id="barnow" style="background:rgb(var(--volt))"></b>Now</div>
+      </div>
+    </div>
+
+    <div class="abs bubble l" style="left:120px; top:330px" data-in="blame-0.15" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=1">It's the AI.</div>
+    <div class="abs bubble r" style="left:1440px; top:250px" data-in="blame@0.3" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=1.15">Must be the AI.</div>
+    <div class="abs bubble r" style="left:1480px; top:520px" data-in="blame@0.62" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=1.3">AI did it.</div>
+    <div class="abs bubble l" style="left:170px; top:560px" data-in="blame.end-0.1" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=1.45">Blame the AI.</div>
+
+    <div class="abs dim" data-in="isit-0.3" data-fx="fade" data-dur="0.3" style="--to:0.88"></div>
+    <div class="abs center" style="top:330px; font-size:230px; font-weight:700; letter-spacing:-0.045em" data-in="isit-0.12" data-fx="zoomout" data-dur="0.55" data-sfx="drop at=isit-0.2">
+      Is it<span class="volt">?</span>
+    </div>
+  </div></section>
+
+  <!-- ============ 2. Most apps guess ============ -->
+  <section class="scene" data-scene="guess"><div class="cam">
+    <div class="abs center h1" style="top:140px">
+      <span class="w" data-in="guess-0.3" data-dur="0.45">Most</span>
+      <span class="w" data-in="guess@0.2-0.25" data-dur="0.45">apps</span>
+      <span class="w" data-in="guess@0.42-0.2" data-dur="0.45">just</span>
+      <span class="w" data-in="guess@0.6-0.2" data-dur="0.45">guess.</span>
+    </div>
+    <div id="calc" class="abs card" data-in="guess-0.1" data-fx="rise" data-sfx="glitch at=guess-0.1 dur=1.55 gain=0.9">
+      <div class="eyebrow">A typical AI energy calculator</div>
+      <div class="row">
+        <div style="font-size:46px; font-weight:500; color:rgb(var(--ink-soft))">tokens × an average =</div>
+        <div id="guessnum"><span id="guessval">347</span> W</div>
+      </div>
+    </div>
+    <div id="stamp" class="abs"><div data-in="guess.end+0.05" data-fx="stamp" data-dur="0.3" data-sfx="stamp"><span class="pill"><i class="warn"></i>A guess</span></div></div>
+    <div class="abs center soft" style="top:690px; font-size:44px; font-weight:500" data-in="guess.end+0.45" data-fx="fade">It never reads your hardware.</div>
+
+    <div class="abs dim" data-in="$guess.end-1.45" data-fx="fade" data-dur="1.1" style="--to:1"></div>
+    <div id="charge" class="abs" style="left:0; top:539px; width:1920px; height:3px; background:rgb(var(--volt)); transform:scaleX(0); opacity:0"
+         data-sfx="riser at=$guess.end-1.7 dur=1.68 gain=0.9"></div>
+  </div></section>
+
+  <!-- ============ 3. Meet Kilo What? ============ -->
+  <section class="scene" data-scene="meet"><div class="cam" id="meetcam">
+    <div id="logo1" class="logo" style="left:310px; top:236px; width:1300px; height:345.6px">
+      <img class="lk" src="assets/brand/wordmark.png" alt="">
+      <img class="lr" src="assets/brand/wordmark.png" alt="">
+      <img class="lb" src="assets/brand/wordmark.png" alt="">
+    </div>
+    <span data-sfx="hit at=$meet gain=1"></span>
+    <span data-sfx="whoosh at=$meet+0.18 dur=0.6 gain=0.7"></span>
+    <div class="abs center" style="top:640px; font-size:52px; font-weight:600; letter-spacing:-0.015em" data-out="$meet.end-0.95">
+      <span class="w volt" data-in="meet+0.35" data-dur="0.45">Measures it,</span>
+      <span class="w" data-in="local-0.05" data-dur="0.5">right on your own computer.</span>
+    </div>
+    <div class="abs center chips" style="top:760px" data-out="$meet.end-0.95">
+      <span class="pill" data-in="local#1-0.05" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=1.1"><svg class="ic"><use href="#i-check"/></svg>No cloud</span>
+      <span class="pill" data-in="local#1+0.68" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=1.25"><svg class="ic"><use href="#i-check"/></svg>No account</span>
+      <span class="pill" data-in="local#1+1.4" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=1.4"><svg class="ic"><use href="#i-check"/></svg>No extra hardware</span>
+    </div>
+    <span data-sfx="whoosh at=$meet.end-0.8 dur=0.6 gain=0.55 up=0"></span>
+  </div></section>
+
+  <!-- ============ 4. How: sensors, apps, the split ============ -->
+  <section class="scene" data-scene="sense"><div class="cam">
+    <div class="abs h2" style="left:96px; top:150px; font-size:58px" data-in="$sense+0.1" data-out="apps-0.25">Reads your machine's own <span class="blue">power sensors</span></div>
+    <div class="abs h2" style="left:96px; top:150px; font-size:58px" data-in="apps-0.1" data-out="split-0.25">Finds every <span class="blue">AI app</span> running</div>
+    <div class="abs h2" style="left:96px; top:150px; font-size:58px" data-in="split-0.1">Splits the watts <span class="blue">between them</span></div>
+
+    <div id="cluster" class="abs" style="inset:0">
+      <svg id="spokes" class="abs" style="left:0; top:0" width="1920" height="1080"></svg>
+      <svg id="rings" class="abs" style="left:0; top:0" width="1920" height="1080"></svg>
+      <div id="hub" class="abs" data-in="$sense+0.15" data-fx="pop" data-dur="0.5"><svg class="ic"><use href="#i-laptop"/></svg></div>
+      <div class="abs tile" data-sensor="0" data-in="$sense+0.3" data-fx="pop" data-dur="0.4"><b>Whole machine</b><span><i></i>measured · battery</span></div>
+      <div class="abs tile" data-sensor="1" data-in="$sense+0.38" data-fx="pop" data-dur="0.4"><b>GPU</b><span><i></i>measured · IOReport</span></div>
+      <div class="abs tile" data-sensor="2" data-in="$sense+0.46" data-fx="pop" data-dur="0.4"><b>CPU</b><span><i></i>estimated</span></div>
+      <div class="abs tile" data-sensor="3" data-in="$sense+0.54" data-fx="pop" data-dur="0.4"><b>Memory</b><span><i></i>estimated</span></div>
+      <div class="abs tile" data-sensor="4" data-in="$sense+0.62" data-fx="pop" data-dur="0.4"><b>Disk</b><span><i></i>estimated</span></div>
+    </div>
+    <svg id="streams" class="abs" style="left:0; top:0" width="1920" height="1080"></svg>
+    <div class="abs pill" style="left:96px; top:250px; color:rgb(var(--ink))" data-in="sensors-0.05" data-fx="right" data-dur="0.45" data-out="split-0.25">
+      <svg class="ic" style="color:rgb(var(--accent))"><use href="#i-clock"/></svg>Every 2 seconds
+    </div>
+
+    <div class="abs" style="left:1080px; top:330px" data-in="sensors#1+0.1" data-out="apps-0.3" data-dur="0.5">
+      <div class="eyebrow" style="font-size:30px">Whole machine, live</div>
+      <div class="bignum" style="margin-top:20px"><span id="livew">0.0</span><small>W</small></div>
+      <div style="margin-top:34px" data-in="sensors#1+0.9" data-fx="pop" data-dur="0.35" data-sfx="pop pitch=1.6 gain=0.6"><span class="pill" style="font-size:30px"><i class="pos"></i>measured, not guessed</span></div>
+    </div>
+
+    <div id="apps" class="abs" style="left:1036px; top:300px; display:grid; grid-template-columns:repeat(4, 176px); gap:20px" data-out="split-0.3"></div>
+
+    <div class="abs shot" id="appshot" style="left:1060px; top:262px; width:620px; height:540px" data-in="split-0.2" data-fx="tilt" data-dur="0.8"
+         data-sfx="whoosh dur=0.5 gain=0.55"><img src="assets/shots/apps.png" alt=""></div>
+    <div class="abs formula" style="left:96px; top:860px" data-in="split+0.55" data-fx="rise" data-dur="0.5">watts ≈ idle + <em>a</em> × CPU% + <em>b</em> × GPU%</div>
+  </div></section>
+
+  <!-- ============ 5. The verdict: cloud AI vs a local model ============ -->
+  <section class="scene" data-scene="verdict"><div class="cam">
+    <div data-out="gpu-0.35" class="abs" style="inset:0">
+      <div class="abs h2" style="left:96px; top:160px" data-in="cloud-0.15">Using cloud AI?</div>
+      <div class="abs" style="left:96px; top:290px" data-in="cloud#1-0.2" data-dur="0.5">
+        <div class="bignum"><span id="cloudw">0.0</span><small>W</small></div>
+        <div style="margin-top:30px; display:flex; align-items:center; gap:16px; font-size:32px; font-weight:500">
+          <img src="assets/brands/claudecode.svg" style="width:40px; height:40px" alt="">
+          <img class="mono" src="assets/brands/githubcopilot.svg" style="width:40px; height:40px" alt="">
+          AI apps on this laptop
+        </div>
+        <div class="muted" style="margin-top:10px; font-size:26px">Their calculated share of <span id="machinew"></span> W measured</div>
+      </div>
+
+      <div class="abs" style="left:1000px; top:160px; width:824px" data-in="share-0.3" data-dur="0.5">
+        <div class="h2" style="font-size:52px">Of the <span id="incr2"></span> increase</div>
+      </div>
+      <svg class="abs" style="left:1000px; top:270px" width="380" height="380" viewBox="0 0 380 380" data-in="share-0.25" data-fx="fade" data-dur="0.3">
+        <circle cx="190" cy="190" r="150" fill="none" stroke="rgb(46 58 84)" stroke-width="40" pathLength="1"
+                style="stroke-dasharray:1; stroke-dashoffset:1" transform="rotate(-90 190 190)" data-in="share-0.1" data-fx="draw" data-dur="0.9"/>
+        <circle id="aiarc" cx="190" cy="190" r="150" fill="none" stroke="rgb(255 214 51)" stroke-width="40" stroke-linecap="butt" pathLength="1"
+                style="stroke-dasharray:0 1" transform="rotate(-90 190 190)"/>
+        <text x="190" y="196" text-anchor="middle" fill="rgb(232 237 245)" font-size="78" font-weight="700" letter-spacing="-3" font-family="DM Sans" id="sharetxt">0.0%</text>
+        <text x="190" y="242" text-anchor="middle" fill="rgb(132 145 168)" font-size="26" font-family="DM Sans">is AI</text>
+      </svg>
+      <div class="abs" style="left:1420px; top:330px; width:404px">
+        <div class="legend" data-in="share#1" data-dur="0.45"><span><i style="background:rgb(var(--volt))"></i>AI</span><b id="aieffect"></b></div>
+        <div class="legend" data-in="share#1+0.25" data-dur="0.45"><span><i style="background:rgb(var(--line-strong))"></i>Everything else</span><b id="othereffect"></b></div>
+        <div class="muted" style="margin-top:16px; font-size:22px" data-in="share#1+0.5" data-fx="fade">From the app's bill split, this device</div>
+      </div>
+      <span data-sfx="tick at=share#1+1.0 gain=0.9"></span>
+    </div>
+
+    <div class="abs h2" style="left:96px; top:160px" data-in="gpu-0.15">Run a model on <span class="volt">your own GPU</span></div>
+    <div class="abs meter-row" style="left:96px; top:300px; width:1728px" data-in="gpu+0.05" data-dur="0.5">
+      <div class="top"><div class="lab">Cloud AI apps, this laptop <span class="pill" style="font-size:22px; padding:4px 16px"><i class="pos"></i>measured</span></div>
+        <div class="val"><span id="cloudw2"></span> W</div></div>
+      <div class="track"><div class="fill" style="width:8px; background:rgb(var(--accent))"></div></div>
+    </div>
+    <div class="abs meter-row" style="left:96px; top:470px; width:1728px" data-in="gpu+0.35" data-dur="0.5">
+      <div class="top"><div class="lab">Local model, desktop GPU <span class="pill" style="font-size:22px; padding:4px 16px"><i class="grey"></i>typical</span></div>
+        <div class="val volt" data-in="gpu+1.3" data-fx="fade" data-dur="0.4">200–600 W</div></div>
+      <div class="track"><div class="fill" style="width:100%; background:rgb(var(--volt))" data-in="gpu+0.45" data-fx="growx" data-dur="1.3"
+           data-sfx="surge dur=1.5 gain=0.9"></div></div>
+    </div>
+    <div class="abs card" style="left:96px; top:660px; width:1728px; height:200px; padding:34px 44px; display:flex; align-items:center; justify-content:space-between"
+         data-in="gpu#1-0.6" data-dur="0.5" data-sfx="whoosh dur=0.4 gain=0.4">
+      <div>
+        <div class="eyebrow">Example</div>
+        <div style="margin-top:10px; font-size:38px; font-weight:500">400 W × 4 h a day × 30 days = <b>48 kWh</b></div>
+        <div class="muted" style="margin-top:8px; font-size:24px">at <span id="rate"></span> per kWh, the rate set in the app</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:120px; font-weight:700; letter-spacing:-0.045em; line-height:1" class="volt">₱<span id="gpucost">0</span></div>
+        <div class="soft" style="font-size:28px; margin-top:6px">a month</div>
+      </div>
+    </div>
+    <span data-sfx="thunk at=gpu#1+0.35 gain=0.9"></span>
+  </div></section>
+
+  <!-- ============ 6. Forecast ============ -->
+  <section class="scene" data-scene="forecast"><div class="cam">
+    <div class="abs h2" style="left:96px; top:140px" data-in="$forecast+0.05">Forecasts your bill</div>
+    <div class="abs" style="left:96px; top:224px; display:flex; gap:16px" data-in="forecast+0.3" data-fx="right" data-dur="0.5">
+      <span class="pill"><i></i>ARIMA, fine-tuned on this device</span>
+      <span class="pill"><i class="pos"></i>scored on readings it never saw</span>
+    </div>
+    <div class="abs shot" style="left:210px; top:310px; width:1500px; height:626px" data-in="$forecast+0.1" data-fx="tilt" data-dur="0.8"
+         data-sfx="whoosh dur=0.5 gain=0.55">
+      <img src="assets/shots/forecast.png" alt="">
+      <div id="plotcover" class="abs" style="top:142px; height:236px; background:rgb(15 21 34)"></div>
+    </div>
+  </div></section>
+
+  <!-- ============ 7. The fix: one click ============ -->
+  <section class="scene" data-scene="fix"><div class="cam">
+    <div class="abs h2" style="left:96px; top:140px" data-in="$fix+0.05">Then <span class="volt">fixes it</span></div>
+    <div id="directive" class="abs card" data-in="$fix+0.15" data-dur="0.6">
+      <span class="pill"><i></i>Load directive: switch</span>
+      <div class="abs" style="left:48px; top:112px; display:flex; align-items:center; gap:18px">
+        <img class="mono" src="assets/brands/ollama.svg" style="width:60px; height:60px" alt="">
+        <span class="model" id="heavy">Heavy model</span>
+        <svg class="ic" style="width:44px; height:44px; color:rgb(var(--ink-muted))"><use href="#i-arrow"/></svg>
+        <span class="model" id="light">Lighter model</span>
+      </div>
+      <div id="switchbtn" class="abs">Switch now</div>
+      <div class="abs" style="left:48px; right:48px; top:250px">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; height:48px">
+          <span class="soft" style="font-size:30px">AI power draw</span>
+          <span class="pill" id="applied" style="opacity:0"><i class="pos"></i>Lower draw, lower bill</span>
+        </div>
+        <div class="track" style="height:48px"><div class="fill" id="drawbar" style="width:100%; background:rgb(var(--warn))"></div></div>
+      </div>
+    </div>
+    <svg class="abs" style="left:260px; top:760px" width="1400" height="40" viewBox="0 0 1400 40">
+      <line x1="0" y1="20" x2="1400" y2="20" stroke="rgb(46 58 84)" stroke-width="3"/>
+      <line id="fixflow" x1="0" y1="20" x2="1400" y2="20" stroke="rgb(255 214 51)" stroke-width="5" stroke-linecap="round" stroke-dasharray="18 42"/>
+    </svg>
+    <div id="cursor" class="abs"><svg class="ic"><use href="#i-pointer"/></svg></div>
+  </div></section>
+
+  <!-- ============ 8. And more ============ -->
+  <section class="scene" data-scene="more"><div class="cam">
+    <div class="abs card feat" style="left:96px; top:150px" data-in="more-0.15" data-fx="pop" data-dur="0.5" data-sfx="pop pitch=1">
+      <span class="pill"><i class="pos"></i>Carbon ledger</span>
+      <div class="t">CO₂ from your AI, on this device and in data centers</div>
+      <div class="shot" style="left:38px; right:38px; bottom:34px; height:150px; border-radius:14px"><img src="assets/shots/carbon.png" style="width:200%" alt=""></div>
+    </div>
+    <div class="abs card feat" style="left:984px; top:150px" data-in="more#1-0.1" data-fx="pop" data-dur="0.5" data-sfx="pop pitch=1.15">
+      <span class="pill"><i class="pos"></i>Cleanest hours</span>
+      <div class="t">When the grid is cleanest, so heavy jobs run then</div>
+      <svg id="hours" class="abs" style="left:38px; bottom:58px" width="764" height="130" viewBox="0 0 764 130"></svg>
+      <div class="abs muted" style="left:38px; bottom:22px; font-size:20px">Hourly grid CO₂ from Electricity Maps · illustration</div>
+    </div>
+    <div class="abs card feat" style="left:96px; top:560px" data-in="more#1+1.55" data-fx="pop" data-dur="0.5" data-sfx="pop pitch=1.3">
+      <span class="pill"><svg class="ic" style="color:rgb(var(--accent)); width:24px; height:24px"><use href="#i-sparkles"/></svg>Kilo, on your computer</span>
+      <div class="msg me" style="top:110px" data-in="more#1+1.9" data-fx="left" data-dur="0.35" data-sfx="pop pitch=1.7 gain=0.5">Is AI why my bill went up?</div>
+      <div class="msg kilo" style="top:196px" data-in="more#1+2.35" data-fx="right" data-dur="0.35"><span id="kilotext"></span></div>
+    </div>
+    <div class="abs card feat" style="left:984px; top:560px" data-in="more#1+2.25" data-fx="pop" data-dur="0.5" data-sfx="pop pitch=1.45">
+      <span class="pill"><svg class="ic" style="color:rgb(var(--pos)); width:24px; height:24px"><use href="#i-plug"/></svg>Wall-meter check</span>
+      <div class="t">Every reading can be checked against a plug-in meter</div>
+      <div class="s">Spot checks and hour-long energy checks, built in.</div>
+    </div>
+  </div></section>
+
+  <!-- ============ 9. Close ============ -->
+  <section class="scene" data-scene="close"><div class="cam">
+    <div id="logo2" class="logo" style="left:285px; top:200px; width:1350px; height:358.9px">
+      <img class="lk" src="assets/brand/wordmark.png" alt="">
+      <img class="lr" src="assets/brand/wordmark.png" alt="">
+      <img class="lb" src="assets/brand/wordmark.png" alt="">
+    </div>
+    <span data-sfx="hit at=$close gain=1"></span>
+    <span data-sfx="whoosh at=$close+0.18 dur=0.6 gain=0.6"></span>
+    <div class="abs center" style="top:650px; font-size:84px; font-weight:700; letter-spacing:-0.03em">
+      <span class="w volt" data-in="close#1-0.1" data-dur="0.5">Measured,</span>
+      <span class="w" data-in="close#1+0.35" data-dur="0.5">not guessed.</span>
+    </div>
+    <div class="abs center soft" style="top:790px; font-size:36px; font-weight:500" data-in="close.end+0.15" data-fx="fade" data-dur="0.7">
+      The power, bill and carbon of your AI, measured on your own computer.
+    </div>
+    <svg class="abs" style="left:0; top:900px" width="1920" height="60" viewBox="0 0 1920 60">
+      <path d="M0 30 H1920" stroke="rgb(46 58 84)" stroke-width="3" pathLength="1" style="stroke-dasharray:1; stroke-dashoffset:1"
+            data-in="close+0.2" data-fx="draw" data-dur="1.6"/>
+      <line id="closeflow" x1="0" y1="30" x2="1920" y2="30" stroke="rgb(255 214 51)" stroke-width="5" stroke-linecap="round" stroke-dasharray="18 42" opacity="0"/>
+    </svg>
+  </div></section>
+
+ </div>
+
+  <!-- From the product reveal until the end card: the wordmark in the corner -->
+  <img id="bug" class="abs" src="assets/brand/wordmark.png" alt="" data-in="$meet.end-0.12" data-out="$close-0.25" data-fx="fade" data-dur="0.02">
+  <div id="flash" class="abs"></div>
+  <div id="cap" class="abs"><span class="box"></span></div>
+</div>
+<div id="hint"></div>
+
+<script>
+(function () {
+  const T = window.TIMELINE, F = window.FACTS, SHOTS = window.SHOTS;
+  const cues = Object.fromEntries(T.cues.map((c) => [c.id, c]));
+  const scenes = Object.fromEntries(T.scenes.map((s) => [s.id, s]));
+  const $ = (id) => document.getElementById(id);
+
+  const clamp = (x) => Math.min(Math.max(x, 0), 1);
+  const lerp = (a, b, p) => a + (b - a) * p;
+  const outCubic = (p) => 1 - Math.pow(1 - p, 3);
+  const outQuint = (p) => 1 - Math.pow(1 - p, 5);
+  const inOut = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+  const inQuad = (p) => p * p;
+  const outBack = (p) => 1 + 2.4 * Math.pow(p - 1, 3) + 1.4 * Math.pow(p - 1, 2);
+  const ramp = (t, from, dur) => clamp((t - from) / dur);
+  const peso = (x, d = 0) => "₱" + x.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const num = (x, d = 0) => x.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+  // "sensors#1+0.3" and the other forms described at the top of this file → seconds.
+  function at(spec) {
+    spec = String(spec).trim();
+    if (/^-?[\d.]+$/.test(spec)) return parseFloat(spec);
+    let m = spec.match(/^\$(\w+?)(\.end)?([+-][\d.]+)?$/);
+    if (m) {
+      if (!scenes[m[1]]) throw new Error("No scene " + m[1]);
+      return (m[2] ? scenes[m[1]].end : scenes[m[1]].start) + parseFloat(m[3] || 0);
+    }
+    m = spec.match(/^(\w+?)(?:#(\d+)|@([\d.]+)|(\.end))?([+-][\d.]+)?$/);
+    const cue = m && cues[m[1]];
+    if (!cue) throw new Error("No narration line for " + spec);
+    let t = cue.start;
+    if (m[2] != null) {
+      const seg = cue.segments[+m[2]];
+      t = seg ? seg[0] : lerp(cue.start, cue.end, +m[2] / (cue.segments.length + 1));
+    } else if (m[3] != null) t = lerp(cue.start, cue.end, parseFloat(m[3]));
+    else if (m[4]) t = cue.end;
+    return t + parseFloat(m[5] || 0);
+  }
+
+  // ---------- figures from the app (shots.py) ----------
+  const COST = 0.4 * 4 * 30 * F.rate;   // the 400 W example, at the app's rate
+  $("machinew").textContent = num(F.machine_watts, 1);
+  $("cloudw2").textContent = num(F.ai_watts, 1);
+  $("incr").textContent = "+" + peso(F.increase);
+  $("incr2").textContent = peso(F.increase);
+  $("aieffect").textContent = peso(F.ai_effect, 2);
+  $("othereffect").textContent = peso(F.increase - F.ai_effect, 2);
+  $("rate").textContent = peso(F.rate, 2);
+  const barMax = 230;
+  $("barlast").style.height = (barMax * F.baseline_bill / F.current_bill) + "px";
+
+  const APPS = [["Claude Code", "claudecode", 0], ["GitHub Copilot", "githubcopilot", 1], ["Codex", "codex", 0], ["Cursor", "cursor", 1],
+                ["Ollama", "ollama", 1], ["LM Studio", "lmstudio", 1], ["Gemini CLI", "geminicli", 0], ["Windsurf", "windsurf", 1]];
+  APPS.forEach(([name, file, mono], i) => {
+    const el = document.createElement("div");
+    el.className = "app";
+    const off = i * 0.13 - 0.1;
+    el.dataset.in = `apps${off < 0 ? "-" : "+"}${Math.abs(off).toFixed(2)}`;
+    el.dataset.fx = "pop"; el.dataset.dur = "0.4";
+    el.dataset.sfx = `pop pitch=${(1 + i * 0.09).toFixed(2)} gain=0.55`;
+    el.innerHTML = `<img ${mono ? 'class="mono" ' : ""}src="assets/brands/${file}.svg" alt="">` + name;
+    $("apps").appendChild(el);
+  });
+
+  // Sensors around the laptop: a pentagon, measured ones get a green dot.
+  const HUB = [520, 610], R = 300;
+  const tiles = [...document.querySelectorAll("[data-sensor]")];
+  const tilePos = tiles.map((el, i) => {
+    const a = (-90 + i * 72) * Math.PI / 180;
+    const x = HUB[0] + R * Math.cos(a), y = HUB[1] + R * Math.sin(a);
+    el.style.left = x + "px"; el.style.top = y + "px";
+    const measured = el.textContent.includes("measured");
+    el.querySelector("i").style.background = measured ? "rgb(var(--pos))" : "rgb(var(--ink-muted))";
+    return [x, y, measured];
+  });
+  const svgNS = "http://www.w3.org/2000/svg";
+  const spokes = tilePos.map(([x, y]) => {
+    const g = document.createElementNS(svgNS, "g");
+    g.innerHTML = `<line x1="${x}" y1="${y}" x2="${HUB[0]}" y2="${HUB[1]}" stroke="rgb(46 58 84)" stroke-width="3"/>` +
+                  `<line class="flow" x1="${x}" y1="${y}" x2="${HUB[0]}" y2="${HUB[1]}" stroke="rgb(56 182 255)" stroke-width="4" stroke-linecap="round" stroke-dasharray="10 26"/>`;
+    $("spokes").appendChild(g);
+    return g;
+  });
+  // Power streams from the laptop to the app panel, drawn when the split is explained.
+  const streams = [380, 520, 660].map((y, i) => {
+    const p = document.createElementNS(svgNS, "path");
+    // from between the GPU and CPU tiles once the cluster has stepped back, to the panel's edge
+    p.setAttribute("d", `M 770 ${HUB[1]} C 900 ${HUB[1]}, 900 ${y}, 1058 ${y}`);
+    p.setAttribute("fill", "none"); p.setAttribute("stroke", "rgb(255 214 51)"); p.setAttribute("stroke-width", 4 - i * 0.6);
+    p.setAttribute("stroke-linecap", "round");
+    $("streams").appendChild(p);
+    return p;
+  });
+  const rings = [0, 1, 2, 3].map(() => {
+    const c = document.createElementNS(svgNS, "circle");
+    c.setAttribute("cx", HUB[0]); c.setAttribute("cy", HUB[1]); c.setAttribute("fill", "none");
+    c.setAttribute("stroke", "rgb(56 182 255)"); c.setAttribute("stroke-width", 3);
+    $("rings").appendChild(c);
+    return c;
+  });
+
+  // Cleanest-hours bars: an illustration of the card's shape, the clean window marked.
+  const HOURS = Array.from({ length: 24 }, (_, h) => 0.55 + 0.32 * Math.cos((h - 19) / 24 * 2 * Math.PI) + 0.08 * Math.cos(h * 1.7));
+  const lowest = HOURS.map((v, h) => [v, h]).sort((a, b) => a[0] - b[0]).slice(0, 4).map(([, h]) => h);
+  const win = [Math.min(...lowest), Math.max(...lowest)];
+  $("hours").innerHTML = `<rect x="${win[0] * 31.8 - 4}" y="0" width="${(win[1] - win[0] + 1) * 31.8 + 2}" height="130" rx="10" fill="rgb(52 211 153)" fill-opacity="0.14" stroke="rgb(52 211 153)" stroke-opacity="0.6" stroke-width="2"/>` +
+    HOURS.map((v, h) => `<rect class="hb" x="${h * 31.8 + 3}" y="${130 - v * 118}" width="22" height="${v * 118}" rx="4" fill="${h >= win[0] && h <= win[1] ? "rgb(52 211 153)" : "rgb(46 58 84)"}" style="transform-origin:${h * 31.8 + 14}px 130px"/>`).join("");
+  const hourBars = [...document.querySelectorAll("#hours .hb")];
+
+  const KILO = `Not this month. AI is ${num(F.ai_share_pct, 1)}% of the increase, ${peso(F.ai_effect, 2)}.`;
+
+  // ---------- entrances ----------
+  const animated = [...document.querySelectorAll("[data-in], [data-out]")].map((el) => ({
+    el,
+    tin: el.dataset.in != null ? at(el.dataset.in) : -1,
+    tout: el.dataset.out != null ? at(el.dataset.out) : null,
+    dur: parseFloat(el.dataset.dur || 0.6),
+    fx: el.dataset.fx || "rise",
+    to: parseFloat(el.style.getPropertyValue("--to") || 1),
+  }));
+  const sceneEls = [...document.querySelectorAll(".scene")].map((el) => ({ el, cam: el.querySelector(".cam"), ...scenes[el.dataset.scene] }));
+  const FADE = 0.3;
+
+  function enter(o, t) {
+    const p = o.tin < 0 ? 1 : clamp((t - o.tin) / o.dur);
+    const e = outCubic(p);
+    let opacity = e, transform = "";
+    if (o.fx === "rise") transform = `translateY(${(1 - e) * 36}px)`;
+    else if (o.fx === "left") transform = `translateX(${(1 - e) * 48}px)`;
+    else if (o.fx === "right") transform = `translateX(${-(1 - e) * 48}px)`;
+    else if (o.fx === "drop") transform = `translateY(${-(1 - e) * 40}px)`;
+    else if (o.fx === "pop") { transform = `scale(${0.7 + 0.3 * outBack(p)})`; opacity = clamp(p * 3); }
+    else if (o.fx === "zoomout") { transform = `scale(${lerp(1.35, 1, outQuint(p))})`; opacity = clamp(p * 2.5); }
+    else if (o.fx === "stamp") { transform = `scale(${lerp(1.8, 1, inQuad(p))})`; opacity = clamp(p * 4); }
+    else if (o.fx === "tilt") { transform = `perspective(1600px) rotateX(${(1 - e) * 16}deg) translateY(${(1 - e) * 70}px)`; }
+    else if (o.fx === "growx") { transform = `scaleX(${outCubic(p)})`; opacity = p > 0 ? 1 : 0; }
+    else if (o.fx === "growy") { transform = `scaleY(${outCubic(p)})`; opacity = p > 0 ? 1 : 0; }
+    else if (o.fx === "draw") { o.el.style.strokeDashoffset = 1 - inOut(p); opacity = p > 0 ? 1 : 0; }
+    else if (o.fx === "fade") opacity = e;
+    opacity *= o.to;
+    if (o.tout != null) opacity *= 1 - ramp(t, o.tout, FADE);
+    o.el.style.opacity = opacity.toFixed(3);
+    if (o.fx !== "draw") o.el.style.transform = transform;
+  }
+
+  // ---------- the logo: the bolt strikes, then the letters are painted in around it ----------
+  // In the wordmark (2400 x 638 px) the bolt sits between x = 372 and 598.
+  const BOLT = [372 / 2400, 598 / 2400];
+  function mask(img, from, to, soft) {   // show the part of the image between fractions from..to
+    const a = (from * 100).toFixed(3), b = (to * 100).toFixed(3), s = (soft * 100).toFixed(3);
+    const m = to <= from ? "linear-gradient(90deg, transparent, transparent)"
+      : `linear-gradient(90deg, transparent ${a}%, #000 ${a}%, #000 ${b}%, transparent ${Math.min(+b + +s, 100)}%)`;
+    img.style.maskImage = m; img.style.webkitMaskImage = m;
+  }
+  function strike(logo, t, t0) {
+    const [k, r, b] = logo.querySelectorAll("img");
+    const fall = clamp((t - t0 + 0.13) / 0.13);          // the bolt lands exactly at t0
+    const settle = ramp(t, t0, 0.25);
+    b.style.opacity = t < t0 - 0.13 ? 0 : 1;
+    b.style.transform = `translateY(${(1 - inQuad(fall)) * -760 + Math.sin(settle * Math.PI) * 10 * (1 - settle)}px)`;
+    mask(b, BOLT[0] - 0.012, BOLT[1] + 0.012, 0);
+    const pk = outCubic(ramp(t, t0 + 0.06, 0.32)), pr = outCubic(ramp(t, t0 + 0.2, 0.7));
+    mask(k, 0, lerp(0, BOLT[0] - 0.012, pk), 0.04);
+    mask(r, BOLT[1] + 0.012, lerp(BOLT[1] + 0.012, 1, pr), 0.05);
+  }
+
+  // ---------- sound effects: from data-sfx, plus the ones placed below ----------
+  const SFX = [];
+  function sfx(t, kind, opts = {}) { SFX.push({ t: +t.toFixed(3), kind, ...opts }); }
+  function panOf(el) {
+    const r = el.getBoundingClientRect(), s = $("stage").getBoundingClientRect();
+    if (!r.width) return 0;
+    return +(((r.left + r.width / 2 - s.left) / s.width - 0.5) * 1.1).toFixed(2);
+  }
+
+  const t = {
+    jumped: at("jumped+0.25"), jumpedEnd: at("jumped.end+0.4"), isit: at("isit-0.15"),
+    guess: at("guess-0.1"), stamp: at("guess.end+0.05"), chargeA: at("$guess.end-1.7"), meet: at("$meet"),
+    fly: at("$meet.end-0.75"), flyEnd: at("$meet.end-0.12"),
+    sense: at("$sense"), sensors1: at("sensors#1"), apps: at("apps"), split: at("split"), senseEnd: at("$sense.end"),
+    cloud1: at("cloud#1-0.2"), share: at("share#1"), gpu1: at("gpu#1-0.45"),
+    plot: at("$forecast+0.6"), fix: at("$fix"), cursor: at("fix#1-0.75"), click: at("fix#1"),
+    more1: at("more#1"), kilo: at("more#1+2.55"), close: at("$close"),
+  };
+  const PULSES = [0, 1, 2, 3].map((i) => t.sensors1 + i * 2);   // a reading every 2 s
+  const KILO_DONE = t.kilo + KILO.length * 0.028;
+
+  sfx(0.25, "hum", { dur: +(t.isit - 0.25).toFixed(2), gain: 0.55 });
+  sfx(t.jumped, "ticker", { dur: +(t.jumpedEnd - t.jumped).toFixed(2), gain: 0.8 });
+  PULSES.forEach((p, i) => { if (p < t.senseEnd - 0.4) sfx(p, "ping", { gain: i ? 0.45 : 0.85, pan: -0.25 }); });
+  sfx(t.sensors1 + 0.1, "ticker", { dur: 0.8, gain: 0.5, pan: 0.3 });
+  sfx(t.cloud1, "ticker", { dur: 0.7, gain: 0.55, pan: -0.4 });
+  sfx(t.share - 0.2, "ticker", { dur: 0.9, gain: 0.45, pan: -0.1 });
+  sfx(t.gpu1, "ticker", { dur: 0.75, gain: 0.7, pan: 0.5 });
+  sfx(t.cursor, "whoosh", { dur: 0.35, gain: 0.25, pan: 0.5 });
+  sfx(t.click, "relay", { gain: 1, pan: 0.4 });
+  sfx(t.click + 0.08, "powerdown", { dur: 1.1, gain: 0.9 });
+  sfx(t.click + 0.85, "chime", { gain: 0.7, pan: 0.2 });
+  sfx(t.kilo, "type", { dur: +(KILO_DONE - t.kilo).toFixed(2), gain: 0.6, pan: -0.4 });
+
+  // ---------- things that move on their own ----------
+  const GUESSES = [347, 85, 512, 129, 268, 44, 731, 196, 403, 58, 612, 23];
+
+  function extras(now) {
+    // Hook: the bill climbs, the "now" bar with it, and the current along the line speeds up.
+    const climb = inOut(ramp(now, t.jumped, t.jumpedEnd - t.jumped));
+    const bill = lerp(F.baseline_bill, F.current_bill, climb);
+    $("billval").textContent = num(Math.round(bill / 10) * 10);
+    $("barnow").style.height = (barMax * bill / F.current_bill) + "px";
+    $("barlast").style.transform = `scaleY(${outCubic(ramp(now, t.jumped - 0.2, 0.5))})`;
+    $("barnow").style.transform = `scaleY(${outCubic(ramp(now, t.jumped - 0.2, 0.5))})`;
+    // distance = integral of speed; speed rises with the bill, so integrate piecewise
+    const v0 = 40, v1 = 260;
+    const tA = t.jumped, tB = t.jumpedEnd;
+    const d = now < tA ? v0 * now : now < tB ? v0 * tA + (v0 * (now - tA) + (v1 - v0) * (now - tA) ** 2 / (2 * (tB - tA)))
+      : v0 * tA + (v0 + v1) / 2 * (tB - tA) + v1 * (now - tB);
+    $("hookflow").style.strokeDashoffset = (-d).toFixed(1);
+
+    // Guess: the calculator can't settle on a number.
+    $("guessval").textContent = now >= t.stamp ? "???" : GUESSES[Math.max(Math.floor((now - t.guess) * 9), 0) % GUESSES.length];
+    // The charge builds across the screen before the bolt.
+    const ch = ramp(now, t.chargeA + 0.3, t.meet - t.chargeA - 0.35);
+    $("charge").style.transform = `scaleX(${inQuad(ch)})`;
+    $("charge").style.opacity = (ch > 0 && now < t.meet ? 1 : 0);
+
+    // Meet and close: the strike, the flash, the shake.
+    strike($("logo1"), now, t.meet);
+    strike($("logo2"), now, t.close);
+    let flash = 0, shake = 0;
+    for (const t0 of [t.meet, t.close]) {
+      if (now >= t0) {
+        flash = Math.max(flash, 0.42 * Math.exp(-(now - t0) / 0.07));
+        shake = Math.max(shake, 14 * Math.exp(-(now - t0) / 0.09));
+      }
+    }
+    $("flash").style.opacity = flash.toFixed(3);
+    $("world").style.transform = shake > 0.3 ? `translate(${(Math.sin(now * 91) * shake).toFixed(1)}px, ${(Math.cos(now * 73) * shake).toFixed(1)}px)` : "";
+    // ...then the logo flies into the corner, where #bug takes over.
+    const fly = inOut(ramp(now, t.fly, t.flyEnd - t.fly));
+    const k = lerp(1, 210 / 1300, fly);
+    $("logo1").style.transformOrigin = "0 0";
+    $("logo1").style.transform = `translate(${lerp(0, 72 - 310, fly)}px, ${lerp(0, 44 - 236, fly)}px) scale(${k})`;
+    $("logo1").style.opacity = now >= t.flyEnd ? 0 : 1;
+
+    // Sense: rings every 2 s; each sensor lights when the first ring reaches it.
+    rings.forEach((c, i) => {
+      const p = (now - PULSES[i]) / 1.3;
+      const on = p >= 0 && p <= 1;
+      c.setAttribute("r", (86 + 380 * outCubic(clamp(p))).toFixed(1));
+      c.setAttribute("stroke-opacity", on ? (0.7 * (1 - p)).toFixed(3) : 0);
+    });
+    const lit = ramp(now, t.sensors1 + 0.35, 0.3);
+    tiles.forEach((el, i) => {
+      const li = ramp(now, t.sensors1 + 0.3 + i * 0.07, 0.3);
+      el.style.borderColor = li > 0.5 ? (tilePos[i][2] ? "rgb(var(--pos) / 0.75)" : "rgb(var(--line-strong))") : "";
+      el.style.background = li > 0.5 ? "rgb(var(--surface))" : "";
+      spokes[i].style.opacity = (li * 1).toFixed(3);
+      spokes[i].querySelector(".flow").style.strokeDashoffset = (now * 60).toFixed(1);
+    });
+    $("hub").style.borderColor = lit > 0.5 ? "rgb(var(--accent))" : "";
+    // The live reading counts up, and flashes on each new reading.
+    const w = F.machine_watts * outCubic(ramp(now, t.sensors1 + 0.1, 0.8));
+    $("livew").textContent = num(w, 1);
+    const since = Math.min(...PULSES.map((p) => (now >= p ? now - p : 99)));
+    $("livew").style.color = since < 0.45 && now > PULSES[1] - 0.01 ? "rgb(var(--volt))" : "";
+    // The split: the cluster steps back and the power streams run to the app panel.
+    const back = inOut(ramp(now, t.split - 0.3, 0.7));
+    $("cluster").style.transformOrigin = `${HUB[0]}px ${HUB[1]}px`;
+    $("cluster").style.transform = `translateX(${-90 * back}px) scale(${lerp(1, 0.78, back)})`;
+    streams.forEach((p, i) => {
+      const len = 420, s = ramp(now, t.split + 0.05 + i * 0.12, 0.6);
+      p.style.strokeDasharray = s < 1 ? `${len * outCubic(s)} ${len}` : "16 30";
+      p.style.strokeDashoffset = s < 1 ? 0 : (-(now - t.split) * 120).toFixed(1);
+      p.style.opacity = s > 0 ? 1 : 0;
+    });
+
+    // Verdict: cloud AI's watts, the AI share of the increase, the cost of a local model.
+    $("cloudw").textContent = num(F.ai_watts * outCubic(ramp(now, t.cloud1, 0.7)), 1);
+    const sp = outCubic(ramp(now, t.share - 0.2, 0.9));
+    $("sharetxt").textContent = num(F.ai_share_pct * sp, 1) + "%";
+    $("aiarc").style.strokeDasharray = `${Math.max(F.ai_share_pct / 100, 0.004) * sp} 1`;
+    $("gpucost").textContent = num(Math.round(COST * outCubic(ramp(now, t.gpu1, 0.75))));
+
+    // Forecast: the projection is drawn left to right.
+    const pc = inOut(ramp(now, t.plot, 1.6));
+    const x0 = 62, x1 = 1484;
+    $("plotcover").style.left = lerp(x0, x1, pc) + "px";
+    $("plotcover").style.width = (x1 - lerp(x0, x1, pc)) + "px";
+
+    // Fix: the cursor clicks "Switch now", the lighter model takes over and the draw drops.
+    const move = inOut(ramp(now, t.cursor, t.click - t.cursor - 0.08));
+    $("cursor").style.opacity = (ramp(now, t.cursor - 0.15, 0.2) * (1 - ramp(now, t.click + 1.0, 0.3))).toFixed(3);
+    $("cursor").style.transform = `translate(${lerp(1640, 1528, move)}px, ${lerp(940, 432, move)}px)`;
+    const press = ramp(now, t.click - 0.05, 0.07) * (1 - ramp(now, t.click + 0.05, 0.15));
+    $("switchbtn").style.transform = `scale(${1 - 0.08 * press})`;
+    const done = inOut(ramp(now, t.click + 0.1, 0.9));
+    $("drawbar").style.width = lerp(100, 32, done) + "%";
+    $("drawbar").style.background = done > 0.5 ? "rgb(var(--pos))" : "rgb(var(--warn))";
+    $("heavy").style.opacity = lerp(1, 0.38, done).toFixed(3);
+    $("light").style.borderColor = done > 0.5 ? "rgb(var(--pos))" : "";
+    $("applied").style.opacity = ramp(now, t.click + 0.75, 0.3).toFixed(3);
+    // current along the line: fast before the switch, slow after (distance = integral of speed)
+    const fs0 = 240, fs1 = 70, tc = t.click + 0.1;
+    const fd = now < tc ? fs0 * now : fs0 * tc + fs0 * (now - tc) - (fs0 - fs1) * Math.min(now - tc, 0.9) ** 2 / 1.8 - (fs0 - fs1) * Math.max(now - tc - 0.9, 0);
+    $("fixflow").style.strokeDashoffset = (-fd).toFixed(1);
+
+    // More: the hours chart grows in; Kilo types its answer.
+    hourBars.forEach((b, i) => b.style.transform = `scaleY(${outCubic(ramp(now, t.more1 + 0.1 + i * 0.025, 0.4))})`);
+    const typed = Math.floor(clamp((now - t.kilo) / (KILO_DONE - t.kilo)) * KILO.length);
+    $("kilotext").textContent = now < t.kilo ? "…" : KILO.slice(0, typed);
+
+    // Close: current flows along the line under the tagline.
+    const cf = ramp(now, t.close + 1.6, 0.3);
+    $("closeflow").setAttribute("opacity", cf.toFixed(3));
+    $("closeflow").style.strokeDashoffset = (-(now - t.close) * 90).toFixed(1);
+  }
+
+  // ---------- captions ----------
+  const cap = $("cap"), capBox = cap.querySelector(".box");
+  const captions = T.cues.flatMap((c) => c.captions.map((k) => ({ ...k, scene: c.scene })));
+  let shown = null;
+  function caption(now) {
+    let cur = null;
+    captions.forEach((k, i) => {
+      const next = captions[i + 1];
+      const until = next && next.start - k.end < 0.7 ? next.start : k.end + 0.35;   // hold through short pauses
+      if (now >= k.start - 0.08 && now < until) cur = { k, until };
+    });
+    if (!cur || cur.k.scene === "close") { cap.style.opacity = 0; return; }   // the end card is its own caption
+    if (shown !== cur.k) { capBox.textContent = cur.k.text; shown = cur.k; }
+    cap.style.opacity = Math.min(ramp(now, cur.k.start - 0.08, 0.12), 1 - ramp(now, cur.until - 0.15, 0.15)).toFixed(3);
+  }
+
+  window.seek = function (now) {
+    for (const s of sceneEls) {
+      const first = s.start === 0, last = s.end >= T.duration;
+      // Hard cuts on the bolts; a short cross-fade everywhere else.
+      const cutIn = s.el.dataset.scene === "meet" || s.el.dataset.scene === "close";
+      const inOp = first ? ramp(now, 0, 0.35) : cutIn ? (now >= s.start ? 1 : 0) : ramp(now, s.start, FADE);
+      const nextCut = T.scenes.find((x) => x.start === s.end);
+      const hardOut = nextCut && (nextCut.id === "meet" || nextCut.id === "close");
+      const outOp = last ? 1 : hardOut ? (now < s.end ? 1 : 0) : clamp((s.end - now) / FADE);
+      const op = Math.min(inOp, outOp);
+      s.el.style.opacity = op.toFixed(3);
+      s.el.style.visibility = op > 0 ? "visible" : "hidden";
+      // A slow push-in over each scene keeps the frame alive.
+      const p = clamp((now - s.start) / (s.end - s.start));
+      s.cam.style.transform = `scale(${lerp(1, 1.035, p)})`;
+    }
+    for (const o of animated) enter(o, now);
+    extras(now);
+    caption(now);
+  };
+
+  // ---------- ready, and the in-browser preview ----------
+  const rendering = new URLSearchParams(location.search).has("render");
+  const images = [...document.images].map((img) => img.decode().catch(() => {}));
+  const fonts = [400, 500, 600, 700].map((w) => document.fonts.load(`${w} 40px "DM Sans"`, "A₱"));
+  Promise.all([...images, ...fonts, document.fonts.ready]).then(() => {
+    window.seek(0);
+    // Sound effects named on elements play when the element enters, panned to where it is on screen.
+    window.seek(T.duration);
+    for (const el of document.querySelectorAll("[data-sfx]")) {
+      const [kind, ...rest] = el.dataset.sfx.split(/\s+/);
+      const opts = {};
+      let when = el.dataset.in != null ? at(el.dataset.in) : null;
+      for (const kv of rest) {
+        const [k, v] = kv.split("=");
+        if (k === "at") when = at(v);
+        else opts[k] = parseFloat(v);
+      }
+      if (when == null) throw new Error("No time for the sound on " + el.outerHTML.slice(0, 80));
+      if (opts.pan == null) opts.pan = panOf(el);
+      sfx(when, kind, opts);
+    }
+    SFX.sort((a, b) => a.t - b.t);
+    window.SFX = SFX;
+    window.seek(0);
+    window.READY = true;
+    if (rendering) return;
+
+    const stage = $("stage"), hint = $("hint");
+    const fit = () => {
+      const k = Math.min(innerWidth / 1920, innerHeight / 1080);
+      stage.style.transform = `scale(${k})`;
+      stage.style.left = (innerWidth - 1920 * k) / 2 + "px";
+      stage.style.top = (innerHeight - 1080 * k) / 2 + "px";
+    };
+    addEventListener("resize", fit);
+    fit();
+    const audio = new Audio("out/audio.m4a");
+    const toggle = () => (audio.paused ? audio.play() : audio.pause());
+    stage.addEventListener("click", toggle);
+    addEventListener("keydown", (e) => {
+      if (e.code === "Space") { e.preventDefault(); toggle(); }
+      if (e.code === "ArrowRight") audio.currentTime = Math.min(audio.currentTime + (e.shiftKey ? 5 : 1 / T.fps), T.duration);
+      if (e.code === "ArrowLeft") audio.currentTime = Math.max(audio.currentTime - (e.shiftKey ? 5 : 1 / T.fps), 0);
+    });
+    (function frame() {
+      window.seek(audio.currentTime);
+      hint.textContent = `${audio.currentTime.toFixed(2)} s · click or Space to play · arrows step a frame (Shift: 5 s)`;
+      requestAnimationFrame(frame);
+    })();
+  });
+})();
+</script>
+</body>
+</html>

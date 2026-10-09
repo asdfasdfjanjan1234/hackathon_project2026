@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Kilo What?">
+  <rect width="64" height="64" rx="15" fill="#FFE149"/>
+  <g fill="none" stroke="#1D1C1A" stroke-width="5.6" stroke-linecap="round">
+    <path d="M17.86 49.14A20 20 0 1 1 46.86 21.62"/>
+    <path d="M51.56 30.84A20 20 0 0 1 46.14 49.14" stroke-opacity="0.22"/>
+  </g>
+  <polygon points="29.6,21.5 39,21.5 34.2,33 41.4,33 26.4,52 30.2,38.6 22.6,38.6" fill="#1D1C1A" stroke="#1D1C1A" stroke-width="1.6" stroke-linejoin="round"/>
+</svg>

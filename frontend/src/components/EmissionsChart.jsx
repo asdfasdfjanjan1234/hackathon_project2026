@@ -5,6 +5,7 @@ import {
 import { Sparkles } from "lucide-react";
 import { formatCo2, shortDate } from "../format";
 import { color } from "../theme";
+import { CardHeader } from "./Card";
 
 /**
  * AI CO₂ over the window, four ways: per day (bars), the trend (lines with a rolling average),
@@ -170,31 +171,25 @@ export default function EmissionsChart({ carbon, onAsk }) {
 
   return (
     <section className="dash-card p-5 min-w-0">
-      <div className="flex flex-wrap items-start justify-between pb-4 border-b border-line gap-3">
-        <div className="min-w-0">
-          <h2 className="card-title">AI emissions over time</h2>
-          <div className="card-sub mt-0.5">{sub}</div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {onAsk && (
-            <button onClick={() => onAsk(question)} className="btn" title={question}>
-              <Sparkles className="w-3.5 h-3.5 text-accent" /> Ask Kilo
+      <CardHeader title="AI emissions over time" sub={sub}>
+        {onAsk && (
+          <button onClick={() => onAsk(question)} className="btn" title={question}>
+            <Sparkles className="w-3.5 h-3.5 text-accent" /> Ask Kilo
+          </button>
+        )}
+        <div className="seg" role="group" aria-label="Chart view">
+          {VIEWS.map((v) => (
+            <button
+              key={v.id}
+              onClick={() => setView(v.id)}
+              className={`seg-item ${view === v.id ? "seg-item-active" : ""}`}
+              aria-pressed={view === v.id}
+            >
+              {v.label}
             </button>
-          )}
-          <div className="seg" role="group" aria-label="Chart view">
-            {VIEWS.map((v) => (
-              <button
-                key={v.id}
-                onClick={() => setView(v.id)}
-                className={`seg-item ${view === v.id ? "seg-item-active" : ""}`}
-                aria-pressed={view === v.id}
-              >
-                {v.label}
-              </button>
-            ))}
-          </div>
+          ))}
         </div>
-      </div>
+      </CardHeader>
 
       {/* Legend: also switches a series off, to see the other one on its own scale */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 text-xs">

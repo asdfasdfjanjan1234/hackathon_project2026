@@ -213,6 +213,46 @@
   .th {
     @apply px-2 py-2.5 text-xs font-medium text-ink-muted;
   }
+
+  /* Card header (CardHeader in Card.jsx): title and subtitle left, tags and controls right */
+  .card-head {
+    @apply flex flex-wrap items-start justify-between gap-3 border-b border-line pb-4;
+  }
+
+  /* Footnote row at the bottom of a card */
+  .card-foot {
+    @apply mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-xs text-ink-muted;
+  }
+
+  /* Nothing to show yet */
+  .empty-state {
+    @apply rounded-lg border border-line bg-sunken p-4 text-center text-sm text-ink-muted;
+  }
+
+  /* A message inside a card: neutral panel, status colour only on the left edge and the icon */
+  .notice {
+    --notice-edge: var(--line-strong);
+    @apply flex items-start gap-2.5 rounded-lg border border-line bg-sunken p-3 text-xs leading-relaxed text-ink-soft;
+    border-left: 2px solid rgb(var(--notice-edge));
+  }
+  .notice-info {
+    --notice-edge: var(--accent);
+  }
+  .notice-warn {
+    --notice-edge: var(--warn);
+  }
+  .notice-neg {
+    --notice-edge: var(--neg);
+  }
+  .notice > svg {
+    @apply mt-0.5 h-4 w-4 shrink-0;
+    color: rgb(var(--notice-edge));
+  }
+
+  /* A labelled number box with its unit: "Meter [   ] W" */
+  .field-box {
+    @apply flex min-w-0 items-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 focus-within:border-accent;
+  }
 }
 
 /* Recharts tooltip, in theme colours */

@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { formatKwh, peso, pesoCompact, shortDate } from "../format";
 import { color } from "../theme";
+import { CardHeader, MiniTile } from "./Card";
 
 const AXIS = { stroke: color("line-strong"), tick: { fill: color("ink-muted"), fontSize: 11 }, tickLine: false };
 
@@ -180,42 +181,34 @@ export default function ForecastChart({ forecast, recs, className = "" }) {
 
   return (
     <section className={`dash-card p-5 flex flex-col justify-between min-w-0 ${className}`}>
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between pb-4 border-b border-line gap-2">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-baseline gap-x-2">
-            <h2 className="card-title">Cycle projection trajectory</h2>
-            {cycle && (
-              <span className="text-xs text-ink-muted">
-                {shortDate(cycle.start)} – {shortDate(cycle.end)}
-              </span>
-            )}
-          </div>
-          <div className="card-sub mt-0.5 truncate" title={method?.reason}>
+      <CardHeader
+        title="Cycle projection"
+        sub={
+          <>
+            {cycle && `${shortDate(cycle.start)} – ${shortDate(cycle.end)} · `}
             {method?.name === "arima"
               ? "ARIMA fine-tuned on this device"
               : `Least-squares trend${weekly ? " · weekday/weekend pattern" : ""}`}{" "}
             · {forecast?.days_left} days to meter read
-          </div>
+          </>
+        }
+        subHint={method?.reason}
+      >
+        <span className="tech-tag tech-tag-pos tabular-nums">Recommendations save {peso(totalSavings)}</span>
+        <div className="seg" role="group" aria-label="Chart view">
+          {VIEWS.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => setView(v.id)}
+              className={`seg-item ${view === v.id ? "seg-item-active" : ""}`}
+              aria-pressed={view === v.id}
+            >
+              {v.label}
+            </button>
+          ))}
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="tech-tag tech-tag-pos tabular-nums">Savings with recs: {peso(totalSavings)}</span>
-          <div className="seg" role="group" aria-label="Chart view">
-            {VIEWS.map((v) => (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() => setView(v.id)}
-                className={`seg-item ${view === v.id ? "seg-item-active" : ""}`}
-                aria-pressed={view === v.id}
-              >
-                {v.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      </CardHeader>
 
       <div className="pt-4 pb-1 flex-1 min-h-[260px] sm:min-h-[280px] w-full min-w-0 overflow-hidden">
         {/* minHeight keeps the chart visible when the card isn't stretched to a fixed height (Billing Projection view). */}
@@ -244,7 +237,7 @@ export default function ForecastChart({ forecast, recs, className = "" }) {
                 y={budget}
                 stroke={color("warn")}
                 strokeDasharray="4 4"
-                label={{ value: `Cap: ${pesoCompact(budget)}`, position: "insideTopLeft", fill: color("ink-muted"), fontSize: 11 }}
+                label={{ value: `Budget ${pesoCompact(budget)}`, position: "insideTopLeft", fill: color("ink-muted"), fontSize: 11 }}
               />
             )}
 
@@ -344,7 +337,7 @@ export default function ForecastChart({ forecast, recs, className = "" }) {
             )}
             <div className="flex items-center gap-1.5">
               <Stroke c={color("viz-green")} dashed />
-              <span className="text-ink-muted">With recs:</span>
+              <span className="text-ink-muted">With recommendations:</span>
               <span className="text-ink font-bold tabular-nums">{peso(total ? recsBill : aiRecs)}</span>
             </div>
             {total && (
@@ -368,16 +361,17 @@ export default function ForecastChart({ forecast, recs, className = "" }) {
       {projections.length > 0 && (
         <div className="mt-4 pt-4 border-t border-line grid grid-cols-3 gap-2">
           {projections.map((p) => (
-            <div key={p.months} className="p-3 inset-panel min-w-0">
-              <div className="text-xs text-ink-muted">
-                Next {p.months === 1 ? "month" : `${p.months} months`}
-              </div>
-              <div className="text-base font-bold text-ink tabular-nums truncate mt-0.5">{peso(p.bill, 0)}</div>
-              <div className="text-xs font-medium text-pos tabular-nums truncate">{peso(p.bill_with_recommendations, 0)} with recs</div>
-              {p.months > 1 && (
-                <div className="text-[11px] text-ink-muted tabular-nums truncate">≈ {peso(p.monthly_bill, 0)} / month</div>
-              )}
-            </div>
+            <MiniTile
+              key={p.months}
+              title={`Next ${p.months === 1 ? "month" : `${p.months} months`}`}
+              value={peso(p.bill, 0)}
+              sub={
+                <>
+                  <span className="block font-medium text-pos truncate">{peso(p.bill_with_recommendations, 0)} with recs</span>
+                  {p.months > 1 && <span className="block truncate">≈ {peso(p.monthly_bill, 0)} / month</span>}
+                </>
+              }
+            />
           ))}
         </div>
       )}

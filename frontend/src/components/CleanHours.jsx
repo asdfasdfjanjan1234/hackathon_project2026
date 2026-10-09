@@ -2,9 +2,10 @@ import { useMemo } from "react";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceArea, ReferenceLine, ResponsiveContainer,
 } from "recharts";
-import { Clock, PlugZap } from "lucide-react";
+import { PlugZap } from "lucide-react";
 import { formatCo2, formatWh } from "../format";
 import { color } from "../theme";
+import { CardHeader, MiniTile } from "./Card";
 
 // Highlight-vs-context: the cleanest window in green, other hours recede in grey;
 // your use is one series in blue.
@@ -51,16 +52,6 @@ const HOUR_AXIS = {
 };
 const Y_AXIS = { tick: { fill: color("ink-muted"), fontSize: 11 }, tickLine: false, axisLine: false };
 
-function Tile({ title, value, sub, highlight, accent = "text-ink" }) {
-  return (
-    <div className={`p-3 rounded-lg border ${highlight ? "border-pos/30 bg-pos/[0.06]" : "border-line bg-sunken"}`}>
-      <div className={`text-xs font-medium ${highlight ? "text-pos" : "text-ink-muted"}`}>{title}</div>
-      <div className={`text-base font-bold mt-0.5 tabular-nums ${accent}`}>{value}</div>
-      <div className="text-xs text-ink-muted mt-0.5">{sub}</div>
-    </div>
-  );
-}
-
 export default function CleanHours({ info }) {
   const plan = info?.plan;
   const data = useMemo(
@@ -92,39 +83,38 @@ export default function CleanHours({ info }) {
 
   return (
     <section className="dash-card p-5 min-w-0">
-      <div className="flex flex-wrap items-start justify-between pb-4 border-b border-line gap-2">
-        <div className="min-w-0">
-          <h2 className="card-title flex items-center gap-2">
-            <Clock className="w-4 h-4 text-ink-muted" /> Cleanest hours to run AI
-          </h2>
-          <div className="card-sub mt-0.5">
+      <CardHeader
+        title="Cleanest hours to run AI"
+        sub={
+          <>
             Grid carbon intensity by hour ({info.zone}
             {info.source === "forecast" ? ", next 24 h forecast" : info.source === "history" ? ", last 24 h" : ""}) and
             when this device runs AI
-          </div>
-        </div>
+          </>
+        }
+      >
         {info.now && (
           <span className="tech-tag tech-tag-neutral tabular-nums">Grid now: {Math.round(info.now.g_per_kwh)} g CO₂/kWh</span>
         )}
-      </div>
+      </CardHeader>
 
       {plan && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
-          <Tile
+          <MiniTile
             highlight
             title={`Cleanest ${plan.window_hours} h`}
             value={plan.cleanest.label}
             sub={`${Math.round(plan.cleanest.g_per_kwh)} g CO₂/kWh`}
           />
-          <Tile
+          <MiniTile
             title="Your AI hours"
             value={plan.peak_use_label ? `Peak ${plan.peak_use_label}` : "No AI use yet"}
             sub={plan.weighted_g_per_kwh != null ? `${Math.round(plan.weighted_g_per_kwh)} g CO₂/kWh on average` : "—"}
           />
-          <Tile
+          <MiniTile
             title="Shift batch jobs"
             value={plan.shift ? `-${formatCo2(plan.shift.co2_saved_kg)} / mo` : gap == null ? "Nothing to shift" : "Little to gain"}
-            accent={plan.shift ? "text-pos" : "text-ink"}
+            valueClass={plan.shift ? "text-pos" : "text-ink"}
             sub={
               plan.shift
                 ? `${Math.round(plan.shift.share * 100)}% of AI energy moved · bill unchanged`
@@ -181,11 +171,11 @@ export default function CleanHours({ info }) {
           </div>
         </div>
       ) : (
-        <div className="mt-4 p-3 rounded-lg border border-warn/25 bg-warn/[0.06] text-sm text-ink-soft flex gap-2.5">
-          <PlugZap className="w-4 h-4 text-warn shrink-0 mt-0.5" />
+        <div className="notice notice-warn mt-4">
+          <PlugZap />
           <div className="space-y-1">
-            <div className="font-semibold text-warn text-sm">Hourly grid data not connected</div>
-            <p className="text-xs leading-relaxed">
+            <div className="font-semibold text-ink text-sm">Hourly grid data not connected</div>
+            <p>
               The DOE grid factor is one number for the whole year, so it can't tell clean hours from dirty ones.
               Get a free personal token at app.electricitymaps.com, then add{" "}
               <code className="font-mono text-[11px] px-1 py-0.5 rounded bg-sunken border border-line text-ink">ELECTRICITYMAPS_TOKEN=…</code> to{" "}
@@ -217,7 +207,7 @@ export default function CleanHours({ info }) {
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="p-4 text-center text-sm text-ink-muted inset-panel">No AI use measured on this device yet.</div>
+          <div className="empty-state">No AI use measured on this device yet.</div>
         )}
       </div>
     </section>

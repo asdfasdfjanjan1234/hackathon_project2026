@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { peso, formatKwh, formatWatts, shortDate } from "../format";
 import { PARTS } from "./AppPowerParts";
+import { CardHeader } from "./Card";
 
 // Power class from the average watts while the model was doing work (measured, not a rating).
 const POWER_CLASSES = [
@@ -69,52 +70,55 @@ export default function UsageBreakdown({ usage }) {
 
   return (
     <section className="dash-card p-5 flex flex-col justify-between min-w-0">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between pb-4 border-b border-line gap-3">
-        <div className="min-w-0">
-          <h2 className="card-title">Runtime inventory & power profiles</h2>
-          <div className="card-sub mt-0.5">
-            Model execution benchmarks & cost attribution
+      <CardHeader
+        title="Energy and cost by model"
+        sub={
+          <>
+            How much each model used and what it cost, with its power class
             {usage?.window && ` · ${shortDate(usage.window.start)} – ${shortDate(usage.window.end)}`}
-          </div>
+          </>
+        }
+      >
+        <span className="text-xs text-ink-muted">Sort</span>
+        <div className="seg" role="group" aria-label="Sort by">
+          {[
+            { id: "kwh", label: "Energy" },
+            { id: "cost", label: "Cost" },
+            { id: "name", label: "Name" },
+          ].map((s) => (
+            <button
+              key={s.id}
+              onClick={() => toggleSort(s.id)}
+              aria-pressed={sortBy === s.id}
+              className={`seg-item ${sortBy === s.id ? "seg-item-active" : ""}`}
+            >
+              {s.label} {sortBy === s.id && (sortOrder === "desc" ? "↓" : "↑")}
+            </button>
+          ))}
         </div>
-
-        {/* Sort Controls */}
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs text-ink-muted">Sort:</span>
-          <div className="seg" role="group" aria-label="Sort by">
-            {[
-              { id: "kwh", label: "Energy" },
-              { id: "cost", label: "Tariff" },
-              { id: "name", label: "ID" },
-            ].map((s) => (
-              <button
-                key={s.id}
-                onClick={() => toggleSort(s.id)}
-                aria-pressed={sortBy === s.id}
-                className={`seg-item ${sortBy === s.id ? "seg-item-active" : ""}`}
-              >
-                {s.label} {sortBy === s.id && (sortOrder === "desc" ? "↓" : "↑")}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      </CardHeader>
 
       {/* Model table: scrolls sideways on small screens */}
       <div className="overflow-x-auto my-2 -mx-5 sm:mx-0 px-5 sm:px-0">
         <table className="w-full text-left text-sm border-collapse min-w-[640px]">
           <thead>
             <tr className="border-b border-line">
-              <th className="th">Model runtime</th>
-              <th className="th">Host bus</th>
+              <th className="th">Model</th>
+              <th className="th">Runs on</th>
               <th className="th">{usage?.window?.short || `${usage?.window_days || 30}D`} energy</th>
-              <th className="th">Attributed tariff</th>
+              <th className="th">Cost</th>
               <th className="th text-center">Power class</th>
-              <th className="th text-right">Telemetry</th>
+              <th className="th text-right">Source</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
+            {models.length === 0 && (
+              <tr>
+                <td colSpan={6} className="py-6 text-center text-ink-muted">
+                  No AI energy recorded in this window.
+                </td>
+              </tr>
+            )}
             {models.map((m) => (
               <tr key={m.model} className="hover:bg-sunken transition-colors">
                 {/* Model ID */}
@@ -134,7 +138,7 @@ export default function UsageBreakdown({ usage }) {
                   </div>
                 </td>
 
-                {/* Host Bus */}
+                {/* Where it runs */}
                 <td className="py-3 px-2 text-xs text-ink-soft">
                   {m.kind === "local" ? "This device (CPU/GPU)" : m.kind === "client" ? "This device" : "Data center"}
                 </td>
@@ -227,12 +231,12 @@ export default function UsageBreakdown({ usage }) {
         </div>
       )}
 
-      <div className="mt-4 pt-3 border-t border-line flex flex-wrap items-center justify-between text-xs text-ink-muted gap-2">
+      <div className="card-foot">
         <span>
-          * Power class: average watts while running (A under 30 W, B under 100 W, C under 250 W, D above). Cloud
+          Power class: average watts while running (A under 30 W, B under 100 W, C under 250 W, D above). Cloud
           model inference runs in the provider's data center.
         </span>
-        <span className="tabular-nums">Index: {models.length} runtimes</span>
+        <span className="tabular-nums">{models.length} {models.length === 1 ? "model" : "models"}</span>
       </div>
     </section>
   );

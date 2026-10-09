@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 import { BarChart, Bar, Cell, LabelList, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { CalendarClock, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { peso } from "../format";
 import { color } from "../theme";
+import { CardHeader, MiniTile } from "./Card";
 
 // Highlight-vs-context: the best window in green, the rest of off-peak in blue, peak hours
 // recede in grey. The best window is also labelled, since green and blue are close under tritanopia.
@@ -30,16 +31,6 @@ function HourTooltip({ active, payload }) {
   );
 }
 
-function Tile({ title, value, sub, accent = "text-ink", highlight }) {
-  return (
-    <div className={`p-3 rounded-lg border ${highlight ? "border-pos/30 bg-pos/[0.06]" : "border-line bg-sunken"}`}>
-      <div className={`text-xs font-medium ${highlight ? "text-pos" : "text-ink-muted"}`}>{title}</div>
-      <div className={`text-base font-bold mt-0.5 tabular-nums ${accent}`}>{value}</div>
-      <div className="text-xs text-ink-muted leading-snug mt-0.5">{sub}</div>
-    </div>
-  );
-}
-
 export default function BestTime({ info, onOpenSettings }) {
   const pop = info?.tariff === "pop";
   const best = info?.best;
@@ -62,46 +53,39 @@ export default function BestTime({ info, onOpenSettings }) {
 
   return (
     <section className="dash-card p-5 min-w-0">
-      <div className="flex flex-wrap items-start justify-between pb-4 border-b border-line gap-2">
-        <div className="min-w-0">
-          <h2 className="card-title flex items-center gap-2">
-            <CalendarClock className="w-4 h-4 text-ink-muted" /> Best time to run local AI
-          </h2>
-          <div className="card-sub mt-0.5">
-            When batch jobs (evals, indexing, long agent runs) cost least on your tariff and the grid is cleanest
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="tech-tag tech-tag-neutral tabular-nums">
-            {pop
-              ? `Now: ${info.now.peak ? "peak" : "off-peak"} ${peso(info.now.rate)}/kWh · ${
-                  info.now.peak ? "off-peak" : "peak"
-                } from ${info.now.changes_at}`
-              : `Same rate all day: ${peso(info.rate)}/kWh`}
-          </span>
-          <button onClick={onOpenSettings} title="Change tariff" aria-label="Change tariff" className="btn-icon">
-            <SlidersHorizontal className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+      <CardHeader
+        title="Best time to run local AI"
+        sub="When batch jobs (evals, indexing, long agent runs) cost least on your tariff and the grid is cleanest"
+      >
+        <span className="tech-tag tech-tag-neutral tabular-nums">
+          {pop
+            ? `Now: ${info.now.peak ? "peak" : "off-peak"} ${peso(info.now.rate)}/kWh · ${
+                info.now.peak ? "off-peak" : "peak"
+              } from ${info.now.changes_at}`
+            : `Same rate all day: ${peso(info.rate)}/kWh`}
+        </span>
+        <button onClick={onOpenSettings} title="Change tariff" aria-label="Change tariff" className="btn-icon">
+          <SlidersHorizontal className="w-4 h-4" />
+        </button>
+      </CardHeader>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
-        <Tile
+        <MiniTile
           highlight
           title="Best time for batch jobs"
           value={best ? best.label : "Any hour"}
           sub={best ? best.reason : "Same price every hour. Connect hourly grid data to find the cleanest hours."}
         />
-        <Tile
+        <MiniTile
           title="Cheapest hours"
           value={pop ? `Off-peak ${peso(info.offpeak_rate)}/kWh` : "Any hour"}
           sub={pop ? info.offpeak_label : "Your rate is the same at every hour, so timing doesn't change the bill."}
         />
         {pop ? (
-          <Tile
+          <MiniTile
             title="Shift batch jobs off-peak"
             value={shift ? `-${peso(shift.savings)} / mo` : "Already off-peak"}
-            accent="text-pos"
+            valueClass="text-pos"
             sub={
               shift
                 ? `${Math.round(info.ai.peak_share * 100)}% of your AI energy is in peak hours; moving ${Math.round(
@@ -113,7 +97,7 @@ export default function BestTime({ info, onOpenSettings }) {
             }
           />
         ) : (
-          <Tile
+          <MiniTile
             title="On Meralco Peak/Off-Peak"
             value={
               whatIf.cost_month_flat
@@ -174,7 +158,7 @@ export default function BestTime({ info, onOpenSettings }) {
         </div>
       </div>
 
-      <p className="mt-3 text-xs text-ink-muted leading-relaxed">
+      <p className="card-foot leading-relaxed">
         Philippine households have no live hourly price: WESM spot prices reach the bill only as a monthly
         average. Peak/off-peak times are Meralco's POP schedule; holidays aren't included.
       </p>

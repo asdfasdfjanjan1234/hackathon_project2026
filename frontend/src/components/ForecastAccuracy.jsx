@@ -1,37 +1,20 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
-import { Crosshair, Target, CheckCircle2, Sigma, Loader2 } from "lucide-react";
-import { Counter } from "../motion";
+import { Crosshair, Target, CheckCircle2, Sigma, Loader2, AlertTriangle } from "lucide-react";
+import { CardHeader, MiniTile, StatCard } from "./Card";
 
 // The fine-tuned ARIMA models scored on their held-out windows as an "in use / idle" classifier
 // (backend /api/forecast/accuracy, training wattcast/classify.py). Re-read every minute, so a new
 // fine-tuning run shows up without a reload.
 const POLL_MS = 60_000;
 
-const pct = (v) => (v == null ? "–" : `${(v * 100).toFixed(1)}%`);
+const pct = (v) => (v == null ? "—" : `${(v * 100).toFixed(1)}%`);
+// A score as a counting figure: asPct for the value, pctFigure to show it.
+const asPct = (v) => (v == null ? null : v * 100);
+const pctFigure = (v) => (v == null ? "—" : `${v.toFixed(1)}%`);
 const whLabel = (wh) => `${wh} Wh/h`;
 const timeOf = (iso) =>
   iso ? new Date(iso.replace(" ", "T")).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
-
-function Tile({ title, icon: Icon, value, sub, foot, valueClass = "text-ink" }) {
-  return (
-    <div className="stat-card flex flex-col justify-between min-w-0">
-      <div>
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <span className="eyebrow">{title}</span>
-          <Icon className="w-4 h-4 shrink-0 text-ink-muted" />
-        </div>
-        <div className={`stat-value truncate ${valueClass}`}>
-          {value == null ? "–" : <Counter value={value * 100} format={(v) => `${v.toFixed(1)}%`} />}
-        </div>
-        <div className="text-xs text-ink-muted mt-2 leading-snug">{sub}</div>
-      </div>
-      <div className="mt-4 pt-3 border-t border-line text-xs text-ink-soft truncate" title={foot}>
-        {foot}
-      </div>
-    </div>
-  );
-}
 
 function F1Bar({ value }) {
   return (
@@ -42,13 +25,7 @@ function F1Bar({ value }) {
 }
 
 function Confusion({ s }) {
-  const cell = (label, n, hint) => (
-    <div className="inset-panel px-3 py-2 min-w-0">
-      <div className="text-[11px] text-ink-muted truncate">{label}</div>
-      <div className="text-lg font-bold tabular-nums text-ink">{n}</div>
-      <div className="text-[11px] leading-snug text-ink-muted">{hint}</div>
-    </div>
-  );
+  const cell = (label, n, hint) => <MiniTile title={label} value={n} sub={hint} />;
   return (
     <div className="grid grid-cols-2 gap-2">
       {cell("True positive", s.tp, "In use, forecast in use")}
@@ -81,16 +58,22 @@ export default function ForecastAccuracy() {
 
   if (!data && !error) {
     return (
-      <section className="dash-card p-5 text-sm text-ink-muted flex items-center gap-2">
-        <Loader2 className="w-4 h-4 animate-spin" /> Scoring the fine-tuned models…
+      <section className="dash-card p-5 min-w-0">
+        <CardHeader title="Is AI in use? Held-out forecasts, scored" />
+        <div className="mt-4 text-sm text-ink-muted flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin" /> Scoring the fine-tuned models…
+        </div>
       </section>
     );
   }
   if (error || !data.available) {
     return (
       <section className="dash-card p-5 min-w-0">
-        <h2 className="card-title">Forecast accuracy</h2>
-        <p className="card-sub mt-1">{error || data.reason}</p>
+        <CardHeader title="Is AI in use? Held-out forecasts, scored" />
+        <div className={`notice mt-4 ${error ? "notice-neg" : "notice-info"}`}>
+          <AlertTriangle />
+          <span>{error || data.reason}</span>
+        </div>
       </section>
     );
   }
@@ -106,14 +89,10 @@ export default function ForecastAccuracy() {
   return (
     <div className="space-y-6 min-w-0">
       <section className="dash-card p-5 min-w-0">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="card-title">Is AI in use? Held-out forecasts, scored</h2>
-            <div className="card-sub mt-0.5">
-              Device {data.device_id} · fitted {timeOf(data.fitted)} on {data.data.known_hours} h of readings ·{" "}
-              {t.steps} held-out 15-minute steps, {t.in_use_steps} in use
-            </div>
-          </div>
+        <CardHeader
+          title="Is AI in use? Held-out forecasts, scored"
+          sub={`Device ${data.device_id} · fitted ${timeOf(data.fitted)} on ${data.data.known_hours} h of readings · ${t.steps} held-out 15-minute steps, ${t.in_use_steps} in use`}
+        >
           <div className="flex flex-col items-start sm:items-end gap-1.5 max-w-full">
             <span className="eyebrow">Counts as in use from (default {whLabel(data.default_used_wh)})</span>
             <div className="seg overflow-x-auto max-w-full" role="tablist" aria-label="In-use threshold">
@@ -130,11 +109,12 @@ export default function ForecastAccuracy() {
               ))}
             </div>
           </div>
-        </div>
+        </CardHeader>
         {fewPositives && (
-          <div className="mt-4 flex items-start gap-2 text-xs text-ink-soft">
-            <span className="tech-tag tech-tag-sim shrink-0">Few in-use steps</span>
-            <span className="leading-relaxed">
+          <div className="notice notice-warn mt-4">
+            <AlertTriangle />
+            <span>
+              <span className="font-semibold text-ink">Few in-use steps. </span>
               Only {t.in_use_steps} held-out step{t.in_use_steps === 1 ? " was" : "s were"} in use, so precision, recall
               and F1 move a lot with one step. They firm up as the device reader collects more hours and the models
               are fine-tuned again.
@@ -144,17 +124,19 @@ export default function ForecastAccuracy() {
       </section>
 
       <div className="stagger grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 min-w-0">
-        <Tile
+        <StatCard
           title="Accuracy"
           icon={CheckCircle2}
-          value={s.accuracy}
+          value={asPct(s.accuracy)}
+          format={pctFigure}
           sub={`${s.tp + s.tn} of ${s.steps} steps called right`}
           foot={`Always idle scores ${pct(t.always_idle.accuracy)}`}
         />
-        <Tile
+        <StatCard
           title="Precision"
           icon={Crosshair}
-          value={s.precision}
+          value={asPct(s.precision)}
+          format={pctFigure}
           sub={
             forecastInUse
               ? `${s.tp} of ${forecastInUse} steps forecast in use were`
@@ -162,17 +144,19 @@ export default function ForecastAccuracy() {
           }
           foot={`Seasonal naive: ${pct(naive?.precision)}`}
         />
-        <Tile
+        <StatCard
           title="Recall"
           icon={Target}
-          value={s.recall}
+          value={asPct(s.recall)}
+          format={pctFigure}
           sub={t.in_use_steps ? `${s.tp} of ${t.in_use_steps} in-use steps caught` : "No step was in use"}
           foot={`Seasonal naive: ${pct(naive?.recall)}`}
         />
-        <Tile
+        <StatCard
           title="F1 score"
           icon={Sigma}
-          value={s.f1}
+          value={asPct(s.f1)}
+          format={pctFigure}
           sub="Balance of precision and recall, the score to watch"
           foot={`Seasonal naive: ${pct(naive?.f1)}`}
         />
@@ -181,8 +165,7 @@ export default function ForecastAccuracy() {
       <section className="dash-card p-5 min-w-0">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 min-w-0">
           <div className="min-w-0">
-            <h2 className="card-title">Every model tried, and the baselines</h2>
-            <div className="card-sub mt-0.5">Same held-out windows for all of them</div>
+            <CardHeader title="Every model tried, and the baselines" sub="Same held-out windows for all of them" />
             {agents.map(([agent, rows]) => (
               <div key={agent} className="mt-4 overflow-x-auto">
                 {agents.length > 1 && <div className="eyebrow mb-1">{agent}</div>}
@@ -220,12 +203,13 @@ export default function ForecastAccuracy() {
             ))}
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-ink">Confusion matrix</h3>
-            <div className="card-sub mt-0.5 mb-3">The picked model, all agents</div>
-            <Confusion s={s} />
+            <CardHeader title="Confusion matrix" sub="The picked model, all agents" />
+            <div className="mt-4">
+              <Confusion s={s} />
+            </div>
           </div>
         </div>
-        <p className="mt-4 text-xs text-ink-muted leading-relaxed">
+        <p className="card-foot block leading-relaxed">
           The models forecast watt-hours per 15-minute step. Each held-out step, forecast and actual, counts as in use
           when it reaches {whLabel(t.used_wh)} ({t.per_step_wh.toFixed(4)} Wh per step). On a mostly idle machine
           accuracy looks high even for a model that never says "in use", which is why always idle is listed: compare F1.

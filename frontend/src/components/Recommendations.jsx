@@ -10,6 +10,7 @@ import {
 import { api } from "../api/client";
 import { peso, formatWh, formatWatts, formatCo2 } from "../format";
 import Figures from "./Figures";
+import { CardHeader } from "./Card";
 
 const keyOf = (rec) => `${rec.rule}|${rec.model}`;
 
@@ -41,26 +42,20 @@ export default function Recommendations({ recs, liveReading, onApplied }) {
   const getActionConfig = (action) => {
     switch (action.toUpperCase()) {
       case "STOP":
-        return { icon: AlertOctagon, tag: "tech-tag-alert", code: "Directive: stop" };
+        return { icon: AlertOctagon, tag: "tech-tag-alert", code: "Stop" };
       case "SWITCH":
-        return { icon: ArrowRightLeft, tag: "tech-tag-sim", code: "Directive: shift" };
+        return { icon: ArrowRightLeft, tag: "tech-tag-sim", code: "Switch" };
       case "REDUCE":
       default:
-        return { icon: Sliders, tag: "tech-tag-live", code: "Directive: throttle" };
+        return { icon: Sliders, tag: "tech-tag-live", code: "Reduce" };
     }
   };
 
   return (
     <section className="dash-card p-5 flex flex-col justify-between min-w-0">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between pb-4 border-b border-line gap-3">
-        <div className="min-w-0">
-          <h2 className="card-title">Load shedding & optimization directives</h2>
-          <div className="card-sub mt-0.5">Rule-based hardware load governance to remain within target budget cap</div>
-        </div>
-
-        <div className="text-right shrink-0">
-          <div className="text-xs text-ink-muted">Recoverable tariff</div>
+      <CardHeader title="What to change" sub="Workload changes that keep you within budget, and what each one saves">
+        <div className="text-right">
+          <div className="text-xs text-ink-muted">Possible savings</div>
           <div className="text-lg font-bold text-pos tabular-nums leading-tight">
             {peso(totalPotentialSavings)} / mo
           </div>
@@ -68,14 +63,12 @@ export default function Recommendations({ recs, liveReading, onApplied }) {
             <div className="text-xs text-pos tabular-nums">-{formatCo2(recs.monthly_co2_saved_kg)}</div>
           )}
         </div>
-      </div>
+      </CardHeader>
 
-      {/* Directives List */}
+      {/* Recommendations */}
       <div className="divide-y divide-line">
         {recommendationsList.length === 0 ? (
-          <div className="p-8 text-center text-ink-muted text-sm">
-            No load shedding directives active. System operating within nominal parameters.
-          </div>
+          <div className="empty-state my-4">Nothing to change right now: your AI use is within budget.</div>
         ) : (
           recommendationsList.map((rec) => {
             const config = getActionConfig(rec.action);
@@ -127,7 +120,7 @@ export default function Recommendations({ recs, liveReading, onApplied }) {
                         ? "Alternative"
                         : rec.rule === "budget" && !rec.monthly_savings
                         ? "Budget alert"
-                        : "Recoverable"}
+                        : "Saves"}
                     </span>
                     <span className="text-sm font-bold text-ink tabular-nums">
                       {rec.scope === "datacenter"
@@ -181,15 +174,14 @@ export default function Recommendations({ recs, liveReading, onApplied }) {
         )}
       </div>
 
-      {/* Footer */}
-      <div className="pt-3 border-t border-line flex flex-wrap items-center justify-between text-xs text-ink-muted gap-2">
+      <div className="card-foot">
         <span>
           Rules: budget · smaller model · quantization · idle loaded · cost per hour · tool runs · cloud · growth · clean hours
         </span>
         <span className="tabular-nums">
           {recs?.bill_with_recommendations != null && (
             <>
-              This cycle with recs: <span className="font-semibold text-ink">{peso(recs.bill_with_recommendations)}</span>
+              This cycle with recommendations: <span className="font-semibold text-ink">{peso(recs.bill_with_recommendations)}</span>
             </>
           )}
         </span>

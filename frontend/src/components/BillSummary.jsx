@@ -8,14 +8,7 @@ import {
 } from "lucide-react";
 import { peso, formatWatts, formatKwh, formatCo2, formatDuration, shortDate } from "../format";
 import { Counter } from "../motion";
-
-const TAG_CLASS = {
-  live: "tech-tag-live",
-  sim: "tech-tag-sim",
-  alert: "tech-tag-alert",
-  pos: "tech-tag-pos",
-  neutral: "tech-tag-neutral",
-};
+import { StatCard } from "./Card";
 
 export function TrajectoryBanner({ forecast, recs }) {
   if (!forecast) return null;
@@ -28,11 +21,11 @@ export function TrajectoryBanner({ forecast, recs }) {
   const forecastTone = isOverBudget ? "text-neg" : "text-ink";
 
   return (
-    <div className="dash-card p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 min-w-0">
+    <div className="dash-card p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 min-w-0">
       <p className="text-sm text-ink-soft leading-relaxed min-w-0">
         <span className="font-bold text-ink">Trajectory: </span>
         This cycle projects to <strong className={`font-bold tabular-nums ${forecastTone}`}>{peso(forecastBill)}</strong> vs{" "}
-        <span className="font-medium text-ink tabular-nums">{peso(baselineBill)}</span> base
+        <span className="font-medium text-ink tabular-nums">{peso(baselineBill)}</span> before AI
         {nextMonth && (
           <>
             {" "}· next month <strong className="font-bold text-ink tabular-nums">{peso(nextMonth.bill)}</strong>, or{" "}
@@ -44,7 +37,7 @@ export function TrajectoryBanner({ forecast, recs }) {
       </p>
 
       <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 shrink-0">
-        <Step label="Baseline" value={baselineBill} />
+        <Step label="Before AI" value={baselineBill} />
         <ArrowRight className="hidden sm:block w-4 h-4 text-ink-muted shrink-0" />
         <Step label="Current path" value={forecastBill} valueClass={forecastTone} />
         <ArrowRight className="hidden sm:block w-4 h-4 text-ink-muted shrink-0" />
@@ -77,90 +70,66 @@ export function BillMetricsGrid({ forecast, recs, liveReading, usage, rate }) {
   const idle = liveReading?.power_model?.idle_watts;
   const forecastTone = isOverBudget ? "text-neg" : "text-ink";
 
-  const cards = [
-    {
-      title: "Active power draw",
-      value: currentWatts,
-      format: formatWatts,
-      subtext: !liveReading
-        ? "Waiting for the first reading"
-        : estimated
-        ? "No whole-machine sensor: estimated from CPU/GPU load"
-        : `Measured · ${collecting ? "device reader" : liveReading.source}`,
-      badge: !liveReading ? "Offline" : estimated ? "Estimated" : "Hardware sensor",
-      badgeType: estimated || !liveReading ? "sim" : "live",
-      icon: Gauge,
-      iconClass: "text-accent",
-      delta: {
-        text: collecting
-          ? `AI apps: ${formatWatts(liveReading.ai_watts)}${idle != null && currentWatts != null ? ` · ${formatWatts(Math.max(0, currentWatts - idle))} over idle` : ""}`
-          : "Start the device reader for watts per AI app",
-      },
-    },
-    {
-      title: `AI energy on bill (${windowShort})`,
-      value: totalKwh,
-      format: (v) => formatKwh(v, 1),
-      subtext: factors
-        ? `≈ ${formatCo2(totalKwh * factors.co2_kg_per_kwh)} · ${formatDuration((totalKwh * 1000) / factors.aircon_watts)} of a ${factors.aircon_watts} W aircon`
-        : `Avg ${formatKwh(totalKwh / windowDays, 2)} / day`,
-      badge: "Integrated",
-      badgeType: "neutral",
-      icon: Zap,
-      iconClass: "text-volt",
-      delta: { text: `${usage?.by_model?.length || 0} AI runtimes · ${formatKwh(totalKwh / windowDays, 2)} / day` },
-    },
-    {
-      title: "Attributed AI tariff",
-      value: aiCost,
-      format: peso,
-      subtext: `${forecastBill > 0 ? Math.round((aiCost / forecastBill) * 100) : 0}% of this cycle's projected bill`,
-      badge: `+${peso(aiCost)}`,
-      badgeType: aiCost >= 1 ? "alert" : "neutral",
-      icon: DollarSign,
-      delta: { text: `${peso(rate ?? usage?.rate_per_kwh)} / kWh tariff` },
-    },
-    {
-      title: "Cycle projection",
-      value: forecastBill,
-      format: peso,
-      valueClass: forecastTone,
-      subtext: `${shortDate(forecast?.cycle?.start)} – ${shortDate(forecast?.cycle?.end)} · Cap: ${peso(budget)}`,
-      badge: isOverBudget ? `Over by +${peso(forecastBill - budget)}` : "In budget",
-      badgeType: isOverBudget ? "alert" : "pos",
-      icon: Calendar,
-      delta: {
-        text: potentialSavings > 0 ? `With recommendations: ${peso(optimizedBill)}` : "No savings found this cycle",
-      },
-    },
-  ];
+  const aiShare = forecastBill > 0 ? Math.round((aiCost / forecastBill) * 100) : 0;
 
   return (
     <div className="stagger grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0 h-full">
-      {cards.map((card, i) => {
-        const Icon = card.icon;
-        return (
-          <div key={i} className="stat-card flex flex-col justify-between min-w-0 h-full">
-            <div>
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <span className="eyebrow">{card.title}</span>
-                <Icon className={`w-4 h-4 shrink-0 ${card.iconClass || "text-ink-muted"}`} />
-              </div>
-              <div className={`stat-value truncate ${card.valueClass || "text-ink"}`}>
-                <Counter value={card.value} format={card.format} />
-              </div>
-              <div className="text-xs text-ink-muted mt-2 leading-snug">{card.subtext}</div>
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-line flex items-center justify-between gap-2">
-              <span className="text-xs text-ink-soft truncate" title={card.delta.text}>
-                {card.delta.text}
-              </span>
-              <span className={`tech-tag shrink-0 ${TAG_CLASS[card.badgeType]}`}>{card.badge}</span>
-            </div>
-          </div>
-        );
-      })}
+      <StatCard
+        title="Active power draw"
+        icon={Gauge}
+        iconClass="text-accent"
+        value={currentWatts}
+        format={formatWatts}
+        sub={
+          !liveReading
+            ? "Waiting for the first reading"
+            : estimated
+            ? "No whole-machine sensor: estimated from CPU/GPU load"
+            : `Measured · ${collecting ? "device reader" : liveReading.source}`
+        }
+        foot={
+          collecting
+            ? `AI apps: ${formatWatts(liveReading.ai_watts)}${idle != null && currentWatts != null ? ` · ${formatWatts(Math.max(0, currentWatts - idle))} over idle` : ""}`
+            : "Start the device reader for watts per AI app"
+        }
+        tag={!liveReading ? "Offline" : estimated ? "Estimated" : "Measured"}
+        tagClass={estimated || !liveReading ? "tech-tag-sim" : "tech-tag-live"}
+      />
+      <StatCard
+        title={`AI energy on bill (${windowShort})`}
+        icon={Zap}
+        iconClass="text-volt"
+        value={totalKwh}
+        format={(v) => formatKwh(v, 1)}
+        sub={
+          factors
+            ? `≈ ${formatCo2(totalKwh * factors.co2_kg_per_kwh)} · ${formatDuration((totalKwh * 1000) / factors.aircon_watts)} of a ${factors.aircon_watts} W aircon`
+            : `Avg ${formatKwh(totalKwh / windowDays, 2)} / day`
+        }
+        foot={`${usage?.by_model?.length || 0} AI runtimes · ${formatKwh(totalKwh / windowDays, 2)} / day`}
+        tag="Measured"
+      />
+      <StatCard
+        title="AI cost this cycle"
+        icon={DollarSign}
+        value={aiCost}
+        format={peso}
+        sub={`Part of the ${peso(forecastBill)} projected bill`}
+        foot={`At ${peso(rate ?? usage?.rate_per_kwh)} / kWh`}
+        tag={`${aiShare}% of bill`}
+        tagClass={aiCost >= 1 ? "tech-tag-alert" : "tech-tag-neutral"}
+      />
+      <StatCard
+        title="Cycle projection"
+        icon={Calendar}
+        value={forecastBill}
+        format={peso}
+        valueClass={forecastTone}
+        sub={`${shortDate(forecast?.cycle?.start)} – ${shortDate(forecast?.cycle?.end)} · Budget ${peso(budget)}`}
+        foot={potentialSavings > 0 ? `With recommendations: ${peso(optimizedBill)}` : "No savings found this cycle"}
+        tag={isOverBudget ? `Over by ${peso(forecastBill - budget)}` : "In budget"}
+        tagClass={isOverBudget ? "tech-tag-alert" : "tech-tag-pos"}
+      />
     </div>
   );
 }
@@ -177,7 +146,7 @@ export default function BillSummary(props) {
 function Step({ label, value, valueClass = "text-ink" }) {
   return (
     <div className="inset-panel px-3 py-1.5 min-w-0">
-      <span className="block text-[11px] text-ink-muted truncate">{label}</span>
+      <span className="block text-xs text-ink-muted truncate">{label}</span>
       <span className={`block text-sm font-bold tabular-nums truncate ${valueClass}`}>
         <Counter value={value} format={peso} />
       </span>

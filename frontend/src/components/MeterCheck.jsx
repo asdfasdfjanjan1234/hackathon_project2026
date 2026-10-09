@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
-import { Trash2, Timer, Gauge, Loader2 } from "lucide-react";
+import { Trash2, Timer, Gauge, Loader2, AlertTriangle } from "lucide-react";
+import { CardHeader } from "./Card";
 import { formatWatts, formatKwh } from "../format";
 
 // How close our whole-machine reading is to a plug-in power meter at the wall.
@@ -25,7 +26,7 @@ function NumberForm({ label, unit, button, busy, onSubmit, step = "any" }) {
   };
   return (
     <form onSubmit={submit} className="flex items-center gap-2">
-      <label className="flex-1 flex items-center gap-2 rounded-lg bg-surface border border-line px-3 py-1.5 focus-within:border-accent min-w-0">
+      <label className="field-box flex-1">
         <span className="text-xs font-medium text-ink-muted shrink-0">{label}</span>
         <input
           type="number"
@@ -74,13 +75,7 @@ export default function MeterCheck() {
 
   return (
     <section className="dash-card p-5 min-w-0">
-      <div className="flex flex-wrap items-start justify-between gap-2 pb-4 border-b border-line">
-        <div className="min-w-0">
-          <h2 className="card-title">Wall-meter check</h2>
-          <div className="card-sub mt-0.5">
-            Compare our whole-machine reading with a plug-in power meter or smart plug
-          </div>
-        </div>
+      <CardHeader title="Wall-meter check" sub="Compare our whole-machine reading with a plug-in power meter or smart plug">
         <span className="tech-tag tech-tag-neutral tabular-nums">
           {summary?.checks ? (
             <>
@@ -94,7 +89,7 @@ export default function MeterCheck() {
             "No checks yet"
           )}
         </span>
-      </div>
+      </CardHeader>
 
       <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="inset-panel p-4 space-y-2.5 min-w-0">
@@ -134,7 +129,10 @@ export default function MeterCheck() {
       </div>
 
       {error && (
-        <div className="mt-3 p-3 rounded-lg bg-neg/[0.08] border border-neg/25 text-neg text-xs">{error}</div>
+        <div role="alert" className="notice notice-neg mt-3">
+          <AlertTriangle />
+          <span>{error}</span>
+        </div>
       )}
 
       {checks.length > 0 && (
@@ -181,7 +179,7 @@ export default function MeterCheck() {
         </div>
       )}
 
-      <p className="mt-4 text-xs text-ink-muted leading-relaxed">
+      <p className="card-foot block leading-relaxed">
         The meter reads at the wall, so it also counts charger losses (often 5–15%) and battery charging: keep a laptop
         at 100% while checking. Differences are shown as measured, not corrected.
         {busy && <Loader2 className="inline w-3 h-3 ml-1.5 animate-spin" />}

@@ -1,4 +1,4 @@
-import { Leaf, Cloud, Laptop, Target, TreePine, ArrowRight, AlertTriangle, CheckCircle2, BookOpen, Lightbulb, Sparkles } from "lucide-react";
+import { Leaf, Cloud, Laptop, Target, TreePine, ArrowRight, AlertTriangle, CheckCircle2, Sparkles } from "lucide-react";
 import { formatCo2, formatKwh, shortDate, peso } from "../format";
 import { CARBON_TERMS, explainCarbon } from "../explain";
 import { color } from "../theme";
@@ -6,6 +6,7 @@ import CleanHours from "./CleanHours";
 import EmissionsChart from "./EmissionsChart";
 import Figures from "./Figures";
 import KiloInsight from "./KiloInsight";
+import { CardHeader, StatCard } from "./Card";
 
 // Device vs data center: a green/violet pair that stays distinct in both themes.
 const DEVICE = color("viz-green");
@@ -19,38 +20,22 @@ const LEDGER_QUESTION =
 
 const BUDGET_STATUS = {
   under: { label: "On track", tag: "tech-tag-pos", icon: CheckCircle2 },
-  fixed_by_recommendations: { label: "Over · fixed by directives", tag: "tech-tag-sim", icon: AlertTriangle },
+  fixed_by_recommendations: { label: "Over · fixed by recommendations", tag: "tech-tag-sim", icon: AlertTriangle },
   over: { label: "Over budget", tag: "tech-tag-alert", icon: AlertTriangle },
 };
 
-function Tile({ title, icon: Icon, value, subtext, footer, tag, tagClass = "tech-tag-neutral", ask, onAsk }) {
+// Asks Kilo about one figure, from the corner of its card.
+function AskButton({ ask, onAsk }) {
+  if (!onAsk || !ask) return null;
   return (
-    <div className="stat-card flex flex-col justify-between min-w-0">
-      <div>
-        <div className="flex items-center justify-between mb-3 gap-2">
-          <span className="eyebrow truncate">{title}</span>
-          <span className="flex items-center gap-1 shrink-0">
-            {onAsk && ask && (
-              <button onClick={() => onAsk(ask)} className="btn-icon h-6 w-6" title={`Ask Kilo: ${ask}`} aria-label={`Ask Kilo: ${ask}`}>
-                <Sparkles className="w-3.5 h-3.5" />
-              </button>
-            )}
-            <Icon className="w-4 h-4 text-ink-muted" />
-          </span>
-        </div>
-        <div className="stat-value truncate text-ink">{value}</div>
-        <div className="text-xs text-ink-muted mt-2 leading-snug">{subtext}</div>
-      </div>
-      <div className="mt-4 pt-3 border-t border-line flex items-center justify-between gap-2">
-        <span className="text-xs text-ink-soft leading-snug">{footer}</span>
-        {tag && <span className={`tech-tag shrink-0 ${tagClass}`}>{tag}</span>}
-      </div>
-    </div>
+    <button onClick={() => onAsk(ask)} className="btn-icon h-6 w-6" title={`Ask Kilo: ${ask}`} aria-label={`Ask Kilo: ${ask}`}>
+      <Sparkles className="w-3.5 h-3.5" />
+    </button>
   );
 }
 
 function BudgetMeter({ budget }) {
-  // Fill to the projected share; a marker shows where the directives would land.
+  // Fill to the projected share; a marker shows where the recommendations would land.
   const now = Math.min(budget.used_share, 1.5);
   const recs = Math.min(budget.used_share_with_recommendations, 1.5);
   const scale = (x) => `${(x / 1.5) * 100}%`;
@@ -62,7 +47,7 @@ function BudgetMeter({ budget }) {
       />
       <div className="absolute -top-1 -bottom-1 w-0.5 bg-ink" style={{ left: scale(1) }} title="Budget" />
       {recs < now && (
-        <div className="absolute -top-1 -bottom-1 w-0.5 bg-pos" style={{ left: scale(recs) }} title="With directives" />
+        <div className="absolute -top-1 -bottom-1 w-0.5 bg-pos" style={{ left: scale(recs) }} title="With recommendations" />
       )}
     </div>
   );
@@ -80,12 +65,7 @@ function WhatItMeans({ carbon, params, range, onAsk }) {
   ];
   return (
     <section className="dash-card p-5 min-w-0">
-      <div className="pb-4 border-b border-line">
-        <h2 className="card-title flex items-center gap-2">
-          <Lightbulb className="w-4 h-4 text-ink-muted" /> What this means
-        </h2>
-        <div className="card-sub mt-0.5">The numbers on this page, in plain words</div>
-      </div>
+      <CardHeader title="What this means" sub="The numbers on this page, in plain words" />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-4 min-w-0">
         <ul className="space-y-2.5 min-w-0">
           {lines.map((l) => (
@@ -114,10 +94,13 @@ function WhatItMeans({ carbon, params, range, onAsk }) {
 function Glossary() {
   return (
     <details className="dash-card p-5 min-w-0 group">
-      <summary className="card-title flex items-center gap-2 cursor-pointer list-none">
-        <BookOpen className="w-4 h-4 text-ink-muted" /> What the terms mean
-        <span className="ml-auto text-xs font-medium text-accent group-open:hidden">Show</span>
-        <span className="ml-auto text-xs font-medium text-accent hidden group-open:inline">Hide</span>
+      <summary className="flex items-center justify-between gap-3 cursor-pointer list-none">
+        <span className="min-w-0">
+          <span className="card-title block">What the terms mean</span>
+          <span className="card-sub block mt-0.5">CO₂, grid factor, budgets and the rest</span>
+        </span>
+        <span className="link group-open:hidden">Show</span>
+        <span className="link hidden group-open:inline-flex">Hide</span>
       </summary>
       <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 mt-4 pt-4 border-t border-line">
         {CARBON_TERMS.map((t) => (
@@ -131,7 +114,7 @@ function Glossary() {
   );
 }
 
-export default function CarbonFootprint({ carbon, params, range, onAsk, onOpenDirectives }) {
+export default function CarbonFootprint({ carbon, params, range, onAsk, onOpenRecommendations }) {
   if (!carbon) return null;
   const { totals, cycle, budget, year, by_model: models = [], top_actions: actions = [], factors, window } = carbon;
   const status = budget && BUDGET_STATUS[budget.status];
@@ -144,31 +127,42 @@ export default function CarbonFootprint({ carbon, params, range, onAsk, onOpenDi
     <div className="space-y-6 min-w-0">
       {/* Headline tiles */}
       <div className="stagger grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 min-w-0">
-        <Tile
+        <StatCard
           title={`AI footprint · ${window?.short}`}
           icon={Leaf}
-          value={formatCo2(totals.total_kg)}
-          subtext={`${formatCo2(totals.device_kg)} on this device · ${formatCo2(totals.datacenter_kg)} in data centers`}
-          footer={`≈ ${totals.trees_month} trees absorbing for a month`}
-          ask={`My AI footprint is ${formatCo2(totals.total_kg)} ${window?.label?.toLowerCase()}. Is that a lot, and where does it come from?`}
-          onAsk={onAsk}
+          value={totals.total_kg}
+          format={formatCo2}
+          sub={`${formatCo2(totals.device_kg)} on this device · ${formatCo2(totals.datacenter_kg)} in data centers`}
+          foot={`≈ ${totals.trees_month} trees absorbing for a month`}
+          action={
+            <AskButton
+              onAsk={onAsk}
+              ask={`My AI footprint is ${formatCo2(totals.total_kg)} ${window?.label?.toLowerCase()}. Is that a lot, and where does it come from?`}
+            />
+          }
         />
-        <Tile
+        <StatCard
           title="This cycle (projected)"
           icon={Target}
-          value={formatCo2(cycle.projected_kg)}
-          subtext={`${shortDate(cycle.start)} – ${shortDate(cycle.end)}`}
-          footer={cut > 0 ? `With directives: ${formatCo2(cycle.projected_kg_with_recommendations)}` : "No CO₂ cuts found"}
+          value={cycle.projected_kg}
+          format={formatCo2}
+          sub={`${shortDate(cycle.start)} – ${shortDate(cycle.end)}`}
+          foot={cut > 0 ? `With recommendations: ${formatCo2(cycle.projected_kg_with_recommendations)}` : "No CO₂ cuts found"}
           tag={cut > 0 ? `-${formatCo2(cut)}` : null}
           tagClass="tech-tag-pos"
-          ask={`What does ${formatCo2(cycle.projected_kg)} projected this cycle mean, and how would the directives lower it?`}
-          onAsk={onAsk}
+          action={
+            <AskButton
+              onAsk={onAsk}
+              ask={`What does ${formatCo2(cycle.projected_kg)} projected this cycle mean, and how would the recommendations lower it?`}
+            />
+          }
         />
-        <Tile
+        <StatCard
           title="Carbon budget"
           icon={status?.icon || Target}
-          value={budget ? `${Math.round(budget.used_share * 100)}%` : "Off"}
-          subtext={
+          value={budget ? budget.used_share * 100 : null}
+          format={(v) => (v == null ? "Off" : `${Math.round(v)}%`)}
+          sub={
             budget ? (
               <>
                 of {budget.kg} kg CO₂ this cycle
@@ -176,27 +170,36 @@ export default function CarbonFootprint({ carbon, params, range, onAsk, onOpenDi
                 <BudgetMeter budget={budget} />
               </>
             ) : (
-              "Set a monthly CO₂ cap in Tariff & Hardware"
+              "Set a monthly CO₂ budget in Tariff & bill"
             )
           }
-          footer={budget ? `With directives: ${Math.round(budget.used_share_with_recommendations * 100)}%` : "—"}
+          foot={budget ? `With recommendations: ${Math.round(budget.used_share_with_recommendations * 100)}%` : "—"}
           tag={status?.label}
           tagClass={status?.tag}
-          ask={
-            budget
-              ? `Am I on track with my carbon budget? This cycle is at ${Math.round(budget.used_share * 100)}% of it.`
-              : "What is a carbon budget, and should I set one?"
+          action={
+            <AskButton
+              onAsk={onAsk}
+              ask={
+                budget
+                  ? `Am I on track with my carbon budget? This cycle is at ${Math.round(budget.used_share * 100)}% of it.`
+                  : "What is a carbon budget, and should I set one?"
+              }
+            />
           }
-          onAsk={onAsk}
         />
-        <Tile
+        <StatCard
           title="Avoided over 12 months"
           icon={TreePine}
-          value={formatCo2(year.avoided_kg)}
-          subtext={`${formatCo2(year.projected_kg)} → ${formatCo2(year.projected_kg_with_recommendations)} a year`}
-          footer={`= ${year.trees_equivalent} trees for a year`}
-          ask={`What does ${formatCo2(year.avoided_kg)} avoided over 12 months mean, and what do I have to do to get it?`}
-          onAsk={onAsk}
+          value={year.avoided_kg}
+          format={formatCo2}
+          sub={`${formatCo2(year.projected_kg)} → ${formatCo2(year.projected_kg_with_recommendations)} a year`}
+          foot={`= ${year.trees_equivalent} trees for a year`}
+          action={
+            <AskButton
+              onAsk={onAsk}
+              ask={`What does ${formatCo2(year.avoided_kg)} avoided over 12 months mean, and what do I have to do to get it?`}
+            />
+          }
         />
       </div>
 
@@ -209,7 +212,7 @@ export default function CarbonFootprint({ carbon, params, range, onAsk, onOpenDi
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-w-0">
         {/* Per-model footprint */}
         <section className="dash-card p-5 lg:col-span-7 min-w-0">
-          <h2 className="card-title pb-4 border-b border-line">Footprint by model</h2>
+          <CardHeader title="Footprint by model" sub={`CO₂ per model, ${window?.label?.toLowerCase()}`} />
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm border-collapse min-w-[520px] whitespace-nowrap">
               <thead>
@@ -277,12 +280,12 @@ export default function CarbonFootprint({ carbon, params, range, onAsk, onOpenDi
           </div>
         </section>
 
-        {/* Biggest CO₂ cuts from the directives */}
+        {/* Biggest CO₂ cuts from the recommendations */}
         <section className="dash-card p-5 lg:col-span-5 min-w-0 flex flex-col">
-          <h2 className="card-title pb-4 border-b border-line">Biggest CO₂ cuts</h2>
+          <CardHeader title="Biggest CO₂ cuts" sub="The recommendations that avoid the most CO₂ a month" />
           <div className="space-y-2.5 my-4 flex-1">
             {actions.length === 0 ? (
-              <div className="p-4 text-center text-ink-muted text-sm">No directive cuts CO₂ right now.</div>
+              <div className="empty-state">No recommendation cuts CO₂ right now.</div>
             ) : (
               actions.map((a) => (
                 <div key={`${a.rule}|${a.model}`} className="p-3 inset-panel">
@@ -306,15 +309,15 @@ export default function CarbonFootprint({ carbon, params, range, onAsk, onOpenDi
               ))
             )}
           </div>
-          <button onClick={onOpenDirectives} className="link self-start">
-            All load directives <ArrowRight className="w-3.5 h-3.5" />
+          <button onClick={onOpenRecommendations} className="link self-start">
+            All recommendations <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </section>
       </div>
 
       <Glossary />
 
-      <div className="text-xs text-ink-muted flex flex-wrap justify-between gap-2">
+      <div className="text-xs text-ink-muted flex flex-wrap justify-between gap-2 pt-1">
         <span>
           Device: {factors.device_kg_per_kwh} kg CO₂/kWh ({factors.co2_source})
         </span>

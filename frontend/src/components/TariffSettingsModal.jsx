@@ -169,11 +169,11 @@ export default function TariffSettingsModal({
                   onClick={() => setTariff(id)}
                   className={`p-3 rounded-lg border text-left transition-colors ${
                     tariff === id
-                      ? "border-accent bg-accent/[0.08] ring-1 ring-accent"
+                      ? "border-accent bg-surface ring-1 ring-accent"
                       : "border-line bg-surface hover:border-line-strong"
                   }`}
                 >
-                  <div className={`font-semibold text-sm ${tariff === id ? "text-accent" : "text-ink"}`}>{title}</div>
+                  <div className="font-semibold text-sm text-ink">{title}</div>
                   <div className="text-xs text-ink-muted mt-0.5 leading-snug">{hint}</div>
                 </button>
               ))}

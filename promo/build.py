@@ -1,11 +1,16 @@
-"""Builds the 60-second WattTrace promo video from narration.json and video.html.
+"""Builds a 60-second promo video from a cut's narration.json and video.html.
 
-    python build.py voice     voice-over clips, out/timeline.js (when each line is spoken) and the .srt captions
-    python build.py music     out/music.wav, a quiet synthesized bed
-    python build.py still 12.5 [more times]   out/stills/*.png, to check a moment of the video
-    python build.py frames    out/silent.mp4, every frame of video.html
-    python build.py mux       WattTrace-promo.mp4, with the voice over the music
-    python build.py all       everything, in order
+    python build.py [--cut=NAME] voice     voice-over clips, out/timeline.js (when each line is spoken) and the .srt captions
+    python build.py [--cut=NAME] music     out/music.wav, synthesized
+    python build.py [--cut=NAME] sfx       out/sfx.wav, the sound effects the page asks for (cuts with a sound.py)
+    python build.py [--cut=NAME] still 12.5 [more times]   out/stills/*.png, to check a moment of the video
+    python build.py [--cut=NAME] frames    out/silent.mp4, every frame of video.html
+    python build.py [--cut=NAME] mux       the finished .mp4: voice over the music and sound effects
+    python build.py [--cut=NAME] all       everything, in order
+
+Cuts (default kilowhat):
+    kilowhat    KiloWhat-promo.mp4, from kilowhat/ (narration.json, video.html, sound.py, shots.py)
+    watttrace   WattTrace-promo.mp4, the first release, from this folder
 
 Everything runs on this computer. Needs:
     pip install kokoro-onnx soundfile numpy imageio-ffmpeg playwright
@@ -32,21 +37,39 @@ import numpy as np
 import soundfile as sf
 
 ROOT = Path(__file__).resolve().parent
-OUT = ROOT / "out"
+CUTS = {
+    "kilowhat": (ROOT / "kilowhat", ROOT / "KiloWhat-promo.mp4"),
+    "watttrace": (ROOT, ROOT / "WattTrace-promo.mp4"),
+}
+CUT = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--cut=")), "kilowhat")
+if CUT not in CUTS:
+    sys.exit(f"No cut {CUT!r}; the cuts are {', '.join(CUTS)}")
+sys.argv = [a for a in sys.argv if not a.startswith("--cut=")]
+CUT_DIR, VIDEO = CUTS[CUT]   # the finished video; everything in out/ can be rebuilt
+OUT = CUT_DIR / "out"
 VOICE_DIR = OUT / "voice"
-VIDEO = ROOT / "WattTrace-promo.mp4"   # the finished video; everything in out/ can be rebuilt
-NARRATION = json.loads((ROOT / "narration.json").read_text())
+PAGE = CUT_DIR / "video.html"
+NARRATION = json.loads((CUT_DIR / "narration.json").read_text())
 DURATION, FPS = float(NARRATION["duration"]), int(NARRATION["fps"])
 WIDTH, HEIGHT = 1920, 1080
 SR = 48000  # sample rate of the finished soundtrack
 
 LEAD_IN_S = 0.55      # silence before the first line
-TAIL_S = 1.7          # hold on the end card after the last line
-MIN_GAP_S, MAX_GAP_S = 0.16, 0.55   # pause after a line; a cue's "pause" multiplies it
+TAIL_S = NARRATION.get("tail", 1.7)   # hold on the end card after the last line
+MIN_GAP_S, MAX_GAP_S = 0.16, NARRATION.get("max_gap", 0.55)   # pause after a line; a cue's "pause" multiplies it
 SCENE_GAP = 2.0       # pause weight between scenes, when the cue sets none
 SCENE_LEAD_S = 0.5    # a scene is on screen this long before its first line
 PAUSE_S = 0.11        # silence this long inside a line splits it into spoken segments
-LOUDNESS_LUFS = -16   # loudness of the finished soundtrack
+LOUDNESS_LUFS = NARRATION.get("loudness", -16)   # loudness of the finished soundtrack
+
+
+def sound():
+    """The cut's own music and sound effects (kilowhat/sound.py), or None for the first release."""
+    if not (CUT_DIR / "sound.py").exists():
+        return None
+    sys.path.insert(0, str(CUT_DIR))
+    import sound as module
+    return module
 
 
 def ffmpeg():
@@ -237,12 +260,21 @@ def _note(midi):
 
 
 def step_music(timeline=None):
+    timeline = timeline or json.loads((OUT / "timeline.json").read_text())
+    if sound():
+        music = sound().music(timeline, SR)
+        sf.write(OUT / "music.wav", music.astype(np.float32), SR)
+        print(f"Music: {len(music) / SR:.0f} s, peak {20 * np.log10(np.abs(music).max()):.1f} dBFS")
+        return
+    step_pad_music(timeline)
+
+
+def step_pad_music(timeline):
     """A quiet pad with a soft pulse, synthesized here so there's nothing to license.
 
     Eight chords across the minute, ending on the home chord. The pulse starts when the
     product is introduced and stops for the end card.
     """
-    timeline = timeline or json.loads((OUT / "timeline.json").read_text())
     scene = {s["id"]: s for s in timeline["scenes"]}
     n = int(DURATION * SR)
     t = np.arange(n) / SR
@@ -317,7 +349,7 @@ def _page(playwright):
     page = browser.new_context(viewport={"width": WIDTH, "height": HEIGHT}, device_scale_factor=1).new_page()
     page.on("console", lambda m: print("  page:", m.text) if m.type in ("error", "warning") else None)
     page.on("pageerror", lambda e: print("  page error:", e))
-    page.goto((ROOT / "video.html").as_uri() + "?render=1")
+    page.goto(PAGE.as_uri() + "?render=1")
     page.wait_for_function("window.READY === true", timeout=20000)
     return browser, page
 
@@ -339,6 +371,18 @@ def step_still(times):
             path.write_bytes(_capture(page, cdp, t))
             print("still", path.name)
         browser.close()
+
+
+def step_sfx():
+    """The sound effects video.html places (window.SFX: when, which, how loud, where in the stereo field)."""
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        browser, page = _page(p)
+        cues = page.evaluate("window.SFX")
+        browser.close()
+    track = sound().effects(cues, DURATION, SR)
+    sf.write(OUT / "sfx.wav", track.astype(np.float32), SR)
+    print(f"Sound effects: {len(cues)}, peak {20 * np.log10(np.abs(track).max()):.1f} dBFS")
 
 
 def step_frames():
@@ -367,11 +411,17 @@ def step_frames():
 
 def step_mux():
     """Voice over the music (which dips while someone is speaking), onto the frames."""
+    inputs = ["-i", OUT / "voiceover.wav", "-i", OUT / "music.wav"]
     mix = ("[0:a]pan=stereo|c0=c0|c1=c0,asplit=2[voice][key];"
            "[1:a][key]sidechaincompress=threshold=0.05:ratio=3:attack=20:release=700[bed];"
            "[voice][bed]amix=inputs=2:normalize=0[a]")
-    run([ffmpeg(), "-y", "-i", OUT / "voiceover.wav", "-i", OUT / "music.wav", "-filter_complex", mix,
-         "-map", "[a]", "-ar", SR, OUT / "mix.wav"])
+    if sound():   # the sound effects sit under the voice too, a little less than the music
+        inputs += ["-i", OUT / "sfx.wav"]
+        mix = ("[0:a]pan=stereo|c0=c0|c1=c0,asplit=3[voice][key][key2];"
+               "[1:a][key]sidechaincompress=threshold=0.05:ratio=3:attack=20:release=600[bed];"
+               "[2:a][key2]sidechaincompress=threshold=0.05:ratio=1.6:attack=10:release=300[fx];"
+               "[voice][bed][fx]amix=inputs=3:normalize=0[a]")
+    run([ffmpeg(), "-y", *inputs, "-filter_complex", mix, "-map", "[a]", "-ar", SR, OUT / "mix.wav"])
     # Bring the mix to LOUDNESS_LUFS, the level video sites play at, and catch the peaks that pushes over.
     measured = run([ffmpeg(), "-hide_banner", "-nostats", "-i", OUT / "mix.wav", "-af", "ebur128", "-f", "null", "-"])
     loudness = float(re.findall(r"I:\s+(-?[\d.]+) LUFS", measured.stderr)[-1])
@@ -390,12 +440,16 @@ if __name__ == "__main__":
         step_music()
     elif step == "still":
         step_still([float(a) for a in args])
+    elif step == "sfx":
+        step_sfx()
     elif step == "frames":
         step_frames()
     elif step == "mux":
         step_mux()
     elif step == "all":
         step_music(step_voice(keep="--keep" in args))
+        if sound():
+            step_sfx()
         step_frames()
         step_mux()
     else:

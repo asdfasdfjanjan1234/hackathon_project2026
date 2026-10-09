@@ -18,7 +18,8 @@ import CarbonFootprint from "./components/CarbonFootprint";
 import BestTime from "./components/BestTime";
 import Assistant from "./components/Assistant";
 import { VIEWS } from "./navigation";
-import { AlertTriangle, RefreshCw, Zap } from "lucide-react";
+import { peso } from "./format";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 
 const LIVE_POLL_MS = 2000;
 
@@ -82,7 +83,7 @@ export default function App() {
         setDefaultParams(fromServer);
       }
     } catch (e) {
-      setError(e.message || "Failed to communicate with telemetry backend.");
+      setError(e.message || "The backend didn't answer.");
     } finally {
       setLoading(false);
     }
@@ -159,67 +160,6 @@ export default function App() {
 
   const badges = { recommendations: rawData?.recs?.recommendations?.length || 0 };
 
-  // Loading Skeleton State
-  if (loading) {
-    return (
-      <div className="flex h-screen bg-canvas text-ink overflow-hidden font-sans">
-        <Sidebar activeTab={activeTab} setActiveTab={handleSelectTab} badges={badges} />
-        <div className="flex-1 flex flex-col h-screen overflow-hidden">
-          <TopBar
-            dateRange={dateRange}
-            setDateRange={setDateRange}
-            onOpenMobileMenu={() => setMobileMenuOpen(true)}
-            onOpenSettings={() => setSettingsOpen(true)}
-          />
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="stat-card h-36 animate-pulse" />
-              ))}
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              <div className="lg:col-span-5 h-80 dash-card animate-pulse" />
-              <div className="lg:col-span-7 h-80 dash-card animate-pulse" />
-            </div>
-          </main>
-        </div>
-      </div>
-    );
-  }
-
-  // Error State with Retry
-  if (error) {
-    return (
-      <div className="flex h-screen bg-canvas text-ink overflow-hidden font-sans">
-        <Sidebar activeTab={activeTab} setActiveTab={handleSelectTab} badges={badges} />
-        <div className="flex-1 flex flex-col h-screen overflow-hidden">
-          <TopBar
-            dateRange={dateRange}
-            setDateRange={setDateRange}
-            onOpenMobileMenu={() => setMobileMenuOpen(true)}
-            onOpenSettings={() => setSettingsOpen(true)}
-          />
-          <main className="flex-1 flex items-center justify-center p-6">
-            <div className="dash-card max-w-md w-full p-6 text-center space-y-4">
-              <div className="w-10 h-10 rounded-full border border-line bg-sunken text-neg flex items-center justify-center mx-auto">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <h2 className="card-title">Telemetry link failure</h2>
-              <p className="text-sm text-ink-soft leading-relaxed">
-                Could not connect to localhost:5001 telemetry daemon. Verify that the Python backend process is listening.
-              </p>
-              <div className="inset-panel p-2.5 text-neg text-xs font-mono break-all text-left">{error}</div>
-              <button onClick={() => fetchData(customParams, true)} className="btn-primary w-full py-2">
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>Re-establish telemetry link</span>
-              </button>
-            </div>
-          </main>
-        </div>
-      </div>
-    );
-  }
-
   const renderView = () => {
     switch (activeTab) {
       case "device":
@@ -248,7 +188,7 @@ export default function App() {
             params={customParams}
             range={dateRange}
             onAsk={askAssistant}
-            onOpenDirectives={() => handleSelectTab("recommendations")}
+            onOpenRecommendations={() => handleSelectTab("recommendations")}
           />
         );
       case "recommendations":
@@ -327,9 +267,26 @@ export default function App() {
           <div className="mx-auto w-full max-w-[1400px] space-y-6 min-w-0">
             <ViewHeader view={VIEWS[activeTab]} />
 
-            <div key={activeTab} className="stagger space-y-6 min-w-0">
-              {renderView()}
-            </div>
+            {/* A failed refresh keeps the last figures on screen */}
+            {error && rawData && (
+              <div role="alert" className="notice notice-warn items-center">
+                <AlertTriangle />
+                <span className="flex-1 min-w-0">Couldn't refresh: {error}. Showing the last figures.</span>
+                <button onClick={refresh} className="btn shrink-0">
+                  <RefreshCw className="w-3.5 h-3.5" /> Try again
+                </button>
+              </div>
+            )}
+
+            {loading ? (
+              <LoadingSkeleton />
+            ) : !rawData ? (
+              <ConnectionError error={error} onRetry={() => fetchData(customParams, true)} />
+            ) : (
+              <div key={activeTab} className="stagger space-y-6 min-w-0">
+                {renderView()}
+              </div>
+            )}
 
             {/* Dashboard Footer */}
             <footer className="pt-4 pb-2 border-t border-line flex flex-wrap items-center justify-between text-xs text-ink-muted gap-2">
@@ -337,9 +294,12 @@ export default function App() {
                 <LogoMark className="h-4 w-4" />
                 <span className="font-semibold text-ink-soft">Kilo What?</span>
               </div>
-              <div className="tabular-nums">
-                This device · Sampling: {LIVE_POLL_MS} ms · Tariff: ₱{customParams?.rate?.toFixed(2)} / kWh · Cap: ₱{customParams?.budget} · Cycle starts day {customParams?.cycleStartDay ?? 1}
-              </div>
+              {customParams && (
+                <div className="tabular-nums">
+                  This device · Sampling every {LIVE_POLL_MS / 1000} s · Rate {peso(customParams.rate)} / kWh · Budget{" "}
+                  {peso(customParams.budget, 0)} / mo · Cycle starts day {customParams.cycleStartDay ?? 1}
+                </div>
+              )}
             </footer>
           </div>
         </main>
@@ -355,7 +315,7 @@ export default function App() {
         onOpenView={handleSelectTab}
       />
 
-      {/* Interactive Tariff & Hardware Settings Modal */}
+      {/* Tariff & bill settings */}
       <TariffSettingsModal
         isOpen={settingsOpen && customParams != null}
         onClose={() => setSettingsOpen(false)}
@@ -374,6 +334,44 @@ export default function App() {
           fetchData(newParams, true);
         }}
       />
+    </div>
+  );
+}
+
+// The shape of the dashboard while the first figures load, so nothing jumps when they arrive.
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-6 min-w-0" aria-busy="true" aria-label="Loading">
+      <div className="dash-card h-16 animate-pulse" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="stat-card h-44 animate-pulse" />
+          ))}
+        </div>
+        <div className="dash-card h-80 lg:h-auto animate-pulse" />
+      </div>
+    </div>
+  );
+}
+
+function ConnectionError({ error, onRetry }) {
+  return (
+    <div className="flex justify-center py-10">
+      <div role="alert" className="dash-card max-w-md w-full p-6 text-center space-y-4">
+        <div className="w-10 h-10 rounded-full border border-line bg-sunken text-neg flex items-center justify-center mx-auto">
+          <AlertTriangle className="w-5 h-5" />
+        </div>
+        <h2 className="card-title">Can't reach the backend</h2>
+        <p className="text-sm text-ink-soft leading-relaxed">
+          The dashboard reads from the Python backend on localhost:5001. Check that it's running, then try again.
+        </p>
+        {error && <div className="inset-panel p-2.5 text-xs text-ink-soft break-words text-left">{error}</div>}
+        <button onClick={onRetry} className="btn-primary w-full py-2">
+          <RefreshCw className="w-3.5 h-3.5" />
+          <span>Try again</span>
+        </button>
+      </div>
     </div>
   );
 }

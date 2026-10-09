@@ -206,8 +206,8 @@ export function explainCarbon(carbon) {
         budget.status === "under"
           ? `This cycle is on track: ${now} of your ${budget.kg} kg CO₂ budget.`
           : budget.status === "fixed_by_recommendations"
-          ? `This cycle is heading for ${now} of your ${budget.kg} kg CO₂ budget. Following the directives would bring it to ${recs}.`
-          : `This cycle is heading for ${now} of your ${budget.kg} kg CO₂ budget, and still ${recs} with the directives.`,
+          ? `This cycle is heading for ${now} of your ${budget.kg} kg CO₂ budget. Following the recommendations would bring it to ${recs}.`
+          : `This cycle is heading for ${now} of your ${budget.kg} kg CO₂ budget, and still ${recs} with the recommendations.`,
     });
   }
 
@@ -241,10 +241,10 @@ export const CARBON_TERMS = [
   },
   {
     term: "Carbon budget",
-    text: "A monthly CO₂ cap you set in Tariff & Hardware. The bar shows where this cycle is heading; the marker shows where the directives would bring it.",
+    text: "A monthly CO₂ cap you set in Tariff & bill. The bar shows where this cycle is heading; the marker shows where the recommendations would bring it.",
   },
   {
-    term: "Directives",
+    term: "Recommendations",
     text: "The app's suggested changes (a smaller model, unloading an idle one, running in cleaner hours) with the CO₂ and pesos each one saves.",
   },
   {

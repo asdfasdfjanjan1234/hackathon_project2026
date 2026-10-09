@@ -13,6 +13,7 @@ import AppPowerParts from "./AppPowerParts";
 import BrandIcon, { BrandName } from "./BrandIcon";
 import PowerSplit from "./PowerSplit";
 import Figures from "./Figures";
+import { CardHeader } from "./Card";
 
 // Dial full-scale steps: the smallest that fits the readings, so a 5 W laptop and a
 // 400 W gaming PC both use the whole arc.
@@ -94,16 +95,9 @@ export default function LiveWattage({ reading }) {
       {/* 1. Left Card: Active power draw monitor dial, sparkline, diagnostic, and power breakdown */}
       <section className="dash-card p-5 flex flex-col justify-between min-w-0 h-full">
         <div>
-          {/* Header */}
-          <div className="flex items-start justify-between pb-4 border-b border-line gap-2">
-            <div className="min-w-0">
-              <h2 className="card-title truncate">Active power draw monitor</h2>
-              <div className="card-sub truncate mt-0.5">Sensor bus: {sourceName.toLowerCase()}</div>
-            </div>
-            <span className={`tech-tag shrink-0 ${estimated ? "tech-tag-sim" : "tech-tag-live"}`}>
-              {sourceName}
-            </span>
-          </div>
+          <CardHeader title="Active power draw" sub="The whole machine, read every 2 s">
+            <span className={`tech-tag ${estimated ? "tech-tag-sim" : "tech-tag-live"}`}>{sourceName}</span>
+          </CardHeader>
 
           {/* Dial */}
           <div className="py-3 flex flex-col items-center justify-center min-w-0">
@@ -222,16 +216,16 @@ export default function LiveWattage({ reading }) {
 
             {/* Why the computer draws what it draws, updated with every reading */}
             {summary.length > 0 && (
-              <div className="w-full mt-3 p-3 rounded-lg bg-accent/[0.06] border border-accent/15 text-[13px] leading-relaxed text-ink-soft">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-accent mb-1">
-                  <Info className="w-3.5 h-3.5" />
-                  Right now
+              <div className="notice notice-info w-full mt-3 text-[13px]">
+                <Info />
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-ink mb-1">Right now</div>
+                  {summary.map((line, i) => (
+                    <p key={i} className={i === 0 ? "font-medium text-ink" : ""}>
+                      <Figures text={line} />
+                    </p>
+                  ))}
                 </div>
-                {summary.map((line, i) => (
-                  <p key={i} className={i === 0 ? "font-medium text-ink" : ""}>
-                    <Figures text={line} />
-                  </p>
-                ))}
               </div>
             )}
           </div>
@@ -248,26 +242,23 @@ export default function LiveWattage({ reading }) {
       <section className="dash-card min-w-0 h-full">
         <div className="p-5 flex flex-col min-w-0 h-full lg:absolute lg:inset-0">
           <div className="flex-1 min-h-0 flex flex-col min-w-0">
-            {/* Header */}
-            <div className="flex items-start justify-between pb-4 border-b border-line gap-2 shrink-0">
-              <div className="min-w-0">
-                <h2 className="card-title truncate">Active AI workload breakdown</h2>
-                <div className="card-sub truncate mt-0.5">Attributed machine draw per AI process</div>
-              </div>
-              <span className="tech-tag tech-tag-neutral shrink-0 tabular-nums">
-                {processList.length} {processList.length === 1 ? "runtime" : "runtimes"}
-              </span>
+            <div className="shrink-0">
+              <CardHeader title="AI apps right now" sub="Each AI app's share of the machine's power">
+                <span className="tech-tag tech-tag-neutral tabular-nums">
+                  {processList.length} {processList.length === 1 ? "runtime" : "runtimes"}
+                </span>
+              </CardHeader>
             </div>
-  
+
             <div className="flex items-center justify-between text-xs font-medium text-ink-muted py-2.5 shrink-0">
-              <span>Process / runtime</span>
-              <span>Attributed draw</span>
+              <span>App or model</span>
+              <span>Power</span>
             </div>
-  
+
             {/* Scrollable process list: capped on narrow screens, fills the card on wide ones */}
             <div className="flex-1 min-h-[140px] max-h-[360px] lg:max-h-none overflow-y-auto overscroll-contain space-y-1.5 pr-1">
               {processList.length === 0 && (
-                <div className="p-3 inset-panel text-xs text-ink-muted">
+                <div className="empty-state">
                   {collecting
                     ? "No AI apps running right now."
                     : "Start the device reader (This Device) to measure watts per AI app."}
@@ -300,7 +291,7 @@ export default function LiveWattage({ reading }) {
                         <AppPowerParts app={proc.app} />
                       </div>
                     </div>
-  
+
                     <div className="text-right shrink-0 font-bold text-ink tabular-nums text-sm ml-2">
                       {formatWatts(proc.watts)}
                     </div>
@@ -308,14 +299,14 @@ export default function LiveWattage({ reading }) {
                 );
               })}
             </div>
-  
+
             {processList.length > 0 && (
               <div className="text-xs text-ink-muted mt-2 shrink-0">
                 Machine total {estimated ? "estimated" : "measured"} · per-app split calculated from CPU/GPU share
               </div>
             )}
           </div>
-  
+
           {/* Footnote / Explanation accordion */}
           <div className="pt-3 border-t border-line mt-3 shrink-0">
             <button

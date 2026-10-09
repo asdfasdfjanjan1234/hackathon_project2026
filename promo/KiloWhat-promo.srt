@@ -1,0 +1,84 @@
+1
+00:00:00,550 --> 00:00:02,268
+Your electric bill just jumped.
+
+2
+00:00:03,030 --> 00:00:04,570
+Everyone's blaming AI.
+
+3
+00:00:05,332 --> 00:00:06,132
+But is it?
+
+4
+00:00:07,656 --> 00:00:08,979
+Most apps just guess.
+
+5
+00:00:11,837 --> 00:00:13,117
+Kilo What? measures it,
+
+6
+00:00:13,593 --> 00:00:15,270
+right on your own computer.
+
+7
+00:00:15,270 --> 00:00:17,753
+No cloud, no account, no extra hardware.
+
+8
+00:00:19,468 --> 00:00:21,042
+Every two seconds, it reads
+
+9
+00:00:21,042 --> 00:00:22,967
+your machine's own power sensors,
+
+10
+00:00:23,348 --> 00:00:25,215
+finds every AI app running,
+
+11
+00:00:25,596 --> 00:00:27,345
+and splits the watts between them.
+
+12
+00:00:29,060 --> 00:00:31,364
+Using cloud AI? Under one watt.
+
+13
+00:00:32,221 --> 00:00:34,717
+Here, AI is half a percent of the increase.
+
+14
+00:00:35,575 --> 00:00:37,547
+But run a model on your own GPU,
+
+15
+00:00:37,547 --> 00:00:38,903
+and that's real money.
+
+16
+00:00:40,617 --> 00:00:42,708
+It forecasts your bill from your own usage,
+
+17
+00:00:43,851 --> 00:00:44,715
+then fixes it.
+
+18
+00:00:44,715 --> 00:00:47,243
+One click: a lighter model, a lower bill.
+
+19
+00:00:48,958 --> 00:00:51,487
+Plus your carbon, the cleanest hours to run,
+
+20
+00:00:51,487 --> 00:00:53,097
+and Kilo, to explain it all.
+
+21
+00:00:55,573 --> 00:00:57,600
+Kilo What? Measured, not guessed.
+

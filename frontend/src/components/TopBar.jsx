@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Bell,
   Menu,
@@ -44,10 +44,24 @@ export default function TopBar({
   onAsk,
 }) {
   const [showNotifications, setShowNotifications] = useState(false);
+  const alertsRef = useRef(null);
   const status = sensorStatus(liveReading);
   const flashKey = useChangeKey(liveReading);
   // Alerts arrive most urgent first; notes alone don't light the bell.
   const dot = LEVEL_DOT[alerts[0]?.level];
+  // The alert list closes on Escape or a click anywhere else.
+  useEffect(() => {
+    if (!showNotifications) return undefined;
+    const onKey = (e) => e.key === "Escape" && setShowNotifications(false);
+    const onDown = (e) => !alertsRef.current?.contains(e.target) && setShowNotifications(false);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onDown);
+    };
+  }, [showNotifications]);
+
   const closeAnd = (fn) => () => {
     setShowNotifications(false);
     fn();
@@ -77,29 +91,29 @@ export default function TopBar({
             <button
               onClick={onOpenSettings}
               className="hover:text-accent transition-colors tabular-nums"
-              title="Click to configure tariff"
+              title="Change your rate"
             >
-              Tariff: <span className="font-semibold text-ink-soft">{peso(electricityRate)}</span> / kWh
+              Rate: <span className="font-semibold text-ink-soft">{peso(electricityRate)}</span> / kWh
             </button>
             <span aria-hidden>·</span>
             <button
               onClick={onOpenSettings}
               className="hover:text-accent transition-colors tabular-nums"
-              title="Click to configure budget cap"
+              title="Change your monthly budget"
             >
-              Cap: <span className="font-semibold text-ink-soft">{peso(monthlyBudget)}</span> / mo
+              Budget: <span className="font-semibold text-ink-soft">{peso(monthlyBudget)}</span> / mo
             </button>
           </div>
         </div>
       </div>
 
-      {/* Right Controls: Sampling window, telemetry refresh, alerts */}
+      {/* Right controls: rate, time window, theme, alerts */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         {/* Quick Clickable Tariff/Budget Chip on Tablet/Laptop */}
         <button
           onClick={onOpenSettings}
           className="btn hidden sm:inline-flex md:hidden xl:inline-flex tabular-nums"
-          title="Configure Tariff & Hardware Cap"
+          title="Tariff & bill settings"
         >
           <SlidersHorizontal className="w-3.5 h-3.5 text-ink-muted" />
           <span>{peso(electricityRate)}/kWh</span>
@@ -125,12 +139,12 @@ export default function TopBar({
 
         <ThemeToggle className="hidden sm:flex" />
 
-        {/* Telemetry Alert Log */}
-        <div className="relative">
+        {/* Alerts */}
+        <div className="relative" ref={alertsRef}>
           <button
             onClick={() => setShowNotifications(!showNotifications)}
             className="btn-icon relative"
-            title="System Alert Log"
+            title="Alerts"
             aria-label={`Alerts${alerts.length ? ` (${alerts.length})` : ""}`}
             aria-expanded={showNotifications}
           >
@@ -139,7 +153,7 @@ export default function TopBar({
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-1.5rem))] rounded-xl bg-surface border border-line shadow-pop p-3 z-50 text-sm">
+            <div className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-1.5rem))] rounded-xl bg-surface border border-line shadow-pop p-3 z-50 text-sm animate-pop-in">
               <div className="flex items-center justify-between pb-2 border-b border-line mb-2.5">
                 <span className="font-bold text-ink">Alerts</span>
                 <span className="text-xs font-semibold text-ink-muted tabular-nums">{alerts.length} active</span>

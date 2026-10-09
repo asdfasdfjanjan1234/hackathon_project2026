@@ -1,0 +1,51 @@
+{
+  "duration": 60,
+  "fps": 30,
+  "voice": "af_heart",
+  "speed": 1.0,
+  "tail": 2.4,
+  "max_gap": 1.0,
+  "loudness": -14,
+  "cues": [
+    {"id": "jumped", "scene": "hook", "say": "Your electric bill just jumped.", "pause": 0.8,
+     "caption": "Your electric bill just jumped."},
+    {"id": "blame", "scene": "hook", "say": "Everyone's blaming AI.", "pause": 0.8,
+     "caption": "Everyone's blaming AI."},
+    {"id": "isit", "scene": "hook", "say": "But is it?", "pause": 1.6,
+     "caption": "But is it?"},
+
+    {"id": "guess", "scene": "guess", "say": "Most apps just guess.", "pause": 3.0,
+     "caption": "Most apps just guess."},
+
+    {"id": "meet", "scene": "meet", "say": "Kilo What measures it,", "pause": 0.5,
+     "caption": "Kilo What? measures it,"},
+    {"id": "local", "scene": "meet", "say": "right on your own computer. No cloud, no account, no extra hardware.", "pause": 1.8,
+     "caption": "right on your own computer. | No cloud, no account, no extra hardware."},
+
+    {"id": "sensors", "scene": "sense", "say": "Every two seconds, it reads your machine's own power sensors,", "pause": 0.4,
+     "caption": "Every two seconds, it reads | your machine's own power sensors,"},
+    {"id": "apps", "scene": "sense", "say": "finds every AI app running,", "pause": 0.4,
+     "caption": "finds every AI app running,"},
+    {"id": "split", "scene": "sense", "say": "and splits the watts between them.", "pause": 1.8,
+     "caption": "and splits the watts between them."},
+
+    {"id": "cloud", "scene": "verdict", "say": "Using cloud AI? Under one watt.", "pause": 0.9,
+     "caption": "Using cloud AI? Under one watt."},
+    {"id": "share", "scene": "verdict", "say": "Here, AI is half a percent of the increase.", "pause": 0.9,
+     "caption": "Here, AI is half a percent of the increase."},
+    {"id": "gpu", "scene": "verdict", "say": "But run a model on your own GPU, and that's real money.", "pause": 1.8,
+     "caption": "But run a model on your own GPU, | and that's real money."},
+
+    {"id": "forecast", "scene": "forecast", "say": "It forecasts your bill from your own usage,", "pause": 1.2,
+     "caption": "It forecasts your bill from your own usage,"},
+
+    {"id": "fix", "scene": "fix", "say": "then fixes it. One click: a lighter model, a lower bill.", "pause": 1.8,
+     "caption": "then fixes it. | One click: a lighter model, a lower bill."},
+
+    {"id": "more", "scene": "more", "say": "Plus your carbon, the cleanest hours to run, and Kilo, to explain it all.", "pause": 2.6,
+     "caption": "Plus your carbon, the cleanest hours to run, | and Kilo, to explain it all."},
+
+    {"id": "close", "scene": "close", "say": "Kilo What? Measured, not guessed.",
+     "caption": "Kilo What? Measured, not guessed."}
+  ]
+}

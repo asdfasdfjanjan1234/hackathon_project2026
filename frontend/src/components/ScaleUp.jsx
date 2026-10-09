@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { Calculator, Users } from "lucide-react";
 import { peso, formatWatts, formatKwh } from "../format";
+import { CardHeader } from "./Card";
 
 const DAYS_PER_MONTH = 30;
 
 function Stepper({ label, value, setValue, min, max, unit }) {
   return (
-    <label className="flex items-center justify-between gap-2 rounded-lg bg-surface border border-line px-3 py-2 focus-within:border-accent">
+    <label className="field-box justify-between">
       <span className="text-xs font-medium text-ink-muted">{label}</span>
       <span className="flex items-center gap-1">
         <input
@@ -50,12 +50,7 @@ export default function ScaleUp({ liveReading, forecast, recs, rate }) {
 
   return (
     <section className="dash-card p-5 min-w-0">
-      <div className="pb-4 border-b border-line min-w-0">
-        <h2 className="card-title flex items-center gap-2">
-          <Calculator className="w-4 h-4 text-ink-muted" /> If you kept this up
-        </h2>
-        <div className="card-sub mt-0.5">Today's AI draw as a monthly bill, for one machine or a team</div>
-      </div>
+      <CardHeader title="If you kept this up" sub="Today's AI draw as a monthly bill, for one machine or a team" />
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <Stepper label="Use" value={hours} setValue={setHours} min={1} max={24} unit="h/day" />
@@ -64,7 +59,7 @@ export default function ScaleUp({ liveReading, forecast, recs, rate }) {
 
       <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="inset-panel p-4 min-w-0">
-          <div className="text-xs font-semibold text-ink-soft mb-1">From the live reading</div>
+          <h3 className="text-sm font-semibold text-ink mb-1">From the live reading</h3>
           {aiWatts == null ? (
             <p className="text-xs text-ink-muted">Start the device reader (This Device) to project the AI apps running now.</p>
           ) : (
@@ -82,16 +77,14 @@ export default function ScaleUp({ liveReading, forecast, recs, rate }) {
         </div>
 
         <div className="inset-panel p-4 min-w-0">
-          <div className="text-xs font-semibold text-ink-soft mb-1 flex items-center gap-1.5">
-            <Users className="w-3.5 h-3.5 text-ink-muted" /> From this cycle's forecast
-          </div>
+          <h3 className="text-sm font-semibold text-ink mb-1">From this cycle's forecast</h3>
           <Line label="AI on the bill, next month" value={`${peso(aiMonthly * machines)} / mo`} />
           <Line label="Saved with recommendations" value={`${peso(savings * machines)} / mo`} />
           <Line label="Saved in a year" value={peso(savings * machines * 12)} strong />
         </div>
       </div>
 
-      <p className="mt-3 text-xs text-ink-muted">
+      <p className="card-foot">
         Assumes every machine is used like this one. AI watts are this device's{" "}
         {liveReading?.estimated ? "estimated" : "measured"} power, split per app by CPU and GPU share.
       </p>

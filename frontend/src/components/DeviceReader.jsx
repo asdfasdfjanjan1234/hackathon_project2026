@@ -8,9 +8,11 @@ import {
   Bot,
   Cloud,
   ShieldCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { formatWatts, formatWh, formatTokens, formatAppWatts, peso } from "../format";
 import AppPowerParts from "./AppPowerParts";
+import { CardHeader } from "./Card";
 
 const SENSOR_LABELS = { system: "Whole machine", cpu: "CPU", gpu: "GPU", memory: "Memory", disk: "Disk" };
 
@@ -154,8 +156,9 @@ function ModelsPanel({ models }) {
         ))}
       </div>
       {models.switch_hint && (
-        <div className="mt-3 p-2.5 rounded-lg bg-warn/[0.08] border border-warn/25 text-xs text-ink-soft">
-          {models.switch_hint.message}
+        <div className="notice notice-warn mt-3">
+          <AlertTriangle />
+          <span>{models.switch_hint.message}</span>
         </div>
       )}
       {unmeasurable.length > 0 && (
@@ -231,30 +234,32 @@ export default function DeviceReader({ params, onDataChanged }) {
 
   return (
     <section className="dash-card p-5 min-w-0">
-      <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-line">
-        <div className="min-w-0">
-          <h2 className="card-title">Device reader</h2>
-          <div className="card-sub mt-0.5 flex items-center gap-1.5">
-            {running && <span className="w-2 h-2 rounded-full bg-pos shrink-0" />}
-            {running
-              ? `Reading every 2 s · ${status.samples || status.stored_samples} samples${status.external_collector ? " (collect.py)" : ""}`
-              : "Measures the AI apps on this computer"}
-          </div>
-        </div>
-
-        {running && !status.external_collector ? (
+      <CardHeader
+        title="Device reader"
+        sub={
+          running
+            ? `Reading every 2 s · ${status.samples || status.stored_samples} samples${status.external_collector ? " (collect.py)" : ""}`
+            : "Measures the AI apps on this computer"
+        }
+      >
+        <span className={`tech-tag ${running ? "tech-tag-live" : "tech-tag-neutral"}`}>{running ? "Reading" : "Stopped"}</span>
+        {running && !status.external_collector && (
           <button onClick={stop} className="btn">
             <Square className="w-3 h-3" /> Stop reading
           </button>
-        ) : null}
-      </div>
+        )}
+      </CardHeader>
 
       {error && (
-        <div className="mt-4 p-3 rounded-lg bg-neg/[0.08] border border-neg/25 text-neg text-xs">{error}</div>
+        <div role="alert" className="notice notice-neg mt-4">
+          <AlertTriangle />
+          <span>{error}</span>
+        </div>
       )}
       {status?.error && (
-        <div className="mt-4 p-3 rounded-lg bg-warn/[0.08] border border-warn/25 text-warn text-xs">
-          Last reading failed: {status.error}
+        <div className="notice notice-warn mt-4">
+          <AlertTriangle />
+          <span>Last reading failed: {status.error}</span>
         </div>
       )}
 
