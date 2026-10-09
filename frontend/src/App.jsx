@@ -28,10 +28,31 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(viewFromHash);
   const [dateRange, setDateRange] = useState("30d");
   const [liveReading, setLiveReading] = useState(null);
+  const [demoSpike, setDemoSpike] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [system, setSystem] = useState(null);
   const mainRef = useRef(null);
+
+  const effectiveLiveReading = useMemo(() => {
+    if (!liveReading) return null;
+    if (!demoSpike) return liveReading;
+    return {
+      ...liveReading,
+      watts: Math.round(((liveReading.watts || 12) + 485.4) * 10) / 10,
+      components: {
+        ...(liveReading.components || {}),
+        gpu: Math.round(((liveReading.components?.gpu || 0) + 382.5) * 10) / 10,
+        cpu: Math.round(((liveReading.components?.cpu || 0) + 91.2) * 10) / 10,
+      },
+      apps: [
+        { name: "ollama (llama3:70b)", kind: "local", cpu_percent: 780, watts: 452.0 },
+        { name: "python (stable-diffusion-xl)", kind: "local", cpu_percent: 120, watts: 33.4 },
+        ...(liveReading.apps || []),
+      ],
+      spike_simulated: true,
+    };
+  }, [liveReading, demoSpike]);
 
   // The user's rate, bills, budget and billing cycle. Starts from the backend's .env values.
   const [customParams, setCustomParams] = useState(null);
@@ -161,11 +182,18 @@ export default function App() {
     const recs = rawData?.recs?.recommendations || [];
     const budget = recs.find((r) => r.rule === "budget");
     const top = recs.find((r) => r.rule !== "budget" && r.scope === "bill" && !r.alternative);
-    return [
-      budget && { level: "warn", title: "Budget overrun projected", text: budget.message },
-      top && { level: "opt", title: `${top.action}: ${top.model}`, text: top.message },
-    ].filter(Boolean);
-  }, [rawData]);
+    const list = [];
+    if (demoSpike) {
+      list.push({
+        level: "warn",
+        title: "CRITICAL LOAD SURGE: +485.4W",
+        text: "Local Ollama Llama-3-70B + Stable Diffusion active on GPU. Projected cost: +₱5.82 / hr at ₱12/kWh.",
+      });
+    }
+    if (budget) list.push({ level: "warn", title: "Budget overrun projected", text: budget.message });
+    if (top) list.push({ level: "opt", title: `${top.action}: ${top.model}`, text: top.message });
+    return list;
+  }, [rawData, demoSpike]);
 
   const badges = { recommendations: rawData?.recs?.recommendations?.length || 0 };
 
@@ -243,7 +271,7 @@ export default function App() {
         return (
           <>
             <DeviceReader dataSource={dataSource} params={customParams} onDataChanged={refresh} />
-            <LiveWattage reading={liveReading} />
+            <LiveWattage reading={effectiveLiveReading} />
             <MeterCheck />
           </>
         );
@@ -264,13 +292,13 @@ export default function App() {
             <BillSummary
               forecast={processedData.forecast}
               recs={processedData.recs}
-              liveReading={liveReading}
+              liveReading={effectiveLiveReading}
               usage={processedData.usage}
               rate={customParams?.rate}
             />
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-w-0">
               <div className="lg:col-span-5 flex flex-col min-w-0">
-                <LiveWattage reading={liveReading} />
+                <LiveWattage reading={effectiveLiveReading} />
               </div>
               <div className="lg:col-span-7 flex flex-col min-w-0">
                 <ForecastChart forecast={processedData.forecast} recs={processedData.recs} />
@@ -296,7 +324,7 @@ export default function App() {
         mobileOpen={mobileMenuOpen}
         setMobileOpen={setMobileMenuOpen}
         badges={badges}
-        liveReading={liveReading}
+        liveReading={effectiveLiveReading}
         dataSource={dataSource}
       />
 
@@ -313,8 +341,10 @@ export default function App() {
           onOpenMobileMenu={() => setMobileMenuOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
           system={system}
-          liveReading={liveReading}
+          liveReading={effectiveLiveReading}
           alerts={alerts}
+          demoSpike={demoSpike}
+          onToggleDemoSpike={() => setDemoSpike((p) => !p)}
         />
 
         {/* Scrollable View */}

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { peso, formatKwh, formatCo2, formatDuration } from "../format";
-import { PieChart as PieIcon } from "lucide-react";
+import { PieChart as PieIcon, Leaf, Smartphone, Car, Wind } from "lucide-react";
 
 const VERDICT_CONFIG = {
   major: {
@@ -172,6 +172,53 @@ export default function BillImpact({ impact }) {
           </div>
         </div>
       </div>
+
+      {/* Environmental & Carbon Equivalencies Matrix */}
+      {eq && (
+        <div className="pt-3 border-t border-white/5 space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-mono">
+            <span className="text-slate-300 font-semibold uppercase flex items-center gap-1.5">
+              <Leaf className="w-3.5 h-3.5 text-emerald-400" />
+              Green Computing & Eco Equivalencies
+            </span>
+            <span className="text-[10px] text-slate-400">Grid Factor: 0.70 kg CO₂/kWh</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono">
+            <div className="p-2.5 rounded bg-white/[0.02] border border-white/5 flex flex-col gap-1">
+              <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold uppercase">
+                <Leaf className="w-3 h-3" />
+                <span>Emissions</span>
+              </div>
+              <div className="text-sm font-bold text-white tabular-nums">{formatCo2(eq.co2_kg)}</div>
+              <div className="text-[9px] text-slate-400 font-sans">Carbon Footprint</div>
+            </div>
+            <div className="p-2.5 rounded bg-white/[0.02] border border-white/5 flex flex-col gap-1">
+              <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold uppercase">
+                <Wind className="w-3 h-3" />
+                <span>Offset</span>
+              </div>
+              <div className="text-sm font-bold text-white tabular-nums">{eq.trees_offset || 0} Trees</div>
+              <div className="text-[9px] text-slate-400 font-sans">Monthly Absorption</div>
+            </div>
+            <div className="p-2.5 rounded bg-white/[0.02] border border-white/5 flex flex-col gap-1">
+              <div className="flex items-center gap-1.5 text-[10px] text-sky-400 font-semibold uppercase">
+                <Smartphone className="w-3 h-3" />
+                <span>Phone Draw</span>
+              </div>
+              <div className="text-sm font-bold text-white tabular-nums">{(eq.smartphone_charges || 0).toLocaleString()}x</div>
+              <div className="text-[9px] text-slate-400 font-sans">Full Battery Charges</div>
+            </div>
+            <div className="p-2.5 rounded bg-white/[0.02] border border-white/5 flex flex-col gap-1">
+              <div className="flex items-center gap-1.5 text-[10px] text-sky-400 font-semibold uppercase">
+                <Car className="w-3 h-3" />
+                <span>EV Range</span>
+              </div>
+              <div className="text-sm font-bold text-white tabular-nums">{eq.ev_km || 0} km</div>
+              <div className="text-[9px] text-slate-400 font-sans">EV Highway Equivalent</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Industrial Footnote */}
       <div className="pt-2.5 border-t border-white/5 flex flex-wrap items-center justify-between text-[10px] font-mono text-slate-400 gap-2">

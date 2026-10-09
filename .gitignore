@@ -2,8 +2,10 @@
 __pycache__/
 *.pyc
 .venv/
+env/
 .env
 *.db
+*.log
 
 # Node
 node_modules/

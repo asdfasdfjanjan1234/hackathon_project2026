@@ -1,6 +1,9 @@
-# AI Wattage Tracker
+# ⚡ WATT-TRACE SCADA // AI Wattage & Carbon Telemetry
 
-Measures how much electricity AI models use, forecasts the electricity bill, and recommends ways to reduce it. See [PROJECT_PLAN.md](PROJECT_PLAN.md) for the full idea.
+Measures physical electricity consumption of AI models, forecasts utility bills, tracks carbon footprints, and recommends power-saving load directives.
+
+* 📘 **[Hackathon Presentation & Architecture Guide](HACKATHON_PITCH_AND_DOCS.md)** (3-minute pitch script, innovation pillars, and API docs).
+* 📋 **[Full Project Plan & Specifications](PROJECT_PLAN.md)**.
 
 ## Structure
 

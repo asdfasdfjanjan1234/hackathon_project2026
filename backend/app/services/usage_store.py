@@ -77,11 +77,17 @@ def summarize_by_model(daily, rate):
 
 
 def equivalents(kwh):
-    """kWh in relatable terms: CO₂ from the grid, and hours of running an aircon."""
+    """kWh in relatable terms: CO₂ from the grid, aircon hours, trees offset, smartphone charges, and EV km."""
     cfg = current_app.config
-    return {"kwh": round(kwh, 6),
-            "co2_kg": round(kwh * cfg["GRID_CO2_KG_PER_KWH"], 4),
-            "aircon_hours": round(kwh * 1000 / cfg["AIRCON_WATTS"], 3)}
+    co2 = kwh * cfg["GRID_CO2_KG_PER_KWH"]
+    return {
+        "kwh": round(kwh, 6),
+        "co2_kg": round(co2, 4),
+        "aircon_hours": round(kwh * 1000 / cfg["AIRCON_WATTS"], 3),
+        "trees_offset": round(co2 / 1.81, 1),
+        "smartphone_charges": int(kwh * 1000 / 12),
+        "ev_km": round(kwh / 0.18, 1),
+    }
 
 
 def equivalence_factors():

@@ -1,4 +1,5 @@
 import json
+import os
 import time
 
 import pytest
@@ -34,6 +35,7 @@ def test_linux_battery_power_only_while_discharging(tmp_path):
     assert sensors_linux.battery_watts(str(tmp_path)) is None
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Linux sysfs paths with colons cannot be created on Windows NTFS")
 def test_linux_rapl_counters_become_component_watts(tmp_path, monkeypatch):
     zones = {"intel-rapl:0": ("package-0", 1_000_000), "intel-rapl:0:0": ("core", 500_000),
              "intel-rapl:0:1": ("uncore", 100_000), "intel-rapl:0:2": ("dram", 50_000)}
