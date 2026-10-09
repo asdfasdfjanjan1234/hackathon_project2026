@@ -6,6 +6,7 @@ import sqlite3
 import time
 
 from .attribution import PowerModel
+from .measurement import DERIVED
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS samples (
@@ -19,9 +20,13 @@ CREATE TABLE IF NOT EXISTS ai_samples (
 CREATE TABLE IF NOT EXISTS power_windows (
     ts REAL, avg_watts REAL, avg_cpu REAL, avg_gpu REAL, n_samples INTEGER
 );
+CREATE TABLE IF NOT EXISTS component_samples (
+    ts REAL, interval_s REAL, component TEXT, watts REAL, source TEXT
+);
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 CREATE INDEX IF NOT EXISTS idx_samples_ts ON samples(ts);
 CREATE INDEX IF NOT EXISTS idx_ai_samples_ts ON ai_samples(ts);
+CREATE INDEX IF NOT EXISTS idx_component_samples_ts ON component_samples(ts);
 """
 
 
@@ -33,12 +38,16 @@ def connect(path):
     return conn
 
 
-def save_sample(conn, ts, interval_s, cpu, gpu, est_watts, measured_watts, apps):
+def save_sample(conn, ts, interval_s, cpu, gpu, est_watts, measured_watts, apps, components=None):
     conn.execute("INSERT INTO samples VALUES (?, ?, ?, ?, ?, ?)",
                  (ts, interval_s, cpu, gpu, est_watts, measured_watts))
     conn.executemany(
         "INSERT INTO ai_samples VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [(ts, interval_s, a["app"], a["model"], a["kind"], a["cpu_percent"], a["rss_mb"], a["watts"]) for a in apps],
+    )
+    conn.executemany(
+        "INSERT INTO component_samples VALUES (?, ?, ?, ?, ?)",
+        [(ts, interval_s, name, c["watts"], c["source"]) for name, c in (components or {}).items()],
     )
     conn.commit()
 
@@ -75,6 +84,9 @@ def latest_sample(conn, max_age_s=15):
         "FROM ai_samples WHERE ts = ? ORDER BY watts DESC", (s["ts"],)
     ).fetchall()
     model = get_power_model(conn) or PowerModel()
+    components = conn.execute(
+        "SELECT component, watts, source FROM component_samples WHERE ts = ?", (s["ts"],)
+    ).fetchall()
     return {
         "watts": round(s["est_watts"], 1),
         "measured_watts": s["measured_watts"],
@@ -82,6 +94,7 @@ def latest_sample(conn, max_age_s=15):
         "gpu_percent": s["gpu_percent"],
         "ai_watts": round(sum(a["watts"] for a in apps), 2),
         "apps": [dict(a) for a in apps],
+        "components": {c["component"]: {"watts": c["watts"], "source": c["source"]} for c in components},
         "power_model": model.to_dict(),
         "source": "collector",
         "simulated": False,
@@ -104,3 +117,21 @@ def daily_usage(conn, days=30):
     ).fetchall()
     return [{"date": r["date"], "model": r["model"], "kind": r["kind"],
              "kwh": round(r["kwh"], 6), "source": "measured"} for r in rows]
+
+
+def daily_component_usage(conn, days=30):
+    """Daily kWh per component (cpu, gpu, memory, disk, other) and how it was obtained."""
+    since = time.time() - days * 86400
+    rows = conn.execute(
+        """
+        SELECT date(ts, 'unixepoch', 'localtime') AS date, component,
+               SUM(watts * interval_s) / 3600000.0 AS kwh,
+               SUM(CASE WHEN source IN ('estimated', ?) THEN 0 ELSE interval_s END)
+                   / SUM(interval_s) AS measured_share
+        FROM component_samples WHERE ts >= ?
+        GROUP BY 1, 2 ORDER BY 1, 2
+        """,
+        (DERIVED, since),
+    ).fetchall()
+    return [{"date": r["date"], "component": r["component"], "kwh": round(r["kwh"], 6),
+             "measured_share": round(r["measured_share"], 3)} for r in rows]
