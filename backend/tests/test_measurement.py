@@ -25,6 +25,15 @@ from app.services.attribution import PowerModel, attribute, fit_power_model
     ("Kiro.exe", r"C:\Users\x\AppData\Local\Programs\Kiro\Kiro.exe", "", "Kiro"),
     ("node", "/opt/homebrew/bin/node", "node /opt/homebrew/lib/node_modules/@google/gemini-cli/dist/index.js",
      "Gemini CLI"),
+    # Devin Desktop (formerly Windsurf) runs its agent as the Devin CLI binary.
+    ("Devin Helper (Plugin)", "/Applications/Devin.app/Contents/Frameworks/Devin Helper (Plugin).app/Contents/MacOS/x",
+     "", "Devin Desktop"),
+    ("language_server_macos_arm",
+     "/Applications/Devin.app/Contents/Resources/app/extensions/windsurf/bin/language_server_macos_arm", "",
+     "Devin Desktop"),
+    ("devin", "/Applications/Devin.app/Contents/Resources/app/extensions/windsurf/devin/bin/devin", "devin acp",
+     "Devin"),
+    ("devin", "/Users/x/.local/bin/devin", "devin", "Devin"),
 ])
 def test_classify_ai_apps(name, exe, cmd, expected):
     assert classify(name, exe, cmd)[0] == expected

@@ -55,6 +55,24 @@ def test_agents_inside_antigravity_have_it_as_host():
     assert groups[12] == ("Claude Code", "client", "Antigravity", False)
 
 
+def test_devin_agent_runs_in_devin_desktop():
+    app = "/Applications/Devin.app/Contents"
+    plugin = f"{app}/Frameworks/Devin Helper (Plugin).app/Contents/MacOS/Devin Helper (Plugin)"
+    procs = {
+        1: proc(0, "launchd"),
+        10: proc(1, "Devin", f"{app}/MacOS/Devin"),
+        11: proc(10, "Devin Helper (Plugin)", plugin),
+        12: proc(11, "devin", f"{app}/Resources/app/extensions/windsurf/devin/bin/devin", "devin acp"),
+        13: proc(12, "node", "/usr/local/bin/node", "node npm test"),
+        14: proc(11, "zsh", "/bin/zsh"),
+    }
+    groups = group_processes(procs)
+    assert groups[10][0] == groups[11][0] == "Devin Desktop"
+    assert groups[12] == ("Devin", "client", "Devin Desktop", False)
+    assert groups[13] == ("Devin", "client", "Devin Desktop", True)
+    assert 14 not in groups  # Devin Desktop is an IDE: its terminals are the user's, not tool runs
+
+
 def test_own_process_is_not_counted_as_a_tool_run():
     procs = {1: proc(0, "claude", "/usr/local/bin/claude"), 2: proc(1, "python", "/usr/bin/python3"),
              3: proc(2, "powermetrics", "/usr/bin/powermetrics")}

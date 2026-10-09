@@ -31,6 +31,11 @@ def _is_kiro(name, exe):
     return "/kiro.app/" in exe or "/programs/kiro/" in exe or "/share/kiro/" in exe or name == "kiro.exe"
 
 
+def _is_devin_desktop(name, exe):
+    # Cognition's IDE, formerly Windsurf. macOS app bundle, Windows and Linux installs.
+    return "/devin.app/" in exe or "/programs/devin/" in exe or "/share/devin/" in exe or name == "devin desktop.exe"
+
+
 # Checked in order; the first match wins. Arguments are lowercased, with "/" as path separator.
 AI_APPS = [
     ("Ollama", "local", lambda name, exe, cmd: name.startswith("ollama")),
@@ -44,6 +49,11 @@ AI_APPS = [
     ("ChatGPT", "client", lambda name, exe, cmd: "/chatgpt.app/" in exe),
     ("Cursor", "client", lambda name, exe, cmd: "/cursor.app/" in exe),
     ("Windsurf", "client", lambda name, exe, cmd: "/windsurf.app/" in exe),
+    # The `devin` agent is the Devin CLI, and Devin Desktop runs the same binary (`devin acp`).
+    # Devin Desktop's own main process is also named Devin.
+    ("Devin", "client", lambda name, exe, cmd: name in ("devin", "devin.exe")
+     and ("/devin/bin/" in exe or not _is_devin_desktop(name, exe))),
+    ("Devin Desktop", "client", lambda name, exe, cmd: _is_devin_desktop(name, exe)),
     ("Antigravity", "client", lambda name, exe, cmd: _is_antigravity(name, exe)),
     ("Kiro", "client", lambda name, exe, cmd: _is_kiro(name, exe)),
     ("Gemini CLI", "client", lambda name, exe, cmd: name == "gemini" or "@google/gemini-cli" in cmd),
@@ -54,12 +64,13 @@ AI_APPS = [
 
 # Agents whose child processes are commands they ran for the user. Not IDEs like
 # Cursor: their children include the user's own terminals.
-TOOL_RUNNERS = {"Claude Code", "Codex", "Gemini CLI", "OpenCode"}
+TOOL_RUNNERS = {"Claude Code", "Codex", "Gemini CLI", "OpenCode", "Devin"}
 
 HOSTS = [
     ("VS Code", lambda name, exe: "/visual studio code.app/" in exe or name == "code.exe"),
     ("Cursor", lambda name, exe: "/cursor.app/" in exe or name == "cursor.exe"),
     ("Windsurf", lambda name, exe: "/windsurf.app/" in exe or name == "windsurf.exe"),
+    ("Devin Desktop", lambda name, exe: _is_devin_desktop(name, exe)),
     ("Antigravity", lambda name, exe: _is_antigravity(name, exe)),
     ("Kiro", lambda name, exe: _is_kiro(name, exe)),
     ("Terminal", lambda name, exe: "/terminal.app/" in exe),
@@ -135,7 +146,9 @@ def group_processes(procs, exclude=(), extra=None):
 # OpenRouter, Groq, ...) sit behind CDN addresses shared with unrelated sites, which
 # would flag apps that never use AI, so they aren't listed.
 AI_API_HOSTS = ("api.anthropic.com", "api.openai.com", "api.githubcopilot.com",
-                "api.individual.githubcopilot.com")
+                "api.individual.githubcopilot.com",
+                # Cognition (Devin, Windsurf), whose clients reach models through its own servers.
+                "server.codeium.com", "inference.codeium.com", "api.devin.ai")
 DNS_EVERY_S = 600   # re-resolve the APIs this often; addresses seen before are kept
 SCAN_EVERY_S = 15   # read every process's connections this often
 STICKY_S = 600      # an app stays counted this long after its last API connection
