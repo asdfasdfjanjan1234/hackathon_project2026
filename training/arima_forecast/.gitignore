@@ -1,0 +1,14 @@
+# Downloaded and derived data: re-created by the notebook / 01_download_iemop.py, 02_export_readings.py
+data/raw/iemop/*.csv
+data/processed/*
+!data/processed/.gitkeep
+# One person's computer use: never committed
+artifacts/devices/
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Checkpoints: re-created by training, and they hold held-out forecasts
+artifacts/luzon/checkpoints/
+
+# Test cache
+.pytest_cache/
