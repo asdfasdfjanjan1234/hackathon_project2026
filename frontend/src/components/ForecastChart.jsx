@@ -91,7 +91,8 @@ export default function ForecastChart({ forecast, recs, className = "" }) {
       </div>
 
       <div className="pt-4 pb-1 flex-1 min-h-[260px] sm:min-h-[280px] w-full min-w-0 overflow-hidden">
-        <ResponsiveContainer width="100%" height="100%">
+        {/* minHeight keeps the chart visible when the card isn't stretched to a fixed height (Billing Projection view). */}
+        <ResponsiveContainer width="100%" height="100%" minHeight={260}>
           <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -6, bottom: 0 }}>
             <CartesianGrid stroke={color("line")} vertical={false} />
 

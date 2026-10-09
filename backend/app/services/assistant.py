@@ -11,6 +11,7 @@ copy them: small models are good at wording and poor at arithmetic.
   facts()         the dashboard's numbers as text
   build_messages  system prompt + facts + the conversation, or a briefing on alerts
   stream_reply()  the reply from Ollama, piece by piece
+  warm()          loads the model and the facts before the question, so the reply starts sooner
   pull()          downloads the model through Ollama
 """
 
@@ -54,15 +55,17 @@ Background
 - Cloud models (Claude, GPT, Gemini) run in the provider's data center. Only the app's own small CPU use here is on the bill. Their data-center energy is estimated from token counts: it is never on the bill, but it still causes CO₂.
 - An app's activity: working = generating or running tools. background = open with light upkeep. loaded = a local model held in memory, not generating. idle = open, waiting for a prompt.
 - "tool runs" are commands a coding agent ran on this computer (tests, builds).
+- CO₂ is the gas that warms the climate; making electricity releases it. It is counted in grams (g) and kilograms (kg), 1 kg = 1,000 g. To make a CO₂ figure feel real, use the comparisons in DATA (car km, phone charges, trees), never your own.
+- The carbon budget is a monthly CO₂ cap the user chose. Recommendations (also called directives) cut CO₂ by using less energy, or by running AI in the grid's cleanest hours.
 - You run as "{own}". Your own energy use is in the readings too."""
 
 # After DATA: small models follow what they read last.
 REMINDER = """Answer in at most 3 short sentences (about 60 words) unless the user asks for detail. Copy figures exactly from DATA. Plain text, no lists."""
 
-BRIEF = """These alerts are showing in the app right now:
+BRIEF = """These alerts just came up in the app:
 {alerts}
 
-Tell me about them the way a good assistant speaks up: what it is, what it means for me, and the one thing worth doing. Most urgent first. At most {sentences} sentences."""
+Tell me about them the way a good assistant speaks up: what it means for me, and the one thing worth doing, if any. Most urgent first. Don't repeat yourself. At most {sentences} sentences."""
 
 VIEWS = {
     "dashboard": "Telemetry Console (live power draw, the current bill and where this cycle is heading)",
@@ -142,11 +145,11 @@ def _can_think(model):
     return _thinks[model]
 
 
-def stream_reply(model, messages, keep_alive="2m"):
+def stream_reply(model, messages, keep_alive="2m", max_tokens=MAX_TOKENS):
     """The reply as events: {type: "delta", text}, then {type: "done", stats} or {type: "error", error}.
     Closing the generator closes the connection, which makes Ollama stop generating."""
     body = {"model": model, "messages": messages, "stream": True, "keep_alive": keep_alive,
-            "options": {"temperature": TEMPERATURE, "num_predict": MAX_TOKENS, "num_ctx": CONTEXT_TOKENS}}
+            "options": {"temperature": TEMPERATURE, "num_predict": max_tokens, "num_ctx": CONTEXT_TOKENS}}
     if _can_think(model):
         body["think"] = False  # answers come straight away, and cost less energy
     started, first = time.time(), None
@@ -165,6 +168,13 @@ def stream_reply(model, messages, keep_alive="2m"):
                     yield {"type": "done", "stats": _stats(model, chunk, started, first)}
     except (OSError, ValueError) as e:
         yield {"type": "error", "error": _error(e)}
+
+
+def warm(model, messages, keep_alive="2m"):
+    """Load the model and have it read `messages` (one token of reply), so Ollama has the
+    facts ready when the real question comes."""
+    for _ in stream_reply(model, messages, keep_alive, max_tokens=1):
+        pass
 
 
 def _stats(model, chunk, started, first):
@@ -268,8 +278,8 @@ def _bill(snap):
     else:
         lines.append("- No readings yet, so there is nothing to forecast from")
     year = f["projections"][-1]
-    lines.append(f"- Over the next {year['months']} months: {_peso(year['bill'])} in total, of which "
-                 f"{_peso(year['ai_cost'])} is AI")
+    lines.append(f"- The next {year['months']} bills added together (not one month): {_peso(year['bill'])}, of which "
+                 f"{_peso(year['ai_cost'])} is AI. The app doesn't forecast further ahead")
     costly = [m for m in f["by_model"] if m["monthly_cost"] > 0][:MAX_ROWS]
     if costly:
         lines.append("- AI cost on the bill per month, biggest first:")
@@ -297,24 +307,53 @@ def _usage(snap):
 
 def _carbon(snap):
     c = snap["carbon"]
-    t = c["totals"]
-    lines = [f"- On this computer: {_co2(t['device_kg'])}, from {_energy(t['device_kwh'])} at "
-             f"{snap['grid_co2_kg_per_kwh']:g} kg CO₂ per kWh on this grid",
+    t, ins = c["totals"], c.get("insights") or {}
+    lines = [f"- Total from AI: {_co2(t['total_kg'])}",
+             f"- On this computer: {_co2(t['device_kg'])}, from {_energy(t['device_kwh'])} at "
+             f"{snap['grid_co2_kg_per_kwh']:g} kg CO₂ per kWh on this grid (the grid factor: how much CO₂ "
+             f"the power plants release for each kWh)",
              f"- In cloud data centers: {_co2(t['datacenter_kg'])}, from an estimated {_energy(t['datacenter_kwh'])}. "
              f"Estimated from token counts, and not on the electricity bill"]
+    if t["total_kg"]:
+        lines.append(f"- Cloud data centers' share of the total: {ins.get('cloud_share', 0):.0%}")
+        eq = ins.get("equivalents") or {}
+        lines.append(f"- That is about as much CO₂ as driving an average car {eq.get('car_km', 0):,.0f} km, "
+                     f"charging a phone {eq.get('phone_charges', 0):,} times on this grid, or what "
+                     f"{t['trees_month']:g} trees absorb in a month")
+        lines.append(f"- Average day: {_co2(ins.get('avg_per_day_kg', 0))}. AI caused CO₂ on "
+                     f"{ins.get('active_days', 0)} of the {len(c['daily'])} days")
+    peak = ins.get("peak_day")
+    if peak:
+        lines.append(f"- Heaviest day: {_date(peak['date'])}, {_co2(peak['kg'])} ({peak['share']:.0%} of the total)")
+    trend = ins.get("trend")
+    if trend and trend["direction"] != "none":
+        word = {"up": "rising", "down": "falling", "flat": "steady"}[trend["direction"]]
+        lines.append(f"- Trend: {word}. From {_date(trend['split_date'])} on it averaged "
+                     f"{_co2(trend['later_avg_kg'])} a day, against {_co2(trend['earlier_avg_kg'])} a day before")
     if c["by_model"]:
-        top = c["by_model"][0]
-        where = "in a data center" if top["scope"] == "datacenter" else "on this computer"
-        lines.append(f"- Biggest source: {top['model']}, {_co2(top['co2_kg'])} ({top['share']:.0%} of the total), {where}")
-    heading = f"- This billing cycle is heading for {_co2(c['cycle']['projected_kg'])}"
+        lines.append("- Biggest sources:")
+        for m in c["by_model"][:3]:
+            where = "in a data center" if m["scope"] == "datacenter" else "on this computer"
+            lines.append(f"  - {m['model']}: {_co2(m['co2_kg'])} ({m['share']:.0%} of the total), {where}")
+    cy = c["cycle"]
+    heading = f"- This billing cycle is heading for {_co2(cy['projected_kg'])}"
+    if cy["projected_kg_with_recommendations"] < cy["projected_kg"]:
+        heading += f", or {_co2(cy['projected_kg_with_recommendations'])} with the recommendations"
     b = c.get("budget")
     if b:
-        state = "under it" if b["status"] == "under" else "OVER it"
-        heading += f", which is {b['used_share']:.0%} of the {b['kg']:g} kg carbon budget ({state})"
+        state = {"under": "under it", "fixed_by_recommendations": "OVER it, but under with the recommendations",
+                 "over": "OVER it"}[b["status"]]
+        heading += f". That is {b['used_share']:.0%} of the {b['kg']:g} kg carbon budget ({state})"
+    else:
+        heading += ". No carbon budget is set (it is set in Tariff & Hardware)"
     lines.append(heading)
     y = c["year"]
     lines.append(f"- Over 12 months: {y['projected_kg']:,.1f} kg CO₂, or {y['projected_kg_with_recommendations']:,.1f} kg "
-                 f"with the recommendations")
+                 f"with the recommendations. That avoids {y['avoided_kg']:,.1f} kg, what {y['trees_equivalent']:g} "
+                 f"trees absorb in a year")
+    if c.get("top_actions"):
+        a = c["top_actions"][0]
+        lines.append(f"- Biggest CO₂ cut: {a['action']}, {a['model']}, avoids {_co2(a['co2_saved_kg'])} a month")
     return lines
 
 
@@ -426,7 +465,7 @@ def build_messages(snap, alerts, model, history=None, view=None, brief=None, now
         if not chosen:
             return None
         listed = "\n".join(f"- {a['title']}: {a['text']}" for a in chosen)
-        ask = BRIEF.format(alerts=listed, sentences=min(2 + 2 * len(chosen), 6))
+        ask = BRIEF.format(alerts=listed, sentences=min(1 + len(chosen), 4))
         if turns and turns[-1]["role"] == "user":
             turns[-1]["content"] += "\n\n" + ask
         else:

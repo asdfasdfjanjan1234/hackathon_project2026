@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "./api/client";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
@@ -15,6 +15,7 @@ import MeterCheck from "./components/MeterCheck";
 import ScaleUp from "./components/ScaleUp";
 import CarbonFootprint from "./components/CarbonFootprint";
 import BestTime from "./components/BestTime";
+import Assistant from "./components/Assistant";
 import { VIEWS } from "./navigation";
 import { AlertTriangle, RefreshCw, Zap } from "lucide-react";
 
@@ -35,6 +36,10 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [system, setSystem] = useState(null);
+  // Budget overruns, savings and notes (rule-based), for the bell and the assistant.
+  const [alerts, setAlerts] = useState([]);
+  // A question for the assistant from elsewhere in the app ("Ask Kilo" on an alert).
+  const [askRequest, setAskRequest] = useState(null);
   const mainRef = useRef(null);
   // Read by fetchData so a refresh keeps the selected window without re-creating the callback.
   const dateRangeRef = useRef(dateRange);
@@ -47,6 +52,8 @@ export default function App() {
   const fetchData = useCallback(async (params, isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     setError(null);
+    // Alerts don't hold up the dashboard: they arrive when they're ready.
+    api.alerts(params, dateRangeRef.current).then((d) => setAlerts(d.alerts)).catch(() => {});
 
     try {
       const [usage, forecast, recs, impact, carbon, bestTime] = await Promise.all([
@@ -147,16 +154,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange]);
 
-  // Header alerts: the budget warning and the biggest saving, straight from the recommendations.
-  const alerts = useMemo(() => {
-    const recs = rawData?.recs?.recommendations || [];
-    const budget = recs.find((r) => r.rule === "budget");
-    const top = recs.find((r) => r.rule !== "budget" && r.scope === "bill" && !r.alternative);
-    const list = [];
-    if (budget) list.push({ level: "warn", title: "Budget overrun projected", text: budget.message });
-    if (top) list.push({ level: "opt", title: `${top.action}: ${top.model}`, text: top.message });
-    return list;
-  }, [rawData]);
+  const askAssistant = useCallback((text) => setAskRequest({ text, at: Date.now() }), []);
 
   const badges = { recommendations: rawData?.recs?.recommendations?.length || 0 };
 
@@ -202,7 +200,7 @@ export default function App() {
           />
           <main className="flex-1 flex items-center justify-center p-6">
             <div className="dash-card max-w-md w-full p-6 text-center space-y-4">
-              <div className="w-10 h-10 rounded-full bg-neg/10 text-neg flex items-center justify-center mx-auto">
+              <div className="w-10 h-10 rounded-full border border-line bg-sunken text-neg flex items-center justify-center mx-auto">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <h2 className="card-title">Telemetry link failure</h2>
@@ -309,6 +307,8 @@ export default function App() {
           system={system}
           liveReading={liveReading}
           alerts={alerts}
+          onOpenView={handleSelectTab}
+          onAsk={askAssistant}
         />
 
         {/* Scrollable View */}
@@ -316,7 +316,7 @@ export default function App() {
           <div className="mx-auto w-full max-w-[1400px] space-y-6 min-w-0">
             <ViewHeader view={VIEWS[activeTab]} />
 
-            <div key={activeTab} className="space-y-6 min-w-0 animate-view-in">
+            <div key={activeTab} className="stagger space-y-6 min-w-0">
               {renderView()}
             </div>
 
@@ -333,6 +333,16 @@ export default function App() {
           </div>
         </main>
       </div>
+
+      {/* Kilo, the on-device assistant */}
+      <Assistant
+        params={customParams}
+        range={dateRange}
+        view={activeTab}
+        alerts={alerts}
+        askRequest={askRequest}
+        onOpenView={handleSelectTab}
+      />
 
       {/* Interactive Tariff & Hardware Settings Modal */}
       <TariffSettingsModal

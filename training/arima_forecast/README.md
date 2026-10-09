@@ -23,8 +23,8 @@ Every series has one value per **step** of `step_minutes` in `config.json`: 15 m
 
 | | 15-minute steps (the default) | Hourly, as it was (`step_minutes: 60` and the settings below) |
 |---|---|---|
-| Readings needed to fine-tune | 6 known hours | 72 known hours on 3+ days |
-| Held-out check | The last windows of 2 hours | The last days, a day ahead |
+| Readings needed to fine-tune | 2 known hours | 72 known hours on 3+ days |
+| Held-out check | The last windows of 30 minutes | The last days, a day ahead |
 | Structures a device is fitted with | Without a season at first, with a one-day season after 2 days | With a one-day season |
 
 **What a few hours can't tell.** The model learns when a device uses AI from the hours of the day it has been read in. An hour it hasn't seen yet is forecast at the device's average level. So a model fitted on one evening doesn't know the mornings, and its forecast for the rest of the billing cycle is rough until it has seen whole days. Fine-tuning and the forecast both print how many of the 24 hours the readings cover. Export and fine-tune again as readings come in.
@@ -54,7 +54,7 @@ python3 -m venv .venv
 ```
 
 - `requirements.txt` includes the backend's packages, because the training code reuses the backend's database, `.env` and tariff code. Keep the folder inside the repo, next to `backend/`.
-- `pytest` runs 40 quick checks on small made-up data (about 10 seconds). It trains nothing on your data and saves nothing.
+- `pytest` runs 41 quick checks on small made-up data (about 10 seconds). It trains nothing on your data and saves nothing.
 - Run the scripts with the venv's Python: `.venv\Scripts\python 04_pretrain_luzon.py` on Windows, `.venv/bin/python 04_pretrain_luzon.py` on macOS / Linux.
 
 In VS Code, open the notebook and pick the kernel at `training/arima_forecast/.venv`. The notebook and scripts read the same `backend/.env` as the app: the database (MySQL or SQLite), `ELECTRICITY_RATE`, `TARIFF`, `BASELINE_BILL` and `BILLING_CYCLE_START_DAY`.
@@ -165,7 +165,7 @@ The log turns usage levels into ratios and keeps forecasts at or above zero. Sta
 | No season | `ARIMA(p,d,q)` | From its first hours of readings |
 | A one-day season, written `"day"` in `config.json`: 96 steps of 15 minutes | `SARIMA(p,d,q)(P,D,Q,96)` | Once it has two days to fit on |
 
-**Agents.** An agent is the app that drew the power (`ai_samples.app`). Its models and the commands it runs ("tool runs") count as that agent. An agent gets its own model once it has 2 hours of use and 2% of the AI energy (`agents.min_used_hours`, `agents.min_share`). Smaller ones are forecast together as "Other AI apps".
+**Agents.** An agent is the app that drew the power (`ai_samples.app`). Its models and the commands it runs ("tool runs") count as that agent. An agent gets its own model once it has 1 hour of use and 2% of the AI energy (`agents.min_used_hours`, `agents.min_share`). Smaller ones are forecast together as "Other AI apps".
 
 **Pre-train and fine-tune.** ARIMA has a handful of parameters and is always fitted to the series it forecasts. Luzon's long, regular history ranks the model *structures* and supplies *starting* coefficients for each. For every agent, fine-tuning fits three kinds of candidate and keeps the one with the lowest held-out error:
 
@@ -182,7 +182,7 @@ For an agent whose use is fully explained by its weekly routine, "Routine only" 
 | Series | Held-out windows | Fitted on at least |
 |---|---|---|
 | Luzon | The last 7 days, each forecast 24 hours ahead | 48 hours before them |
-| A device | The last windows of 2 hours, at most 6 | 4 hours before them |
+| A device | The last windows of 30 minutes, at most 6 | 1 hour before them |
 
 The agents' forecasts are added up and scored on the device's total AI energy against three baselines.
 
@@ -198,7 +198,9 @@ The agents' forecasts are added up and scored on the device's total AI energy ag
 | WAPE | Total error as a share of total energy |
 | window_total_error | How far off each held-out window's total was. Closest to "how far off is the bill". |
 
-If the summed forecast doesn't beat every baseline, the model file and the forecast say so (`beats_baselines: false`). A check on two-hour windows says how well the next two hours are forecast. It says less about the rest of the billing cycle, which depends on the routine.
+If the summed forecast doesn't beat every baseline, the model file and the forecast say so (`beats_baselines: false`). A check on 30-minute windows says how well the next half hour is forecast. It says less about the rest of the billing cycle, which depends on the routine.
+
+**Two hours of readings.** The defaults are set so a device can be fine-tuned after 2 hours: the last two 30-minute windows are held out, each forecast from the steps before it, after an hour to fit on. That makes fine-tuning run, and it takes under a second. It doesn't make the model reliable. One hour of held-out readings is too little to tell a good model from a lucky one, and the forecast for the rest of the billing cycle is close to "the average power of those 2 hours, for every hour left". With a day or more of readings, set `device.horizon_hours` to 2 and `device.min_train_hours` to 4 to check two hours ahead instead.
 
 **Usage levels.** Idle is below 1 W of AI power, averaged over a step. Active steps are split into thirds at the device's own 33rd and 67th percentiles (light / moderate / heavy), so "heavy" means heavy for that machine. Forecast steps are labeled with the same cut points.
 
@@ -211,7 +213,7 @@ Ranges are 80%, from 500 simulated futures per agent, so a total has its own ran
 | Source | Where | Notes |
 |---|---|---|
 | IEMOP RTD Regional Summaries | iemop.ph → Market Data, public, no login | Daily `RTDREG_YYYYMMDD.csv`, 5-minute intervals. Luzon = `REGION_NAME CLUZ`, `COMMODITY_TYPE En`, demand = `MKT_REQT` (MW). The interval ending at midnight is written as a bare date. The public page keeps about 90 days, so re-run step 1 every few weeks to build a longer history. |
-| Device readings | `backend/.env` database, tables `samples` and `ai_samples` | Needs at least **6 known hours** to fine-tune (`device.min_hours`). That is enough to fit, not to know the device's day: see [15-minute steps](#15-minute-steps). Two weeks or more is better, because the weekly routine needs each hour of the week seen at least twice. |
+| Device readings | `backend/.env` database, tables `samples` and `ai_samples` | Needs at least **2 known hours** to fine-tune (`device.min_hours`). That is enough to fit, not to know the device's day: see [15-minute steps](#15-minute-steps). Two weeks or more is better, because the weekly routine needs each hour of the week seen at least twice. |
 
 **Time the reader didn't run** (`device.gaps` in `config.json`, or `--gaps` on the export script):
 

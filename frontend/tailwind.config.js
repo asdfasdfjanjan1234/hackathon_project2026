@@ -30,6 +30,7 @@ export default {
           DEFAULT: token('accent'),
           on: token('on-accent'),
         },
+        volt: token('volt'),
         pos: token('pos'),
         warn: token('warn'),
         neg: token('neg'),

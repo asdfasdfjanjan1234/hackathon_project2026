@@ -16,6 +16,7 @@ import math
 import os
 import re
 import shutil
+import urllib.error
 import urllib.request
 import zipfile
 
@@ -37,9 +38,14 @@ def download(dest, max_pages=10, timeout=120):
     new = []
     for page in range(1, max_pages + 1):
         req = urllib.request.Request(DOWNLOAD_URL.format(page=page), headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            body = r.read()
-        if not body.startswith(b"PK"):  # past the last page the site returns an HTML page, not a zip
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                body = r.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 404:  # past the last page the site answers 404 with an HTML page
+                break
+            raise
+        if not body.startswith(b"PK"):  # any other page that isn't a zip also means no more files
             break
         new += save_files(body, dest)
     return sorted(new)

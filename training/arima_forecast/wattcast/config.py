@@ -45,19 +45,21 @@ DEFAULTS = {
         "gaps": "day",         # steps the reader didn't run: "day", "missing" or "zero" (readings.py)
         "min_coverage": 0.5,   # gaps "missing": share of a step the reader must have run
         "min_day_hours": 1.0,  # gaps "day": reader hours for a day to count as measured
-        "folds": 6,            # held-out windows, at most
-        "horizon_hours": 2,    # length of each held-out window
-        "min_train_hours": 4,  # hours to fit on before the first held-out window, at least
+        # The held-out check fits for a device with 2 hours of readings: windows of 30 minutes after
+        # an hour to fit on. With a day or more, 2 and 4 check two hours ahead instead.
+        "folds": 6,              # held-out windows, at most
+        "horizon_hours": 0.5,    # length of each held-out window
+        "min_train_hours": 1,    # hours to fit on before the first held-out window, at least
         "top_structures": 2,   # Luzon structures tried per agent
         # May an agent's final model be its routine alone, with no AR/MA terms, when that forecasts
         # the held-out windows best? false: it's still scored for comparison, but an ARIMA is always chosen.
         "allow_routine_only": True,
-        "min_hours": 6,        # known hours needed before fine-tuning
+        "min_hours": 2,        # known hours needed before fine-tuning
         "min_days": 1,
     },
     "agents": {
         "used_wh": 0.05,       # Wh an hour (average W) for the agent to count as in use in a step
-        "min_used_hours": 2,   # hours in use for an agent to get its own model
+        "min_used_hours": 1,   # hours in use for an agent to get its own model
         "min_share": 0.02,     # and this share of the AI energy
         "max_agents": 6,       # the rest are forecast together as "Other AI apps"
     },

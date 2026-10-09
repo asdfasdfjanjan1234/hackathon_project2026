@@ -101,7 +101,7 @@ export default function CarbonFootprint({ carbon, onOpenDirectives }) {
   return (
     <div className="space-y-6 min-w-0">
       {/* Headline tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 min-w-0">
+      <div className="stagger grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 min-w-0">
         <Tile
           title={`AI footprint · ${window?.short}`}
           icon={Leaf}

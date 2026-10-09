@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { NAV_GROUPS } from "../navigation";
 import Logo, { LogoMark } from "./Logo";
 import ThemeToggle from "./ThemeToggle";
+import { useChangeKey } from "../motion";
 
 export default function Sidebar({
   activeTab = "dashboard",
@@ -13,6 +14,7 @@ export default function Sidebar({
   liveReading,
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const flashKey = useChangeKey(liveReading);
   const reading = liveReading?.source === "collector";
   const sensor = !liveReading ? "connecting…" : reading ? "device reader" : liveReading.source;
 
@@ -87,13 +89,20 @@ export default function Sidebar({
                     aria-current={isActive ? "page" : undefined}
                     aria-label={!expanded ? item.label : undefined}
                     className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-colors group relative ${
-                      isActive ? "bg-accent/10 text-accent font-semibold" : "text-ink-soft hover:text-ink hover:bg-sunken"
+                      isActive ? "bg-sunken text-ink font-semibold" : "text-ink-soft hover:text-ink hover:bg-sunken"
                     } ${!expanded ? "justify-center" : ""}`}
                   >
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-accent" : "text-ink-muted group-hover:text-ink-soft"}`} />
+                    {isActive && (
+                      <span aria-hidden className="nav-marker absolute -left-3 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-volt" />
+                    )}
+                    <Icon
+                      className={`w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110 ${
+                        isActive ? "text-accent" : "text-ink-muted group-hover:text-ink-soft"
+                      }`}
+                    />
                     {expanded && <span className="flex-1 text-left truncate">{item.label}</span>}
                     {expanded && badge > 0 && (
-                      <span className="min-w-[1.25rem] px-1.5 text-[11px] font-semibold leading-5 rounded-full bg-warn/15 text-warn tabular-nums">
+                      <span className="count-badge">
                         {badge}
                       </span>
                     )}
@@ -124,7 +133,8 @@ export default function Sidebar({
         <div className="p-3 border-t border-line">
           <div className={`inset-panel p-2.5 flex items-center gap-2.5 ${!expanded ? "justify-center" : ""}`}>
             <span
-              className={`h-2 w-2 rounded-full shrink-0 ${
+              key={flashKey}
+              className={`reading-flash h-2 w-2 rounded-full shrink-0 ${
                 !liveReading ? "bg-ink-muted" : liveReading.estimated ? "bg-warn" : "bg-pos"
               }`}
             />

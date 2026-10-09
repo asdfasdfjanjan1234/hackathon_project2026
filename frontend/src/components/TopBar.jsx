@@ -7,8 +7,14 @@ import {
 import { peso } from "../format";
 import ThemeToggle from "./ThemeToggle";
 import Figures from "./Figures";
+import { useChangeKey } from "../motion";
+import { ALERT_LEVELS } from "../alerts";
 
 const OS_NAMES = { macos: "macOS", windows: "Windows", linux: "Linux" };
+
+// The left edge of each alert, and the bell's dot, in the most urgent level's colour.
+const LEVEL_EDGE = { alert: "border-l-neg", warn: "border-l-warn", tip: "border-l-pos", info: "border-l-line-strong" };
+const LEVEL_DOT = { alert: "bg-neg", warn: "bg-warn", tip: "bg-pos" };
 
 function deviceLabel(system) {
   if (!system) return "Detecting device…";
@@ -34,9 +40,18 @@ export default function TopBar({
   system,
   liveReading,
   alerts = [],
+  onOpenView,
+  onAsk,
 }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const status = sensorStatus(liveReading);
+  const flashKey = useChangeKey(liveReading);
+  // Alerts arrive most urgent first; notes alone don't light the bell.
+  const dot = LEVEL_DOT[alerts[0]?.level];
+  const closeAnd = (fn) => () => {
+    setShowNotifications(false);
+    fn();
+  };
 
   return (
     <header className="h-16 bg-surface/80 backdrop-blur border-b border-line shadow-card px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-3 sticky top-0 z-20">
@@ -51,7 +66,7 @@ export default function TopBar({
           <div className="flex items-center gap-2.5">
             <h1 className="text-base font-bold tracking-tight text-ink truncate md:sr-only">Kilo What?</h1>
             <span className="hidden xs:inline-flex items-center gap-1.5 text-xs font-medium text-ink-soft shrink-0">
-              <span className={`w-2 h-2 rounded-full ${status.live ? "bg-pos" : "bg-warn"}`} />
+              <span key={flashKey} className={`reading-flash w-2 h-2 rounded-full ${status.live ? "bg-pos" : "bg-warn"}`} />
               {status.text}
             </span>
           </div>
@@ -120,32 +135,44 @@ export default function TopBar({
             aria-expanded={showNotifications}
           >
             <Bell className="w-4 h-4" />
-            {alerts.length > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-warn ring-2 ring-surface" />}
+            {dot && <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ring-2 ring-surface ${dot}`} />}
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-72 sm:w-80 rounded-xl bg-surface border border-line shadow-pop p-3 z-50 text-sm">
+            <div className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-1.5rem))] rounded-xl bg-surface border border-line shadow-pop p-3 z-50 text-sm">
               <div className="flex items-center justify-between pb-2 border-b border-line mb-2.5">
-                <span className="font-bold text-ink">Telemetry directives</span>
-                <span className="text-xs font-semibold text-warn tabular-nums">{alerts.length} pending</span>
+                <span className="font-bold text-ink">Alerts</span>
+                <span className="text-xs font-semibold text-ink-muted tabular-nums">{alerts.length} active</span>
               </div>
-              <div className="space-y-2 text-xs">
+              <div className="space-y-2 text-xs max-h-[60vh] overflow-y-auto">
                 {alerts.length === 0 && (
-                  <div className="p-2 text-ink-muted">No alerts: the forecast is within budget.</div>
+                  <div className="p-2 text-ink-muted">Nothing needs attention: the forecast is within budget.</div>
                 )}
-                {alerts.map((a, i) => (
-                  <div
-                    key={i}
-                    className={`p-2.5 rounded-lg border text-ink-soft leading-relaxed ${
-                      a.level === "warn" ? "bg-neg/5 border-neg/20" : "bg-warn/5 border-warn/20"
-                    }`}
-                  >
-                    <div className={`font-semibold mb-0.5 ${a.level === "warn" ? "text-neg" : "text-warn"}`}>
-                      {a.level === "warn" ? "Warn" : "Opt"} · {a.title}
+                {alerts.map((a) => {
+                  const level = ALERT_LEVELS[a.level] || ALERT_LEVELS.info;
+                  return (
+                    <div
+                      key={a.id}
+                      className={`p-2.5 rounded-lg border border-line border-l-2 bg-sunken text-ink-soft leading-relaxed ${LEVEL_EDGE[a.level] || LEVEL_EDGE.info}`}
+                    >
+                      <div className="flex items-start gap-1.5 mb-1">
+                        <span className={`tech-tag shrink-0 ${level.tag}`}>{level.label}</span>
+                        <span className="font-semibold text-ink min-w-0 pt-px">{a.title}</span>
+                      </div>
+                      <Figures text={a.text} />
+                      <div className="flex items-center gap-3 mt-1.5">
+                        {onOpenView && a.view && (
+                          <button onClick={closeAnd(() => onOpenView(a.view))} className="link">Show me</button>
+                        )}
+                        {onAsk && (
+                          <button onClick={closeAnd(() => onAsk(`Explain this alert: ${a.title}`))} className="link">
+                            Ask Kilo
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <Figures text={a.text} />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

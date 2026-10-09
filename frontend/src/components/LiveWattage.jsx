@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useId, useState, useMemo } from "react";
 import {
   Server,
   Terminal,
@@ -8,6 +8,7 @@ import {
 import { formatWatts } from "../format";
 import { ACTIVITY, METRICS, explainApp, explainReading } from "../explain";
 import { color } from "../theme";
+import { useTween } from "../motion";
 import AppPowerParts from "./AppPowerParts";
 import BrandIcon, { BrandName } from "./BrandIcon";
 import PowerSplit from "./PowerSplit";
@@ -30,6 +31,9 @@ export default function LiveWattage({ reading }) {
   }, [reading]);
 
   const currentWatts = reading?.watts ?? 0;
+  // The readout glides between readings rather than jumping every 2 s.
+  const shownWatts = useTween(currentWatts, 600);
+  const maskId = useId();
   const collecting = reading?.source === "collector";
   const estimated = reading?.estimated ?? false;
   const sourceName = !reading ? "No reading" : estimated ? "Estimated" : collecting ? "Measured" : reading.source;
@@ -48,6 +52,8 @@ export default function LiveWattage({ reading }) {
   const radius = 82;
   const arcLength = Math.PI * radius; // 257.61
   const strokeDashoffset = arcLength * (1 - clampedWatts / maxWatts);
+  // Current flows along the lit arc, faster the harder the machine works (2.4 s per cycle idle, 0.4 s flat out).
+  const flowSeconds = (2.4 - 2 * (clampedWatts / maxWatts)).toFixed(2);
 
   // Load relative to the dial's scale
   let powerState = { label: "Nominal load", tone: "accent" };
@@ -84,7 +90,7 @@ export default function LiveWattage({ reading }) {
   const label = { fill: color("ink-muted"), fontSize: 10, fontFamily: "inherit" };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0 items-stretch">
+    <div className="stagger grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0 items-stretch">
       {/* 1. Left Card: Active power draw monitor dial, sparkline, diagnostic, and power breakdown */}
       <section className="dash-card p-5 flex flex-col justify-between min-w-0 h-full">
         <div>
@@ -95,7 +101,6 @@ export default function LiveWattage({ reading }) {
               <div className="card-sub truncate mt-0.5">Sensor bus: {sourceName.toLowerCase()}</div>
             </div>
             <span className={`tech-tag shrink-0 ${estimated ? "tech-tag-sim" : "tech-tag-live"}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${estimated ? "bg-warn" : "bg-accent"}`} />
               {sourceName}
             </span>
           </div>
@@ -125,6 +130,33 @@ export default function LiveWattage({ reading }) {
                   style={{ transition: "stroke-dashoffset 0.5s ease-out, stroke 0.3s" }}
                 />
 
+                {/* Current flowing through the lit part of the arc */}
+                <mask id={maskId}>
+                  <path
+                    d="M 38 116 A 82 82 0 0 1 202 116"
+                    fill="none"
+                    stroke="white"
+                    strokeWidth="10"
+                    strokeDasharray={arcLength}
+                    strokeDashoffset={strokeDashoffset}
+                    style={{ transition: "stroke-dashoffset 0.5s ease-out" }}
+                  />
+                </mask>
+                {clampedWatts > 0 && (
+                  <path
+                    d="M 38 116 A 82 82 0 0 1 202 116"
+                    fill="none"
+                    stroke={color("surface", 0.55)}
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeDasharray="2 12"
+                    mask={`url(#${CSS.escape(maskId)})`}
+                    className="current-flow"
+                    style={{ animationDuration: `${flowSeconds}s` }}
+                    aria-hidden
+                  />
+                )}
+
                 {/* Calibration Tick Notches at 0, ¼, ½, ¾ and full scale */}
                 <line x1="38" y1="116" x2="31" y2="116" stroke={tick} strokeWidth="1.5" />
                 <line x1="62.0" y1="58.0" x2="57.0" y2="53.0" stroke={tick} strokeWidth="1.5" />
@@ -151,7 +183,7 @@ export default function LiveWattage({ reading }) {
                   letterSpacing="-0.02em"
                   style={{ fontVariantNumeric: "tabular-nums" }}
                 >
-                  {currentWatts >= 1000 ? (currentWatts / 1000).toFixed(2) : currentWatts.toFixed(1)}
+                  {currentWatts >= 1000 ? (shownWatts / 1000).toFixed(2) : shownWatts.toFixed(1)}
                   <tspan fontSize="15" fontWeight="500" fill={color("ink-muted")}>
                     {currentWatts >= 1000 ? " kW" : " W"}
                   </tspan>
@@ -252,7 +284,7 @@ export default function LiveWattage({ reading }) {
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="text-sm font-semibold text-ink truncate">{proc.name}</span>
                         {proc.activity && (
-                          <span className={`shrink-0 px-1.5 rounded-full border text-[11px] leading-4 ${proc.activity.chip}`}>
+                          <span className={`tech-tag shrink-0 font-medium ${proc.activity.chip}`}>
                             {proc.activity.label}
                           </span>
                         )}

@@ -7,6 +7,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { peso, formatWatts, formatKwh, formatCo2, formatDuration, shortDate } from "../format";
+import { Counter } from "../motion";
 
 const TAG_CLASS = {
   live: "tech-tag-live",
@@ -43,11 +44,11 @@ export function TrajectoryBanner({ forecast, recs }) {
       </p>
 
       <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 shrink-0">
-        <Step label="Baseline" value={peso(baselineBill)} />
+        <Step label="Baseline" value={baselineBill} />
         <ArrowRight className="hidden sm:block w-4 h-4 text-ink-muted shrink-0" />
-        <Step label="Current path" value={peso(forecastBill)} valueClass={forecastTone} />
+        <Step label="Current path" value={forecastBill} valueClass={forecastTone} />
         <ArrowRight className="hidden sm:block w-4 h-4 text-ink-muted shrink-0" />
-        <Step label="With recs" value={peso(optimizedBill)} valueClass="text-pos" />
+        <Step label="With recs" value={optimizedBill} valueClass="text-pos" />
       </div>
     </div>
   );
@@ -79,7 +80,8 @@ export function BillMetricsGrid({ forecast, recs, liveReading, usage, rate }) {
   const cards = [
     {
       title: "Active power draw",
-      value: formatWatts(currentWatts),
+      value: currentWatts,
+      format: formatWatts,
       subtext: !liveReading
         ? "Waiting for the first reading"
         : estimated
@@ -88,6 +90,7 @@ export function BillMetricsGrid({ forecast, recs, liveReading, usage, rate }) {
       badge: !liveReading ? "Offline" : estimated ? "Estimated" : "Hardware sensor",
       badgeType: estimated || !liveReading ? "sim" : "live",
       icon: Gauge,
+      iconClass: "text-accent",
       delta: {
         text: collecting
           ? `AI apps: ${formatWatts(liveReading.ai_watts)}${idle != null && currentWatts != null ? ` · ${formatWatts(Math.max(0, currentWatts - idle))} over idle` : ""}`
@@ -96,18 +99,21 @@ export function BillMetricsGrid({ forecast, recs, liveReading, usage, rate }) {
     },
     {
       title: `AI energy on bill (${windowShort})`,
-      value: formatKwh(totalKwh, 1),
+      value: totalKwh,
+      format: (v) => formatKwh(v, 1),
       subtext: factors
         ? `≈ ${formatCo2(totalKwh * factors.co2_kg_per_kwh)} · ${formatDuration((totalKwh * 1000) / factors.aircon_watts)} of a ${factors.aircon_watts} W aircon`
         : `Avg ${formatKwh(totalKwh / windowDays, 2)} / day`,
       badge: "Integrated",
       badgeType: "neutral",
       icon: Zap,
+      iconClass: "text-volt",
       delta: { text: `${usage?.by_model?.length || 0} AI runtimes · ${formatKwh(totalKwh / windowDays, 2)} / day` },
     },
     {
       title: "Attributed AI tariff",
-      value: peso(aiCost),
+      value: aiCost,
+      format: peso,
       subtext: `${forecastBill > 0 ? Math.round((aiCost / forecastBill) * 100) : 0}% of this cycle's projected bill`,
       badge: `+${peso(aiCost)}`,
       badgeType: aiCost >= 1 ? "alert" : "neutral",
@@ -116,7 +122,8 @@ export function BillMetricsGrid({ forecast, recs, liveReading, usage, rate }) {
     },
     {
       title: "Cycle projection",
-      value: peso(forecastBill),
+      value: forecastBill,
+      format: peso,
       valueClass: forecastTone,
       subtext: `${shortDate(forecast?.cycle?.start)} – ${shortDate(forecast?.cycle?.end)} · Cap: ${peso(budget)}`,
       badge: isOverBudget ? `Over by +${peso(forecastBill - budget)}` : "In budget",
@@ -129,7 +136,7 @@ export function BillMetricsGrid({ forecast, recs, liveReading, usage, rate }) {
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0 h-full">
+    <div className="stagger grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0 h-full">
       {cards.map((card, i) => {
         const Icon = card.icon;
         return (
@@ -137,10 +144,10 @@ export function BillMetricsGrid({ forecast, recs, liveReading, usage, rate }) {
             <div>
               <div className="flex items-center justify-between gap-2 mb-3">
                 <span className="eyebrow">{card.title}</span>
-                <Icon className="w-4 h-4 text-ink-muted shrink-0" />
+                <Icon className={`w-4 h-4 shrink-0 ${card.iconClass || "text-ink-muted"}`} />
               </div>
               <div className={`stat-value truncate ${card.valueClass || "text-ink"}`}>
-                {card.value}
+                <Counter value={card.value} format={card.format} />
               </div>
               <div className="text-xs text-ink-muted mt-2 leading-snug">{card.subtext}</div>
             </div>
@@ -171,7 +178,9 @@ function Step({ label, value, valueClass = "text-ink" }) {
   return (
     <div className="inset-panel px-3 py-1.5 min-w-0">
       <span className="block text-[11px] text-ink-muted truncate">{label}</span>
-      <span className={`block text-sm font-bold tabular-nums truncate ${valueClass}`}>{value}</span>
+      <span className={`block text-sm font-bold tabular-nums truncate ${valueClass}`}>
+        <Counter value={value} format={peso} />
+      </span>
     </div>
   );
 }

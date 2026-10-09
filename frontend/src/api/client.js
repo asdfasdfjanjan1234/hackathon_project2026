@@ -17,6 +17,35 @@ const post = (path, body) =>
   });
 const del = (path) => request(path, { method: "DELETE" });
 
+// A POST whose answer arrives bit by bit as NDJSON (one JSON event per line): onEvent gets each event.
+async function stream(path, body, onEvent, signal) {
+  const res = await fetch(`/api${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body ?? {}),
+    signal,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw Object.assign(new Error(err?.error || `${path} failed: ${res.status}`), { state: err?.state });
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let end;
+    while ((end = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, end).trim();
+      buffer = buffer.slice(end + 1);
+      if (line) onEvent(JSON.parse(line));
+    }
+  }
+  if (buffer.trim()) onEvent(JSON.parse(buffer));
+}
+
 // The user's rate, bills and budget; the backend does all bill math with them.
 // dsd.
 function billQuery(params) {
@@ -59,6 +88,19 @@ export const api = {
 
   live: () => get("/live"),
   system: () => get("/system"),
+
+  // Budget overruns, savings and notes on the readings, most urgent first.
+  alerts: (params, range = "30d") => {
+    const q = billQuery(params);
+    return get(`/alerts${q ? `${q}&` : "?"}range=${range}`);
+  },
+
+  // The local assistant (a small model in Ollama on this computer).
+  assistantStatus: (params) => get(`/assistant/status${billQuery(params)}`),
+  // body: {messages, view, range, brief}; onEvent gets {type: "delta" | "done" | "error", …}.
+  assistantChat: (params, body, onEvent, signal) => stream(`/assistant/chat${billQuery(params)}`, body, onEvent, signal),
+  assistantWarm: (params, body) => post(`/assistant/warm${billQuery(params)}`, body),
+  assistantPull: (onEvent, signal) => stream("/assistant/pull", {}, onEvent, signal),
 
   // "Start reading my device": the local backend detects the OS, hardware and AI apps.
   startDevice: () => post("/device/start"),
