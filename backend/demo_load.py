@@ -48,7 +48,7 @@ def current_model(start, backend):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--model", required=True, help="Ollama model to start with, e.g. llama3:70b")
-    parser.add_argument("--backend", default="http://127.0.0.1:5001", help="dashboard backend URL")
+    parser.add_argument("--backend", default="http://127.0.0.1:5000", help="dashboard backend URL")
     parser.add_argument("--tokens", type=int, default=400, help="max tokens per answer")
     parser.add_argument("--pause", type=float, default=0.0, help="seconds between prompts")
     args = parser.parse_args()

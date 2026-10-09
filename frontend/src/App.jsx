@@ -206,7 +206,7 @@ export default function App() {
               </div>
               <h2 className="card-title">Telemetry link failure</h2>
               <p className="text-sm text-ink-soft leading-relaxed">
-                Could not connect to localhost:5000 telemetry daemon. Verify that the Python backend process is listening.
+                Could not connect to localhost:5001 telemetry daemon. Verify that the Python backend process is listening.
               </p>
               <div className="inset-panel p-2.5 text-neg text-xs font-mono break-all text-left">{error}</div>
               <button onClick={() => fetchData(customParams, true)} className="btn-primary w-full py-2">
