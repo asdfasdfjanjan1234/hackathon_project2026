@@ -1,8 +1,12 @@
 """Which AI models the apps on this device used, read from their local logs.
 
-  Claude Code     ~/.claude/projects/**/*.jsonl          exact tokens per response
-  Codex           ~/.codex/sessions/**/rollout-*.jsonl   exact tokens per turn
-  GitHub Copilot  VS Code logs (GitHub.copilot-chat)     model name per request, no tokens
+  Claude Code     ~/.claude/projects/**/*.jsonl                exact tokens per response
+  Codex           ~/.codex/sessions/**/rollout-*.jsonl         exact tokens per turn
+  OpenCode        ~/.local/share/opencode/opencode.db          exact tokens per response
+  Gemini CLI      ~/.gemini/tmp/*/chats/session-*.json         exact tokens per response
+  GitHub Copilot  VS Code logs (GitHub.copilot-chat)           model name per request, no tokens
+  Kiro            Kiro logs (kiro.kiroAgent/Kiro Logs.log)     model name per request, no tokens
+  Amazon Q        ~/.aws/amazonq/history/chat-history-*.json   model name per answer, no tokens
 
 Only model names, token counts and timestamps are read, never prompts or code.
 Files are parsed again only when they change.
@@ -12,6 +16,7 @@ import glob
 import json
 import os
 import re
+import sqlite3
 import sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta
@@ -41,23 +46,30 @@ AI_EXTENSIONS = {
     "asadbinimtiaz.kiro-vscode-extension": ("Kiro", None),
 }
 
-COPILOT_REQUEST = re.compile(r"^(\d{4}-\d{2}-\d{2}) [\d:.]+ \[\w+\] ccreq:\S+ \| success \| ([\w.\-]+) \|")
+COPILOT_REQUEST = re.compile(r"^(\d{4}-\d{2}-\d{2}) [\d:.]+ \[\w+\] (ccreq:\S+) \| success \| ([\w.\-]+) \|")
+KIRO_REQUEST = re.compile(r"^((\d{4}-\d{2}-\d{2}) [\d:.]+) \[\w+\] \[q-developer-converse\] "
+                          r"Sending GenerateAssistantResponse modelId=(\S+) agentMode=(\S+)")
 
 
 def _home(*parts):
     return os.path.join(os.path.expanduser("~"), *parts)
 
 
-def _vscode_logs_dir():
+def _logs_dir(app):
+    """Logs folder of a VS Code-based editor ("Code", "Kiro", ...)."""
     if sys.platform == "darwin":
-        return _home("Library", "Application Support", "Code", "logs")
+        return _home("Library", "Application Support", app, "logs")
     if sys.platform == "win32":
-        return os.path.join(os.environ.get("APPDATA", ""), "Code", "logs")
-    return _home(".config", "Code", "logs")
+        return os.path.join(os.environ.get("APPDATA", ""), app, "logs")
+    return _home(".config", app, "logs")
 
 
 def _local_date(iso_ts):
     return datetime.fromisoformat(iso_ts.replace("Z", "+00:00")).astimezone().date().isoformat()
+
+
+def _ms_date(ms):
+    return datetime.fromtimestamp(ms / 1000).date().isoformat()
 
 
 def parse_claude_code(lines):
@@ -114,12 +126,79 @@ def parse_codex(lines):
 
 
 def parse_copilot(lines):
-    """{(n,): (date, model, {})}: one entry per successful request, no token counts."""
+    """{(request id,): (date, model, {})}: one entry per successful request, no token counts."""
     out = {}
-    for i, line in enumerate(lines):
+    for line in lines:
         m = COPILOT_REQUEST.match(line)
         if m:
-            out[(i,)] = (m.group(1), m.group(2), {})
+            out[(m.group(2),)] = (m.group(1), m.group(3), {})
+    return out
+
+
+def parse_opencode(rows):
+    """{(message id,): (date, model, tokens)} from OpenCode's assistant messages (JSON rows)."""
+    out = {}
+    for row in rows:
+        try:
+            d = json.loads(row)
+            model, t, created = d["modelID"], d["tokens"], d["time"]["created"]
+        except (ValueError, KeyError, TypeError):
+            continue
+        cache = t.get("cache") or {}
+        tokens = {"input": t.get("input", 0) or 0,
+                  "output": (t.get("output", 0) or 0) + (t.get("reasoning", 0) or 0),
+                  "cache_read": cache.get("read", 0) or 0,
+                  "cache_write_5m": cache.get("write", 0) or 0}
+        if model and any(tokens.values()):
+            out[(d.get("id"),)] = (_ms_date(created), model, tokens)
+    return out
+
+
+def parse_gemini(lines):
+    """{(message id,): (date, model, tokens)} from one Gemini CLI chat session file."""
+    try:
+        messages = json.loads("".join(lines)).get("messages") or []
+    except (ValueError, AttributeError):
+        return {}
+    out = {}
+    for m in messages:
+        t, model = m.get("tokens"), m.get("model")
+        if m.get("type") != "gemini" or not t or not model:
+            continue
+        cached = t.get("cached", 0) or 0
+        # Gemini counts cached tokens inside input, and bills thinking as output.
+        out[(m.get("id"), m.get("timestamp"))] = (_local_date(m["timestamp"]), model, {
+            "input": max(0, (t.get("input", 0) or 0) - cached),
+            "output": (t.get("output", 0) or 0) + (t.get("thoughts", 0) or 0),
+            "cache_read": cached})
+    return out
+
+
+def parse_kiro(lines):
+    """{(time,): (date, model, {})}: one entry per agent request, no token counts.
+    Intent classification is Kiro's own router call, not the model the user works with."""
+    out = {}
+    for line in lines:
+        m = KIRO_REQUEST.match(line)
+        if m and m.group(4) != "intent-classification":
+            out[(m.group(1),)] = (m.group(2), m.group(3), {})
+    return out
+
+
+def parse_amazon_q(lines):
+    """{(tab, time): (date, model, {})}: one entry per answer, no token counts. The model is
+    stored per chat tab; tabs from before Amazon Q had a model picker have none."""
+    try:
+        collections = json.loads("".join(lines)).get("collections") or []
+    except (ValueError, AttributeError):
+        return {}
+    out = {}
+    for tab in (t for c in collections for t in c.get("data") or []):
+        model = tab.get("modelId") or "default"
+        for conv in tab.get("conversations") or []:
+            for msg in conv.get("messages") or []:
+                if msg.get("type") == "answer" and msg.get("timestamp"):
+                    out[(tab.get("historyId"), msg["timestamp"])] = (_local_date(msg["timestamp"]), model, {})
     return out
 
 
@@ -127,27 +206,49 @@ SOURCES = [
     # (app, glob pattern, parser)
     ("Claude Code", lambda: [_home(".claude", "projects", "**", "*.jsonl")], parse_claude_code),
     ("Codex", lambda: [_home(".codex", "sessions", "**", "*.jsonl")], parse_codex),
-    ("GitHub Copilot", lambda: [os.path.join(_vscode_logs_dir(), "*", "window*", "exthost",
+    ("OpenCode", lambda: [_home(".local", "share", "opencode", "opencode.db")], parse_opencode),
+    ("Gemini CLI", lambda: [_home(".gemini", "tmp", "*", "chats", "session-*.json")], parse_gemini),
+    ("GitHub Copilot", lambda: [os.path.join(_logs_dir("Code"), "*", "window*", "exthost",
                                              "GitHub.copilot-chat", "*.log")], parse_copilot),
+    ("Kiro", lambda: [os.path.join(_logs_dir("Kiro"), "*", "window*", "exthost",
+                                   "kiro.kiroAgent", "Kiro Logs.log")], parse_kiro),
+    ("Amazon Q", lambda: [_home(".aws", "amazonq", "history", "chat-history-*.json")], parse_amazon_q),
 ]
 
-_cache = {}  # path -> (mtime, size, parsed)
+_cache = {}  # path -> (version, parsed)
+
+
+def _version(path):
+    """(mtime, size) of a file, plus its write-ahead log for SQLite, where new rows land first."""
+    paths = [path, path + "-wal"] if path.endswith(".db") else [path]
+    return tuple((st.st_mtime, st.st_size) for st in map(os.stat, filter(os.path.exists, paths)))
+
+
+def _sqlite_messages(path):
+    """OpenCode's assistant messages, as JSON rows that include the message id."""
+    uri = "file:" + path.replace("?", "%3f").replace("#", "%23") + "?mode=ro"
+    with sqlite3.connect(uri, uri=True, timeout=1) as conn:
+        return [r[0] for r in conn.execute(
+            "SELECT json_set(data, '$.id', id) FROM message WHERE json_extract(data, '$.role') = 'assistant'")]
 
 
 def _parse_file(path, parser):
     try:
-        st = os.stat(path)
+        version = _version(path)
     except OSError:
         return {}
     hit = _cache.get(path)
-    if hit and hit[:2] == (st.st_mtime, st.st_size):
-        return hit[2]
+    if hit and hit[0] == version:
+        return hit[1]
     try:
-        with open(path, encoding="utf-8", errors="ignore") as f:
-            parsed = parser(f)
-    except OSError:
+        if path.endswith(".db"):
+            parsed = parser(_sqlite_messages(path))
+        else:
+            with open(path, encoding="utf-8", errors="ignore") as f:
+                parsed = parser(f)
+    except (OSError, sqlite3.Error):
         parsed = {}
-    _cache[path] = (st.st_mtime, st.st_size, parsed)
+    _cache[path] = (version, parsed)
     return parsed
 
 

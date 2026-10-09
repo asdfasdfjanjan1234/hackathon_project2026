@@ -20,6 +20,11 @@ from app.services.attribution import PowerModel, attribute, fit_power_model
      "/Applications/Antigravity.app/Contents/Resources/app/extensions/antigravity/bin/language_server_macos_arm", "",
      "Antigravity"),
     ("Antigravity.exe", r"C:\Users\x\AppData\Local\Programs\Antigravity\Antigravity.exe", "", "Antigravity"),
+    # Kiro is a VS Code fork too; its bundled Copilot runtime belongs to Kiro.
+    ("co", "/Applications/Kiro.app/.../@github/copilot-sdk-darwin-arm64/co", "", "Kiro"),
+    ("Kiro.exe", r"C:\Users\x\AppData\Local\Programs\Kiro\Kiro.exe", "", "Kiro"),
+    ("node", "/opt/homebrew/bin/node", "node /opt/homebrew/lib/node_modules/@google/gemini-cli/dist/index.js",
+     "Gemini CLI"),
 ])
 def test_classify_ai_apps(name, exe, cmd, expected):
     assert classify(name, exe, cmd)[0] == expected

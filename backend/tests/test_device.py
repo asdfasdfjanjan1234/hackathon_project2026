@@ -1,5 +1,7 @@
 import json
+import sqlite3
 import time
+from datetime import date
 
 import pytest
 
@@ -102,6 +104,65 @@ def test_copilot_counts_successful_requests():
     lines = ["2026-10-06 09:34:25.905 [info] ccreq:07.copilotmd | success | gpt-4o-mini-2024-07-18 | 662ms | [x]",
              "2026-10-06 09:35:06.175 [info] ccreq:f5.copilotmd | failed | gpt-5.3-codex | 248ms | [y]"]
     assert list(model_usage.parse_copilot(lines).values()) == [("2026-10-06", "gpt-4o-mini-2024-07-18", {})]
+
+
+def test_copilot_requests_in_different_log_files_are_all_counted(tmp_path):
+    today = date.today().isoformat()
+    for i, req in enumerate(["ccreq:aa.copilotmd", "ccreq:bb.copilotmd"]):
+        (tmp_path / f"{i}.log").write_text(f"{today} 09:00:00.000 [info] {req} | success | gpt-4o | 1ms | [x]\n")
+    source = ("GitHub Copilot", lambda: [str(tmp_path / "*.log")], model_usage.parse_copilot)
+    assert len(model_usage.scan_events(sources=[source])) == 2
+
+
+def test_opencode_reads_tokens_from_its_database(tmp_path):
+    db = tmp_path / "opencode.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE message (id text, data text)")
+        conn.executemany("INSERT INTO message VALUES (?, ?)", [
+            ("m1", json.dumps({"role": "user", "time": {"created": 1789529000000}})),
+            ("m2", json.dumps({"role": "assistant", "modelID": "claude-sonnet-5-5", "time": {"created": 1789529012575},
+                               "tokens": {"input": 537, "output": 391, "reasoning": 9,
+                                          "cache": {"read": 142193, "write": 10}}})),
+            ("m3", json.dumps({"role": "assistant", "modelID": "claude-sonnet-5-5", "time": {"created": 1789529012575},
+                               "tokens": {"input": 0, "output": 0, "cache": {}}})),  # aborted: nothing used
+        ])
+    conn.close()
+    parsed = model_usage._parse_file(str(db), model_usage.parse_opencode)
+    assert list(parsed) == [("m2",)]
+    _, model, tokens = parsed[("m2",)]
+    assert model == "claude-sonnet-5-5"
+    assert tokens == {"input": 537, "output": 400, "cache_read": 142193, "cache_write_5m": 10}
+
+
+def test_gemini_cli_tokens_exclude_cached_input():
+    session = {"messages": [
+        {"id": "u", "type": "user", "timestamp": "2026-10-09T10:00:00Z", "content": "secret code"},
+        {"id": "g", "type": "gemini", "timestamp": "2026-10-09T10:00:05Z", "content": "secret answer",
+         "model": "gemini-2.5-flash", "tokens": {"input": 1000, "output": 50, "cached": 600, "thoughts": 25}}]}
+    parsed = model_usage.parse_gemini(json.dumps(session, indent=1).splitlines(True))
+    assert [(m, t) for _, m, t in parsed.values()] == [
+        ("gemini-2.5-flash", {"input": 400, "output": 75, "cache_read": 600})]
+    assert "secret" not in repr(parsed)
+
+
+def test_kiro_counts_agent_requests_but_not_its_router():
+    log = "2026-06-30 16:26:{} [info] [q-developer-converse] Sending GenerateAssistantResponse modelId={} agentMode={} origin=AI_EDITOR"
+    lines = [log.format("33.951", "simple-task", "intent-classification"),
+             log.format("33.994", "claude-sonnet-4.5", "vibe"),
+             log.format("39.060", "claude-sonnet-4.5", "vibe"),
+             "2026-06-30 16:26:40.000 [info] [q-developer-converse] Received response"]
+    assert list(model_usage.parse_kiro(lines).values()) == [("2026-06-30", "claude-sonnet-4.5", {})] * 2
+
+
+def test_amazon_q_counts_answers_per_tab_model():
+    def tab(tab_id, model, *types):
+        msgs = [{"type": t, "body": "secret", "timestamp": f"2026-07-01T10:00:0{i}Z"} for i, t in enumerate(types)]
+        return {"historyId": tab_id, **({"modelId": model} if model else {}), "conversations": [{"messages": msgs}]}
+    history = {"collections": [{"data": [tab("a", "claude-sonnet-4.5", "prompt", "answer", "prompt", "answer"),
+                                         tab("b", None, "prompt", "answer")]}]}
+    parsed = model_usage.parse_amazon_q([json.dumps(history)])
+    assert sorted(m for _, m, _ in parsed.values()) == ["claude-sonnet-4.5", "claude-sonnet-4.5", "default"]
+    assert "secret" not in repr(parsed)
 
 
 def test_datacenter_estimate_matches_reference_query():

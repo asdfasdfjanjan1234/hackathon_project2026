@@ -123,7 +123,7 @@ function ModelsPanel({ models }) {
   return (
     <Panel icon={Cloud} title={`Models found (last ${models.days} days)`}>
       {models.models.length === 0 && (
-        <div className="text-[11px] text-slate-400">No Claude Code, Codex or Copilot usage found.</div>
+        <div className="text-[11px] text-slate-400">No AI model usage found in Claude Code, Codex, Copilot, Kiro, Amazon Q, OpenCode or Gemini CLI.</div>
       )}
       <div className="space-y-1.5">
         {models.models.map((m) => (
