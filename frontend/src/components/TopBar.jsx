@@ -48,7 +48,7 @@ export default function TopBar({
 
         <div className="min-w-0">
           <div className="flex items-center gap-2.5">
-            <h1 className="text-base font-semibold tracking-tight text-ink truncate md:sr-only">WattTrace</h1>
+            <h1 className="text-base font-semibold tracking-tight text-ink truncate md:sr-only">Kilo What?</h1>
             <span className="hidden xs:inline-flex items-center gap-1.5 text-xs font-medium text-ink-soft shrink-0">
               <span className={`w-2 h-2 rounded-full ${status.live ? "bg-pos" : "bg-warn"}`} />
               {status.text}

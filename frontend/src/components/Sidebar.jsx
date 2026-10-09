@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Zap, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { NAV_GROUPS } from "../navigation";
 import ThemeToggle from "./ThemeToggle";
 
@@ -40,12 +40,28 @@ export default function Sidebar({
       >
         {/* Brand */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-line">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-accent text-accent-on flex items-center justify-center shrink-0">
-              <Zap className="w-4 h-4" />
-            </div>
-            {expanded && (
-              <span className="text-[17px] font-semibold tracking-tight text-ink whitespace-nowrap">WattTrace</span>
+          <div className="flex items-center min-w-0">
+            {expanded ? (
+              <div className="flex items-center h-10">
+                <img
+                  src="/logo-vert.png"
+                  alt="Kilo What?"
+                  className="h-9 w-auto max-w-[170px] object-contain dark:hidden"
+                />
+                <img
+                  src="/logo-vert-dark.png"
+                  alt="Kilo What?"
+                  className="h-9 w-auto max-w-[170px] object-contain hidden dark:block"
+                />
+              </div>
+            ) : (
+              <div className="w-8 h-8 flex items-center justify-center">
+                <img
+                  src="/logo-mark.png"
+                  alt="Kilo What?"
+                  className="h-7 w-auto object-contain"
+                />
+              </div>
             )}
           </div>
 
