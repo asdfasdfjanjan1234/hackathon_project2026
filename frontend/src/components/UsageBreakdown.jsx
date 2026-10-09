@@ -5,7 +5,21 @@ import {
   HardDrive,
   Cloud,
 } from "lucide-react";
-import { peso, formatKwh } from "../format";
+import { peso, formatKwh, formatWatts } from "../format";
+
+// Power class from the average watts while the model was doing work (measured, not a rating).
+const POWER_CLASSES = [
+  { max: 30, grade: "CLASS A", color: "text-sky-400 border-sky-500/25 bg-sky-500/10" },
+  { max: 100, grade: "CLASS B", color: "text-slate-200 border-white/15 bg-white/5" },
+  { max: 250, grade: "CLASS C", color: "text-amber-400 border-amber-500/25 bg-amber-500/10" },
+  { max: Infinity, grade: "CLASS D", color: "text-rose-400 border-rose-500/25 bg-rose-500/10" },
+];
+
+function powerClass(watts) {
+  if (watts == null) return { grade: "—", label: "No active time yet", color: "text-slate-400 border-white/10 bg-white/5" };
+  const c = POWER_CLASSES.find((p) => watts < p.max);
+  return { ...c, label: `${formatWatts(watts)} while running` };
+}
 
 export default function UsageBreakdown({ usage }) {
   const [sortBy, setSortBy] = useState("kwh");
@@ -14,22 +28,10 @@ export default function UsageBreakdown({ usage }) {
   const models = useMemo(() => {
     if (!usage?.by_model) return [];
 
-    // All classes styled with precision instrument cyan/amber/rose - NO generic green
-    const efficiencyMap = {
-      "claude (cloud)": { grade: "CLASS A", label: "Remote DC", color: "text-sky-400 border-sky-500/25 bg-sky-500/10" },
-      "llama3:8b": { grade: "CLASS A", label: "75W Nominal", color: "text-sky-400 border-sky-500/25 bg-sky-500/10" },
-      "sdxl-turbo": { grade: "CLASS B", label: "220W Batch", color: "text-amber-400 border-amber-500/25 bg-amber-500/10" },
-      "llama3:70b": { grade: "CLASS D", label: "280W Peak", color: "text-rose-400 border-rose-500/25 bg-rose-500/10" },
-    };
-
-    const maxKwh = Math.max(...usage.by_model.map((m) => m.kwh || 0), 1);
+    const maxKwh = Math.max(...usage.by_model.map((m) => m.kwh || 0), 1e-9);
 
     const list = usage.by_model.map((m) => {
-      const eff = efficiencyMap[m.model] || {
-        grade: "CLASS B",
-        label: "Standard",
-        color: "text-slate-300 border-white/10 bg-white/5",
-      };
+      const eff = powerClass(m.active_watts);
       const percentage = Math.round((m.kwh / maxKwh) * 100);
 
       return {
@@ -107,9 +109,9 @@ export default function UsageBreakdown({ usage }) {
             <tr className="border-b border-white/5 text-slate-400 uppercase tracking-wider text-[10px]">
               <th className="py-2.5 px-2 font-bold">MODEL RUNTIME</th>
               <th className="py-2.5 px-2 font-bold">HOST BUS</th>
-              <th className="py-2.5 px-2 font-bold">30D ENERGY</th>
+              <th className="py-2.5 px-2 font-bold">{usage?.window_days || 30}D ENERGY</th>
               <th className="py-2.5 px-2 font-bold">ATTRIBUTED TARIFF</th>
-              <th className="py-2.5 px-2 font-bold text-center">EFFICIENCY</th>
+              <th className="py-2.5 px-2 font-bold text-center">POWER CLASS</th>
               <th className="py-2.5 px-2 font-bold text-right">TELEMETRY</th>
             </tr>
           </thead>
@@ -132,7 +134,7 @@ export default function UsageBreakdown({ usage }) {
                         {m.model}
                       </span>
                       <span className="text-[9px] text-slate-400 uppercase">
-                        {m.kind === "local" ? "LOCAL GPU/NPU" : m.kind === "client" ? "AI APP · THIS DEVICE" : "CLOUD API"}
+                        {m.kind === "local" ? "LOCAL MODEL" : m.kind === "client" ? "AI APP · THIS DEVICE" : "CLOUD API"}
                       </span>
                     </div>
                   </div>
@@ -140,7 +142,7 @@ export default function UsageBreakdown({ usage }) {
 
                 {/* Host Bus */}
                 <td className="py-2.5 px-2 text-[11px] text-slate-400">
-                  {m.kind === "local" ? "Metal / MPS" : m.kind === "client" ? "This device" : "Data Center"}
+                  {m.kind === "local" ? "This device (CPU/GPU)" : m.kind === "client" ? "This device" : "Data center"}
                 </td>
 
                 {/* Energy with Progress Bar */}
@@ -178,9 +180,11 @@ export default function UsageBreakdown({ usage }) {
                 <td className="py-2.5 px-2 text-center">
                   <span
                     className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold border ${m.efficiency.color}`}
+                    title={m.efficiency.label}
                   >
                     {m.efficiency.grade}
                   </span>
+                  <div className="text-[9px] text-slate-500 mt-0.5 whitespace-nowrap">{m.efficiency.label}</div>
                 </td>
 
                 {/* Source Badge (Cyan, NO GREEN) */}
@@ -199,9 +203,34 @@ export default function UsageBreakdown({ usage }) {
         </table>
       </div>
 
+      {/* Energy per host app (VS Code, Terminal, ...), from the device reader */}
+      {usage?.by_host?.length > 0 && (
+        <div className="mt-2 pt-3 border-t border-white/5">
+          <div className="text-[10px] uppercase tracking-wider text-slate-400 mb-1.5">By host (last 30 days)</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            {usage.by_host.map((h) => (
+              <div
+                key={`${h.app}-${h.host}`}
+                className="flex items-center justify-between gap-2 p-1.5 rounded bg-white/[0.02] border border-white/5 text-[11px]"
+              >
+                <span className="text-slate-200 truncate">
+                  {h.app} <span className="text-slate-500">in {h.host}</span>
+                </span>
+                <span className="text-slate-300 tabular-nums shrink-0">
+                  {formatKwh(h.kwh)} · {peso(h.cost)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Industrial Footer */}
       <div className="pt-2 border-t border-white/5 flex flex-wrap items-center justify-between text-[10px] text-slate-400 gap-2">
-        <span>* Provider cloud token inference energy is billed to data center infrastructure.</span>
+        <span>
+          * Power class: average watts while running (A under 30 W, B under 100 W, C under 250 W, D above). Cloud
+          model inference runs in the provider's data center.
+        </span>
         <span>INDEX: {models.length} RUNTIMES</span>
       </div>
     </section>

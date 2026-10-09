@@ -35,9 +35,10 @@ class FakePlatform:
         return dict(self._measured)
 
 
-def test_linux_has_no_platform_sensors_so_everything_is_estimated():
-    sensors = Sensors(system={"os": "linux", "memory_gb": 8})
-    assert sensors.platform is None
+def test_linux_without_readable_sensors_estimates_everything(tmp_path):
+    from app.services.sensors_linux import LinuxSensors
+    sensors = Sensors(system={"os": "linux", "memory_gb": 8}, platform_sensors=LinuxSensors(root=str(tmp_path)))
+    assert set(sensors.sources().values()) == {None}
     parts = sensors.components(50, 0, PowerModel())
     assert {k: v["source"] for k, v in parts.items()} == dict.fromkeys(("cpu", "gpu", "memory", "disk"), "estimated")
 

@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   Database,
 } from "lucide-react";
-import { formatWatts, formatWh, formatTokens } from "../format";
+import { formatWatts, formatWh, formatTokens, peso } from "../format";
 
 const SENSOR_LABELS = { system: "Whole machine", cpu: "CPU", gpu: "GPU", memory: "Memory", disk: "Disk" };
 
@@ -141,6 +141,11 @@ function ModelsPanel({ models }) {
             <div className="text-right shrink-0">
               <div className="font-mono tabular-nums text-amber-300">{formatWh(m.datacenter_wh)}</div>
               <div className="text-[9px] text-slate-500 uppercase">data center · est.</div>
+              {m.device_kwh != null && (
+                <div className="font-mono tabular-nums text-[10px] text-sky-300 mt-0.5">
+                  {formatWh(m.device_kwh * 1000)} · {peso(m.device_cost)} <span className="text-slate-500">on this device</span>
+                </div>
+              )}
             </div>
           </div>
         ))}

@@ -28,10 +28,12 @@ export default function App() {
   const [liveReading, setLiveReading] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [system, setSystem] = useState(null);
   const mainRef = useRef(null);
 
-  // The user's rate, bills and budget. Starts from the backend's .env values.
+  // The user's rate, bills, budget and billing cycle. Starts from the backend's .env values.
   const [customParams, setCustomParams] = useState(null);
+  const [defaultParams, setDefaultParams] = useState(null);
 
   const fetchData = useCallback(async (params, isRefresh = false) => {
     if (isRefresh) setIsRefreshing(true);
@@ -47,12 +49,15 @@ export default function App() {
       ]);
       setRawData({ usage, forecast, recs, impact });
       if (!params) {
-        setCustomParams({
+        const fromServer = {
           rate: usage.rate_per_kwh,
           baseline: forecast.baseline_bill,
           currentBill: impact.current_bill,
           budget: forecast.budget,
-        });
+          cycleStartDay: forecast.cycle?.start_day ?? 1,
+        };
+        setCustomParams(fromServer);
+        setDefaultParams(fromServer);
       }
     } catch (e) {
       setError(e.message || "Failed to communicate with telemetry backend.");
@@ -65,6 +70,11 @@ export default function App() {
   useEffect(() => {
     fetchData(null);
   }, [fetchData]);
+
+  // The detected OS and hardware, for the header. Detection runs once on the backend.
+  useEffect(() => {
+    api.system().then((d) => setSystem(d.system)).catch(() => {});
+  }, []);
 
   const refresh = useCallback(() => fetchData(customParams, true), [fetchData, customParams]);
 
@@ -126,15 +136,34 @@ export default function App() {
     const totals = {};
     for (const row of rawData.usage.daily || []) {
       if (row.date < sinceIso) continue;
-      const m = (totals[row.model] ||= { model: row.model, kind: row.kind, source: row.source, kwh: 0 });
+      const m = (totals[row.model] ||= {
+        model: row.model, kind: row.kind, source: row.source, kwh: 0, active_hours: 0,
+      });
       m.kwh += row.kwh;
+      m.active_hours += row.active_hours || 0;
     }
     const byModel = Object.values(totals)
-      .map((m) => ({ ...m, cost: m.kwh * rate }))
+      .map((m) => ({
+        ...m,
+        cost: m.kwh * rate,
+        active_watts: m.active_hours > 0 ? (m.kwh * 1000) / m.active_hours : null,
+      }))
       .sort((a, b) => b.kwh - a.kwh);
+    const days = dateRange === "7d" ? 7 : dateRange === "month" ? today.getDate() : 30;
 
-    return { ...rawData, usage: { ...rawData.usage, by_model: byModel } };
+    return { ...rawData, usage: { ...rawData.usage, by_model: byModel, window_days: days } };
   }, [rawData, dateRange]);
+
+  // Header alerts: the budget warning and the biggest saving, straight from the recommendations.
+  const alerts = useMemo(() => {
+    const recs = rawData?.recs?.recommendations || [];
+    const budget = recs.find((r) => r.rule === "budget");
+    const top = recs.find((r) => r.rule !== "budget" && r.scope === "bill" && !r.alternative);
+    return [
+      budget && { level: "warn", title: "Budget overrun projected", text: budget.message },
+      top && { level: "opt", title: `${top.action}: ${top.model}`, text: top.message },
+    ].filter(Boolean);
+  }, [rawData]);
 
   const badges = { recommendations: rawData?.recs?.recommendations?.length || 0 };
 
@@ -234,6 +263,7 @@ export default function App() {
               recs={processedData.recs}
               liveReading={liveReading}
               usage={processedData.usage}
+              rate={customParams?.rate}
             />
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-w-0">
               <div className="lg:col-span-5 flex flex-col min-w-0">
@@ -257,6 +287,8 @@ export default function App() {
         mobileOpen={mobileMenuOpen}
         setMobileOpen={setMobileMenuOpen}
         badges={badges}
+        liveReading={liveReading}
+        dataSource={dataSource}
       />
 
       {/* 2. Main Viewport Container */}
@@ -271,6 +303,9 @@ export default function App() {
           monthlyBudget={customParams?.budget}
           onOpenMobileMenu={() => setMobileMenuOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
+          system={system}
+          liveReading={liveReading}
+          alerts={alerts}
         />
 
         {/* Scrollable View */}
@@ -288,7 +323,7 @@ export default function App() {
               <span>WATT-TELEMETRY SCADA CONSOLE // ENGINE V1.4</span>
             </div>
             <div>
-              {dataSource === "device" ? "THIS DEVICE" : "SAMPLE DATA"} · SAMPLING: 2000MS · TARIFF: ₱{customParams?.rate?.toFixed(2)} / KWH · CAP: ₱{customParams?.budget}
+              {dataSource === "device" ? "THIS DEVICE" : "SAMPLE DATA (JOHN)"} · SAMPLING: 2000MS · TARIFF: ₱{customParams?.rate?.toFixed(2)} / KWH · CAP: ₱{customParams?.budget} · CYCLE STARTS DAY {customParams?.cycleStartDay ?? 1}
             </div>
           </footer>
         </main>
@@ -302,6 +337,8 @@ export default function App() {
         currentBudget={customParams?.budget}
         currentBaseline={customParams?.baseline}
         currentBill={customParams?.currentBill}
+        currentCycleStartDay={customParams?.cycleStartDay}
+        defaults={defaultParams}
         onSave={(newParams) => {
           setCustomParams(newParams);
           fetchData(newParams, true);

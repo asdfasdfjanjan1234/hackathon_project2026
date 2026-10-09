@@ -7,12 +7,15 @@ Python libraries do the cross-platform part:
 Each OS's own hardware report fills in the rest, in a single call at startup:
   macOS      system_profiler -json   model, chip, GPU cores, displays, NVMe SSDs, battery health
   Windows    PowerShell CIM queries  model and form factor, CPU, GPUs, NPUs, disks, displays
+  Linux      sysfs and /proc         model and chassis, CPU, GPUs (lspci), NPUs, disks, displays, battery health
 
 The collector uses the result to pick sensors (measurement.py) and to size estimates,
 e.g. disk power depends on whether the disk is an NVMe SSD, a SATA SSD or a hard drive.
 """
 
+import glob
 import json
+import os
 import platform
 import re
 import shutil
@@ -163,6 +166,113 @@ def _windows_devices():
         return {}
 
 
+# --- Linux ------------------------------------------------------------------
+
+# DMI chassis types of portable machines: Portable, Laptop, Notebook, Hand Held, Sub Notebook,
+# Tablet, Convertible, Detachable.
+LAPTOP_CHASSIS = {8, 9, 10, 11, 14, 30, 31, 32}
+PCI_VENDORS = {"0x10de": "NVIDIA", "0x1002": "AMD", "0x8086": "Intel"}
+NPU_DRIVERS = {"intel_vpu": "Intel NPU", "amdxdna": "AMD Ryzen AI NPU"}
+VIRTUAL_DISKS = ("loop", "ram", "zram", "dm-", "md", "sr", "fd")
+
+
+def _read(path):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def parse_lspci(text):
+    """GPUs from `lspci -mm` lines whose class is a display controller."""
+    gpus = []
+    for line in text.splitlines():
+        fields = re.findall(r'"([^"]*)"', line)
+        if len(fields) >= 3 and any(k in fields[0] for k in ("VGA", "3D controller", "Display controller")):
+            vendor, device = fields[1], fields[2]
+            name = f"{vendor.split()[0]} {device}".strip()
+            kind = "integrated" if vendor.startswith("Intel") and "Arc A" not in device else _gpu_type(name)
+            gpus.append({"name": name, "type": kind, "cores": None, "vram": None})
+    return gpus
+
+
+def _linux_cpu(root):
+    info = _read(os.path.join(root, "proc", "cpuinfo"))
+    for key in ("model name", "Model", "Hardware"):
+        m = re.search(rf"^{key}\s*:\s*(.+)$", info, re.M)
+        if m:
+            return m.group(1).strip()
+    return None
+
+
+def _linux_gpus(root):
+    gpus = parse_lspci(_run(["lspci", "-mm"])) if root == "/" and shutil.which("lspci") else []
+    if gpus:
+        return gpus
+    for dev in sorted(glob.glob(os.path.join(root, "sys", "class", "drm", "card[0-9]", "device"))):
+        vendor = PCI_VENDORS.get(_read(os.path.join(dev, "vendor")))
+        if vendor:
+            gpus.append({"name": f"{vendor} GPU", "type": "integrated" if vendor == "Intel" else "discrete",
+                         "cores": None, "vram": None})
+    return gpus
+
+
+def _linux_disks(root):
+    disks = []
+    for block in sorted(glob.glob(os.path.join(root, "sys", "block", "*"))):
+        name = os.path.basename(block)
+        if name.startswith(VIRTUAL_DISKS):
+            continue
+        rotational = _read(os.path.join(block, "queue", "rotational")) == "1"
+        kind = "nvme" if name.startswith("nvme") else "hdd" if rotational else "ssd"
+        sectors = _read(os.path.join(block, "size"))
+        disks.append({"name": _read(os.path.join(block, "device", "model")) or name, "type": kind,
+                      "size_gb": _gb(int(sectors) * 512) if sectors.isdigit() else None,
+                      "external": _read(os.path.join(block, "removable")) == "1"})
+    return disks
+
+
+def _linux_displays(root):
+    out = []
+    for conn in sorted(glob.glob(os.path.join(root, "sys", "class", "drm", "card*-*"))):
+        if _read(os.path.join(conn, "status")) != "connected":
+            continue
+        port = os.path.basename(conn).split("-", 1)[1]
+        built_in = port.startswith(("eDP", "LVDS", "DSI"))
+        out.append({"name": "Built-in display" if built_in else f"External display ({port})", "built_in": built_in})
+    return out
+
+
+def _linux_npus(root):
+    npus = []
+    for dev in sorted(glob.glob(os.path.join(root, "sys", "class", "accel", "accel*", "device", "driver"))):
+        driver = os.path.basename(os.path.realpath(dev))
+        if driver in NPU_DRIVERS:
+            npus.append({"name": NPU_DRIVERS[driver]})
+    return npus
+
+
+def linux_devices(root="/"):
+    """Devices from sysfs and /proc (plus `lspci` for GPU names when installed)."""
+    from .sensors_linux import battery_health
+
+    dmi = os.path.join(root, "sys", "class", "dmi", "id")
+    chassis = _read(os.path.join(dmi, "chassis_type"))
+    vendor, product = _read(os.path.join(dmi, "sys_vendor")), _read(os.path.join(dmi, "product_name"))
+    out = {"gpus": _linux_gpus(root), "npus": _linux_npus(root), "disks": _linux_disks(root),
+           "displays": _linux_displays(root), "device": {"manufacturer": vendor or None, "model": product or None}}
+    if chassis.isdigit():
+        out["device"]["type"] = "laptop" if int(chassis) in LAPTOP_CHASSIS else "desktop"
+    cpu = _linux_cpu(root)
+    if cpu:
+        out["cpu"] = cpu
+    health = battery_health(root)
+    if health:
+        out["battery_health"] = health
+    return out
+
+
 # --- Any OS -----------------------------------------------------------------
 
 def _nvidia_gpus():
@@ -209,11 +319,15 @@ def detect_system():
         found = _macos_devices(apple_silicon)
     elif os_name == "windows":
         found = _windows_devices()
+    elif os_name == "linux":
+        found = linux_devices()
     else:
         found = {}
     health = found.pop("battery_health", None)
     if health and info["battery"]:
         info["battery"].update(health)
+    device = {k: v for k, v in (found.pop("device", None) or {}).items() if v}
+    info["device"].update(device)
     info.update({k: v for k, v in found.items() if v not in (None, [], "")})
     if info["nvidia_gpu"]:
         known = {g["name"] for g in info["gpus"]}

@@ -9,18 +9,37 @@ import {
 } from "lucide-react";
 import { peso } from "../format";
 
+const OS_NAMES = { macos: "macOS", windows: "Windows", linux: "Linux" };
+
+function deviceLabel(system) {
+  if (!system) return "Detecting device…";
+  const model = system.device?.model || system.cpu || "Unknown device";
+  return `${model} · ${OS_NAMES[system.os] || system.os}`;
+}
+
+// What the live power number is based on right now.
+function sensorStatus(reading) {
+  if (!reading) return { text: "CONNECTING", live: false };
+  if (reading.source === "collector") return { text: "READING DEVICE", live: true };
+  if (reading.estimated) return { text: "ESTIMATED POWER", live: false };
+  return { text: "SENSOR ONLINE", live: true };
+}
+
 export default function TopBar({
   dateRange = "30d",
   setDateRange,
   onRefresh,
   isRefreshing = false,
-  electricityRate = 12.0,
-  monthlyBudget = 2000,
-  notificationCount = 2,
+  electricityRate,
+  monthlyBudget,
   onOpenMobileMenu,
   onOpenSettings,
+  system,
+  liveReading,
+  alerts = [],
 }) {
   const [showNotifications, setShowNotifications] = useState(false);
+  const status = sensorStatus(liveReading);
 
   return (
     <header className="h-16 bg-panelBg border-b border-white/5 px-3 sm:px-5 lg:px-6 flex items-center justify-between gap-3 sticky top-0 z-20 select-none">
@@ -41,14 +60,20 @@ export default function TopBar({
               AI Power Telemetry
             </h1>
             {/* LIVE SENSOR BADGE: Instrument Cyan, NO GREEN */}
-            <span className="hidden xs:inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/25 shrink-0">
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
-              SENSORS ONLINE
+            <span
+              className={`hidden xs:inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-mono font-semibold px-2 py-0.5 rounded border shrink-0 ${
+                status.live
+                  ? "bg-sky-500/10 text-sky-400 border-sky-500/25"
+                  : "bg-amber-500/10 text-amber-300 border-amber-500/25"
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${status.live ? "bg-sky-400 animate-pulse" : "bg-amber-400"}`} />
+              {status.text}
             </span>
           </div>
 
           <div className="text-[10px] sm:text-[11px] font-mono text-slate-400 hidden lg:flex items-center gap-2 mt-0.5">
-            <span>BUS: Apple Silicon SoC</span>
+            <span className="truncate max-w-[18rem]" title={system?.cpu}>{deviceLabel(system)}</span>
             <span>·</span>
             <button
               onClick={onOpenSettings}
@@ -123,7 +148,7 @@ export default function TopBar({
             title="System Alert Log"
           >
             <Bell className="w-3.5 h-3.5 text-slate-400" />
-            {notificationCount > 0 && (
+            {alerts.length > 0 && (
               <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-400" />
             )}
           </button>
@@ -134,21 +159,29 @@ export default function TopBar({
                 <span className="font-semibold text-slate-200 uppercase tracking-wider text-[11px]">
                   TELEMETRY DIRECTIVES
                 </span>
-                <span className="text-[10px] text-amber-400">2 PENDING</span>
+                <span className="text-[10px] text-amber-400">{alerts.length} PENDING</span>
               </div>
               <div className="space-y-2 text-[11px]">
-                <div className="p-2 rounded bg-rose-500/10 border border-rose-500/20 text-slate-300">
-                  <div className="font-bold text-rose-400 text-[10px] uppercase">
-                    [WARN] BUDGET OVERRUN PROJECTED
+                {alerts.length === 0 && (
+                  <div className="p-2 text-slate-400 font-sans">No alerts: the forecast is within budget.</div>
+                )}
+                {alerts.map((a, i) => (
+                  <div
+                    key={i}
+                    className={`p-2 rounded border text-slate-300 font-sans ${
+                      a.level === "warn" ? "bg-rose-500/10 border-rose-500/20" : "bg-amber-500/10 border-amber-500/20"
+                    }`}
+                  >
+                    <div
+                      className={`font-bold font-mono text-[10px] uppercase ${
+                        a.level === "warn" ? "text-rose-400" : "text-amber-400"
+                      }`}
+                    >
+                      [{a.level === "warn" ? "WARN" : "OPT"}] {a.title}
+                    </div>
+                    {a.text}
                   </div>
-                  Cycle trend exceeds ₱2,000 threshold by +₱650.
-                </div>
-                <div className="p-2 rounded bg-amber-500/10 border border-amber-500/20 text-slate-300">
-                  <div className="font-bold text-amber-400 text-[10px] uppercase">
-                    [OPT] WORKLOAD SHIFT AVAILABLE
-                  </div>
-                  Shift llama3:70b to 8b for lightweight queries.
-                </div>
+                ))}
               </div>
             </div>
           )}

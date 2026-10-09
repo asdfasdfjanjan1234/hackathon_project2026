@@ -49,3 +49,25 @@ export const formatTokens = (n) => {
   if (n >= 1e3) return `${(n / 1e3).toFixed(1)}k`;
   return String(n);
 };
+
+export const formatCo2 = (kg) => {
+  if (kg === null || kg === undefined || isNaN(kg)) return "—";
+  if (kg >= 1000) return `${(kg / 1000).toFixed(2)} t CO₂`;
+  if (kg >= 1) return `${kg.toFixed(1)} kg CO₂`;
+  if (kg > 0 && kg < 0.001) return "<1 g CO₂";
+  return `${Math.round(kg * 1000)} g CO₂`;
+};
+
+// Duration from hours: "3.2 h", "14 min" or "40 s", for "= X of running an aircon".
+export const formatDuration = (hours) => {
+  if (hours === null || hours === undefined || isNaN(hours)) return "—";
+  if (hours >= 1) return `${hours.toFixed(hours >= 10 ? 0 : 1)} h`;
+  if (hours * 60 >= 1) return `${Math.round(hours * 60)} min`;
+  return `${Math.max(1, Math.round(hours * 3600))} s`;
+};
+
+export const shortDate = (iso) => {
+  if (!iso) return "";
+  const d = new Date(`${iso}T00:00:00`);
+  return d.toLocaleDateString("en-PH", { month: "short", day: "numeric" });
+};

@@ -31,6 +31,31 @@ This document tracks development sessions, features implemented, refactoring eff
 
 ## Session History
 
+### [2026-10-09] - Session 9: Every Plan Item, Built for Any Device and OS
+**Branch:** `main`  
+**Goal:** Implement the remaining PROJECT_PLAN.md items (§3.3, §4, §5, §6) and make measurement accurate on every OS, not just the M2.
+
+#### Completed Tasks
+- [x] **Accuracy:** apps get their share of *measured* CPU/GPU power above idle where a sensor exists (RAPL, nvidia-smi, IOReport) instead of the M2 formula; on an NVIDIA desktop, Ollama previously got ~10 W of a ~300 W GPU.
+- [x] GPU power goes to the processes using the GPU: per process on Windows (all engines, incl. CUDA, which the 3D-only counter missed), NVIDIA's compute-process list (a game is no longer blamed on Ollama), else active local runners only.
+- [x] Device-class power defaults (Apple Silicon / laptop / desktop) and a fitted power model per device (it was shared across devices in MySQL).
+- [x] **Linux:** sensors (`sensors_linux.py`: battery, RAPL, amdgpu) and device detection (DMI, cpuinfo, lspci, block devices, displays, NPUs).
+- [x] **Models (§3.3):** one row per Ollama runner process, named from Ollama's manifests; LM Studio loaded models (`local_models.py`).
+- [x] **Forecast (§4):** billing cycle start day, weekday/weekend pattern, damped trend, 1/3/12-month projections, daily series for the chart (current path and with recommendations), budget-exceeded date; unmeasured days are no longer counted as zero.
+- [x] **Recommendations (§5):** all 8 rules (budget date, smaller model, idle loaded, quantization, local vs cloud, cost per hour, tool runs, Opus → Sonnet) plus "growing fastest"; overlapping savings compound instead of double counting. SWITCH now also fires on device data (`Ollama · llama3:70b`).
+- [x] **Dashboard (§6):** per-host energy, device energy next to data-center energy per model, CO₂ and aircon-hours comparisons.
+- [x] **Frontend honesty:** removed invented values (fake process rows, seeded history, ₱2,000 cap, "+33.5 W over idle", "Apple Silicon SoC", "95% confidence interval", John's fallback impact); live dial scales to the device; tariff settings take exact values and the billing cycle day.
+
+#### Tests & Verification
+- `cd backend && .venv/bin/python -m pytest`: 105 passed, 3 skipped (MySQL). New: `test_forecast.py`, `test_recommendations.py`, `test_platforms.py`.
+- Real collector steps on the M2; all dashboard views checked in a headless browser on this device's data and on sample data (no console errors, no failed requests). `npm run build` clean.
+
+#### Next Steps
+- [ ] Run on a real Windows PC and a Linux PC; run with Ollama / LM Studio loaded and on an NVIDIA GPU.
+- [ ] Confirm the data-center reference figure (Epoch AI 0.3 Wh in use) and default rate / billing cycle.
+
+---
+
 ### [2026-10-09] - Session 8: "Start Reading My Device" and Per-Model Tracking
 **Branch:** `main`  
 **Goal:** Make the system dynamic: each user clicks one button and the app detects their OS, hardware, AI apps and models (PROJECT_PLAN.md §3).

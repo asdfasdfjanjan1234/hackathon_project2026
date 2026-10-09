@@ -25,11 +25,13 @@ backend/                  Flask API (port 5001)
       health.py           GET /api/health
     services/             Logic, separate from routes
       system_info.py      Detects OS and devices: CPU, RAM, GPUs, NPU, disks, displays, battery
-      measurement.py      Picks sensors for the detected OS; watts per CPU / GPU / memory / disk
+      measurement.py      Picks sensors for the detected OS; watts per CPU / GPU / memory / disk; nvidia-smi
       sensors_macos.py    macOS: battery (ioreg), GPU % and GPU energy (IOReport), powermetrics
-      sensors_windows.py  Windows: battery rate, Energy Meter Interface (RAPL), GPU counters
-      ai_processes.py     Finds AI apps / local model runners and their CPU and memory
-      attribution.py      Fits watts ≈ idle + a·CPU% + b·GPU%, splits watts per app
+      sensors_windows.py  Windows: battery rate, Energy Meter Interface (RAPL), GPU engine counters per process
+      sensors_linux.py    Linux: battery (sysfs), RAPL powercap, AMD GPU (amdgpu)
+      ai_processes.py     Finds AI apps / local model runners and their CPU, memory and process IDs
+      local_models.py     Which models Ollama / LM Studio have loaded or installed (one row per Ollama runner)
+      attribution.py      Fits watts ≈ idle + a·CPU% + b·GPU%; splits measured CPU/GPU power per app
       collector.py        Sampling loop used by collect.py and the device reader
       device_reader.py    Runs the collector in a background thread ("Start reading my device")
       model_usage.py      Reads Claude Code / Codex / Copilot logs → tokens per model per day
@@ -37,9 +39,10 @@ backend/                  Flask API (port 5001)
       models_catalog.py   Local models (watts) and cloud models (list prices → data-center Wh estimate)
       usage_store.py      Daily usage per model (sample data for now)
       sample_data.py      Generates 30 days of realistic demo data
-      forecasting.py      Linear trend → monthly bill forecast
-      recommendations.py  Rule-based recommendations with savings
-  tests/                  test_api.py, test_measurement.py, test_sensors.py
+      forecasting.py      Billing cycle, weekday/weekend pattern, damped trend → bill per day and 1/3/12 months
+      recommendations.py  Rule-based recommendations with savings (budget, smaller model, quantization, idle, …)
+      outlook.py          Forecast + recommendations together ("with recommendations" path)
+  tests/                  API, measurement, sensors, storage, forecast, recommendations, platforms (Linux/Windows/NVIDIA/Ollama)
 
 frontend/                 React + Vite (port 5173), proxies /api to Flask
   src/
@@ -132,7 +135,11 @@ Tests: `cd backend && .venv/bin/python -m pytest` (add `TEST_DATABASE_URL=mysql:
 ## Notes
 
 - **Sample data:** `USE_SAMPLE_DATA=true` in `backend/.env` makes the dashboard start on generated data (John's gaming PC); clicking Start reading switches to this device.
-- **Your bill:** set the rate, baseline bill, this month's bill and budget in Tariff & Hardware. The backend does all bill math with them.
+- **Your bill:** set the rate, baseline bill, this month's bill, budget and billing-cycle start day in Tariff & Hardware. The backend does all bill math with them.
+- **Comparisons:** CO₂ uses the Philippine DOE grid emission factor (0.7122 kg/kWh, Luzon-Visayas) and "hours of aircon" a 1 HP non-inverter unit (750 W). Change `GRID_CO2_KG_PER_KWH` and `AIRCON_WATTS` in `.env` for other places.
 - **Live power on Mac:** no sudo needed. The battery sensor gives measured system power on Apple Silicon laptops, and IOReport gives measured GPU power. Desktop Macs have no battery sensor.
-- **Live power on Windows:** no extra installs. Battery power while unplugged, and CPU/GPU/RAM energy where the PC exposes the Energy Meter Interface. Not yet tested on a real Windows PC.
+- **Live power on Windows:** no extra installs. Battery power while unplugged, and CPU/GPU/RAM energy where the PC exposes the Energy Meter Interface. GPU use is read per process and per engine (3D, Compute, CUDA). Not yet tested on a real Windows PC.
+- **Live power on Linux:** battery power while unplugged, RAPL CPU/iGPU/RAM energy (most distributions allow this for root only; otherwise it's estimated), AMD GPU power and utilization. Tested against sample sysfs files only.
+- **NVIDIA GPUs (any OS):** `nvidia-smi` gives measured GPU watts and utilization, and which processes run GPU compute, so a game isn't counted as local AI.
+- **Accuracy:** where a CPU or GPU power sensor exists, each app gets its share of the *measured* power above idle; otherwise the fitted formula. Until it's fitted, defaults depend on the device (Apple Silicon, laptop or desktop).
 - **Port 5001**, not 5000, because macOS uses 5000 for AirPlay Receiver.

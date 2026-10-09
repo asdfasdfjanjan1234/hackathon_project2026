@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { peso } from "../format";
+import { peso, formatKwh, formatCo2, formatDuration } from "../format";
 import { PieChart as PieIcon } from "lucide-react";
 
 const VERDICT_CONFIG = {
@@ -37,20 +37,9 @@ const VERDICT_CONFIG = {
 };
 
 export default function BillImpact({ impact }) {
-  const safeImpact = impact || {
-    baseline_bill: 1500,
-    current_bill: 2500,
-    increase: 1000,
-    ai_effect: 866,
-    rate_effect: 0,
-    other_effect: 134,
-    ai_share: 0.866,
-    verdict: "major",
-    local_ai_kwh: 72.2,
-    cloud_ai_kwh_estimated: 3.6,
-  };
-
-  const verdict = VERDICT_CONFIG[safeImpact.verdict] || VERDICT_CONFIG.major;
+  const safeImpact = impact || {};
+  const verdict = VERDICT_CONFIG[safeImpact.verdict] || VERDICT_CONFIG.none;
+  const eq = safeImpact.equivalents;
 
   const donutData = useMemo(() => {
     const raw = [
@@ -63,6 +52,7 @@ export default function BillImpact({ impact }) {
   }, [safeImpact]);
 
   const totalIncrease = Math.max(1, safeImpact.increase || 1);
+  if (!impact) return <section className="dash-card p-5 h-72 animate-pulse" />;
   const aiSharePct = ((safeImpact.ai_share || 0) * 100).toFixed(1);
 
   const CustomDonutTooltip = ({ active, payload }) => {
@@ -151,7 +141,9 @@ export default function BillImpact({ impact }) {
               {verdict.status}: {aiSharePct}% of Surge
             </div>
             <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
-              {verdict.desc} Local AI processes consumed {safeImpact.local_ai_kwh} kWh (₱{safeImpact.ai_effect}) on this hardware device.
+              {verdict.desc} AI apps and local models used {formatKwh(safeImpact.local_ai_kwh)} on this device
+              ({peso(safeImpact.ai_effect)} of the increase)
+              {eq && ` ≈ ${formatCo2(eq.co2_kg)}, or ${formatDuration(eq.aircon_hours)} of running a 1 HP aircon`}.
             </p>
           </div>
 
@@ -183,8 +175,8 @@ export default function BillImpact({ impact }) {
 
       {/* Industrial Footnote */}
       <div className="pt-2.5 border-t border-white/5 flex flex-wrap items-center justify-between text-[10px] font-mono text-slate-400 gap-2">
-        <span>Cloud token APIs (~{safeImpact.cloud_ai_kwh_estimated} kWh) operate in provider data centers.</span>
-        <span className="text-slate-400">MATH: OLS DELTA DECOMPOSITION</span>
+        <span>Cloud AI runs in provider data centers, so it isn't counted in your bill.</span>
+        <span className="text-slate-400">MATH: RATE · AI · OTHER USAGE DECOMPOSITION</span>
       </div>
     </section>
   );

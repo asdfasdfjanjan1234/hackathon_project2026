@@ -1,12 +1,14 @@
 from flask import jsonify
 
-from ..services.forecasting import forecast_bill
-from ..services.usage_store import get_daily_usage
+from ..services.outlook import outlook
+from ..services.usage_store import equivalence_factors, equivalents
 from . import api_bp, bill_params
 
 
 @api_bp.get("/forecast")
 def forecast():
-    p = bill_params()
-    result = forecast_bill(get_daily_usage(), rate=p["rate"], baseline_bill=p["baseline_bill"])
-    return jsonify({**result, "budget": p["budget"]})
+    """This billing cycle's bill (current path and with recommendations), day by day,
+    and the bills for the next 1, 3 and 12 months."""
+    result, _ = outlook(bill_params())
+    cycle_kwh = sum(d["ai_kwh"] for d in result["daily"])
+    return jsonify({**result, "equivalents": equivalents(cycle_kwh), "factors": equivalence_factors()})

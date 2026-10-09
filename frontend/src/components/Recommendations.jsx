@@ -6,16 +6,14 @@ import {
   CheckCircle2,
   Terminal,
 } from "lucide-react";
-import { peso } from "../format";
+import { peso, formatWh } from "../format";
 
 export default function Recommendations({ recs, onApplyDirective }) {
   const [appliedActions, setAppliedActions] = useState({});
 
   const recommendationsList = recs?.recommendations || [];
-  const totalPotentialSavings = recommendationsList.reduce(
-    (sum, r) => sum + (r.monthly_savings || 0),
-    0
-  );
+  // Combined by the backend: savings on the same model compound, and alternatives aren't added.
+  const totalPotentialSavings = recs?.monthly_savings ?? 0;
 
   const handleApply = (idx) => {
     const isNowApplied = !appliedActions[idx];
@@ -128,10 +126,20 @@ export default function Recommendations({ recs, onApplyDirective }) {
                 <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/5">
                   <div className="text-right">
                     <span className="text-[9px] text-slate-400 uppercase tracking-wider block">
-                      RECOVERABLE
+                      {rec.scope === "datacenter"
+                        ? "DATA CENTER · NOT ON BILL"
+                        : rec.alternative
+                        ? "ALTERNATIVE"
+                        : rec.rule === "budget" && !rec.monthly_savings
+                        ? "BUDGET ALERT"
+                        : "RECOVERABLE"}
                     </span>
                     <span className="text-xs font-bold text-sky-300 tabular-nums">
-                      -{peso(rec.monthly_savings)} / mo
+                      {rec.scope === "datacenter"
+                        ? `-${formatWh(rec.wh_saved)} / mo`
+                        : rec.rule === "budget" && !rec.monthly_savings
+                        ? "—"
+                        : `-${peso(rec.monthly_savings)} / mo`}
                     </span>
                   </div>
 
@@ -161,8 +169,12 @@ export default function Recommendations({ recs, onApplyDirective }) {
 
       {/* Footer */}
       <div className="pt-2 border-t border-white/5 flex flex-wrap items-center justify-between text-[10px] text-slate-400 gap-2">
-        <span>POLICIES EVALUATED: KILOWATT TARIFF THRESHOLD & RUNAWAY LEAST-SQUARES SLOPE</span>
-        <span>STATUS: EVALUATION NOMINAL</span>
+        <span>
+          RULES: BUDGET · SMALLER MODEL · QUANTIZATION · IDLE LOADED · COST PER HOUR · TOOL RUNS · CLOUD · GROWTH
+        </span>
+        <span>
+          {recs?.bill_with_recommendations != null && `THIS CYCLE WITH RECS: ${peso(recs.bill_with_recommendations)}`}
+        </span>
       </div>
     </section>
   );

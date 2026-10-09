@@ -12,7 +12,7 @@ import sqlite3
 import time
 from urllib.parse import unquote, urlparse
 
-from .attribution import PowerModel
+from .attribution import ACTIVE_CPU_PCT, PowerModel
 from .measurement import DERIVED
 
 SQLITE_SCHEMA = """
@@ -214,20 +214,42 @@ def save_window(conn, ts, avg_watts, avg_cpu, avg_gpu, n_samples, device_id=None
     conn.commit()
 
 
-def recent_windows(conn, limit=500):
+def _device_filter(device_id, column="device_id"):
+    """SQL condition and parameters limiting rows to one device (all devices when None)."""
+    return ("", ()) if device_id is None else (f" AND {column} = ?", (device_id,))
+
+
+def device_id_for(conn, machine_id):
+    """The stored id of the computer with this machine ID, or None if it hasn't taken readings."""
+    row = conn.execute("SELECT id FROM devices WHERE machine_id = ?", (machine_id,)).fetchone()
+    return row["id"] if row else None
+
+
+def recent_windows(conn, limit=500, device_id=None):
+    where, params = _device_filter(device_id)
     rows = conn.execute(
-        "SELECT avg_watts, avg_cpu, avg_gpu FROM power_windows ORDER BY ts DESC LIMIT ?", (limit,)
+        f"SELECT avg_watts, avg_cpu, avg_gpu FROM power_windows WHERE 1 = 1{where} ORDER BY ts DESC LIMIT ?",
+        (*params, limit),
     ).fetchall()
     return [(r["avg_watts"], r["avg_cpu"], r["avg_gpu"]) for r in rows]
 
 
-def get_power_model(conn):
-    row = conn.execute("SELECT value FROM settings WHERE `key` = 'power_model'").fetchone()
-    return PowerModel(**json.loads(row["value"])) if row else None
+def _power_model_key(device_id):
+    # Each computer has its own fitted formula; "power_model" is from before devices were stored.
+    return "power_model" if device_id is None else f"power_model:{device_id}"
 
 
-def set_power_model(conn, model):
-    conn.execute("REPLACE INTO settings (`key`, value) VALUES ('power_model', ?)", (json.dumps(model.to_dict()),))
+def get_power_model(conn, device_id=None):
+    for key in dict.fromkeys((_power_model_key(device_id), "power_model")):
+        row = conn.execute("SELECT value FROM settings WHERE `key` = ?", (key,)).fetchone()
+        if row:
+            return PowerModel(**json.loads(row["value"]))
+    return None
+
+
+def set_power_model(conn, model, device_id=None):
+    conn.execute("REPLACE INTO settings (`key`, value) VALUES (?, ?)",
+                 (_power_model_key(device_id), json.dumps(model.to_dict())))
     conn.commit()
 
 
@@ -240,13 +262,17 @@ def latest_sample(conn, max_age_s=15):
         "SELECT COALESCE(model, app) AS name, app, kind, host, cpu_percent, rss_mb, watts "
         "FROM ai_samples WHERE ts = ? ORDER BY watts DESC", (s["ts"],)
     ).fetchall()
-    model = get_power_model(conn) or PowerModel()
+    model = get_power_model(conn, s["device_id"]) or PowerModel()
     components = conn.execute(
         "SELECT component, watts, source FROM component_samples WHERE ts = ?", (s["ts"],)
     ).fetchall()
+    measured = s["measured_watts"]
     return {
-        "watts": round(s["est_watts"], 1),
-        "measured_watts": s["measured_watts"],
+        # The sensor reading when there is one; otherwise the formula's estimate.
+        "watts": round(measured if measured is not None else s["est_watts"], 1),
+        "estimated": measured is None,
+        "est_watts": round(s["est_watts"], 1),
+        "measured_watts": measured,
         "cpu_percent": s["cpu_percent"],
         "gpu_percent": s["gpu_percent"],
         "ai_watts": round(sum(a["watts"] for a in apps), 2),
@@ -259,33 +285,71 @@ def latest_sample(conn, max_age_s=15):
     }
 
 
-def daily_usage(conn, days=30):
-    """Daily kWh per AI app or model, in the same shape as the sample data."""
+def daily_usage(conn, days=30, device_id=None):
+    """Daily kWh per AI app or model, in the same shape as the sample data.
+
+    active_hours: time the app was doing work (CPU at or above ACTIVE_CPU_PCT of a core).
+    """
     since = time.time() - days * 86400
+    where, params = _device_filter(device_id)
     rows = conn.execute(
         f"""
         SELECT {conn.day()} AS date,
                COALESCE(model, app) AS model,
                kind,
-               SUM(watts * interval_s) / 3600000.0 AS kwh
-        FROM ai_samples WHERE ts >= ?
+               SUM(watts * interval_s) / 3600000.0 AS kwh,
+               SUM(CASE WHEN cpu_percent >= ? THEN interval_s ELSE 0 END) / 3600.0 AS active_hours
+        FROM ai_samples WHERE ts >= ?{where}
         GROUP BY 1, 2, 3 ORDER BY 1
         """,
-        (since,),
+        (ACTIVE_CPU_PCT, since, *params),
     ).fetchall()
     return [{"date": str(r["date"]), "model": r["model"], "kind": r["kind"],
-             "kwh": round(r["kwh"], 6), "source": "measured"} for r in rows]
+             "kwh": round(r["kwh"], 6), "active_hours": round(r["active_hours"] or 0, 4),
+             "source": "measured"} for r in rows]
 
 
-def host_usage(conn, days=30):
+def measured_days(conn, days=60, device_id=None):
+    """[{date, hours}]: days the collector ran, and for how long. Days missing here weren't
+    measured, so they don't count as days without AI use."""
+    since = time.time() - days * 86400
+    where, params = _device_filter(device_id)
+    rows = conn.execute(
+        f"SELECT {conn.day()} AS date, SUM(interval_s) / 3600.0 AS hours FROM samples "
+        f"WHERE ts >= ?{where} GROUP BY 1 ORDER BY 1",
+        (since, *params),
+    ).fetchall()
+    return [{"date": str(r["date"]), "hours": round(r["hours"] or 0, 3)} for r in rows]
+
+
+def idle_loaded(conn, days=7, device_id=None):
+    """Local models that stayed loaded without generating: hours idle, energy used meanwhile, memory held."""
+    since = time.time() - days * 86400
+    where, params = _device_filter(device_id)
+    rows = conn.execute(
+        f"""
+        SELECT model, SUM(interval_s) / 3600.0 AS hours, SUM(watts * interval_s) / 3600000.0 AS kwh,
+               AVG(rss_mb) AS rss_mb
+        FROM ai_samples
+        WHERE ts >= ? AND kind = 'local' AND model IS NOT NULL AND cpu_percent < ?{where}
+        GROUP BY model ORDER BY 2 DESC
+        """,
+        (since, ACTIVE_CPU_PCT, *params),
+    ).fetchall()
+    return [{"model": r["model"], "idle_hours": round(r["hours"], 3), "kwh": round(r["kwh"], 6),
+             "rss_mb": round(r["rss_mb"] or 0, 1), "days": days} for r in rows]
+
+
+def host_usage(conn, days=30, device_id=None):
     """kWh per AI app and the host it ran in (VS Code, Terminal, ...)."""
     since = time.time() - days * 86400
+    where, params = _device_filter(device_id)
     rows = conn.execute(
-        """
+        f"""
         SELECT app, COALESCE(host, 'standalone') AS host, SUM(watts * interval_s) / 3600000.0 AS kwh
-        FROM ai_samples WHERE ts >= ? GROUP BY 1, 2 ORDER BY 3 DESC
+        FROM ai_samples WHERE ts >= ?{where} GROUP BY 1, 2 ORDER BY 3 DESC
         """,
-        (since,),
+        (since, *params),
     ).fetchall()
     return [{"app": r["app"], "host": r["host"], "kwh": round(r["kwh"], 6)} for r in rows]
 
@@ -294,19 +358,20 @@ def sample_count(conn):
     return conn.execute("SELECT COUNT(*) AS n FROM samples").fetchone()["n"]
 
 
-def daily_component_usage(conn, days=30):
+def daily_component_usage(conn, days=30, device_id=None):
     """Daily kWh per component (cpu, gpu, memory, disk, other) and how it was obtained."""
     since = time.time() - days * 86400
+    where, params = _device_filter(device_id)
     rows = conn.execute(
         f"""
         SELECT {conn.day()} AS date, component,
                SUM(watts * interval_s) / 3600000.0 AS kwh,
                SUM(CASE WHEN source IN ('estimated', ?) THEN 0 ELSE interval_s END)
                    / SUM(interval_s) AS measured_share
-        FROM component_samples WHERE ts >= ?
+        FROM component_samples WHERE ts >= ?{where}
         GROUP BY 1, 2 ORDER BY 1, 2
         """,
-        (DERIVED, since),
+        (DERIVED, since, *params),
     ).fetchall()
     return [{"date": str(r["date"]), "component": r["component"], "kwh": round(r["kwh"], 6),
              "measured_share": round(r["measured_share"], 3)} for r in rows]

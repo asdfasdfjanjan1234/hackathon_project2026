@@ -22,6 +22,7 @@ function billQuery(params) {
     current_bill: params.currentBill,
     budget: params.budget,
   });
+  if (params.cycleStartDay) q.set("cycle_start_day", params.cycleStartDay);
   return `?${q}`;
 }
 

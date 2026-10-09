@@ -8,9 +8,7 @@ Processes started by a coding agent (tests, builds, shells) count toward that ag
 the host it runs in (VS Code, Terminal, ...), found by walking up its parent processes.
 """
 
-import json
 import os
-import urllib.request
 
 import psutil
 
@@ -121,16 +119,30 @@ def group_processes(procs, exclude=()):
     return out
 
 
+def flag_value(argv, flag):
+    """The value after `flag` in an argument list (`--flag value` or `--flag=value`)."""
+    for i, arg in enumerate(argv):
+        if arg == flag and i + 1 < len(argv):
+            return argv[i + 1]
+        if arg.startswith(flag + "="):
+            return arg[len(flag) + 1:]
+    return None
+
+
 def find_ai_processes():
     """CPU % (of one core, like Activity Monitor) and memory per AI app, summed over its processes.
 
-    One row per app and host, plus a "tool runs" row for commands an agent started.
+    One row per app and host, plus a "tool runs" row for commands an agent started. Each
+    Ollama model runner (`ollama runner --model <blob>`) gets its own row with its model
+    path, which local_models.label_local_models turns into the model's name. Rows keep
+    their process IDs so per-process GPU readings can be matched to them.
     psutil caches processes between calls, so CPU % is measured since the previous call.
     """
-    handles, procs = {}, {}
+    handles, procs, argv = {}, {}, {}
     for p in psutil.process_iter(["ppid", "name", "exe", "cmdline"]):
         try:
-            procs[p.pid] = {**p.info, "cmdline": " ".join(p.info["cmdline"] or [])}
+            argv[p.pid] = p.info["cmdline"] or []
+            procs[p.pid] = {**p.info, "cmdline": " ".join(argv[p.pid])}
             handles[p.pid] = p
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
@@ -143,38 +155,15 @@ def find_ai_processes():
             rss = p.memory_info().rss
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
-        key = (label, host, tool_run)
+        model_path = flag_value(argv[pid], "--model") if label == "Ollama" and not tool_run else None
+        key = (label, host, tool_run, model_path)
         app = apps.setdefault(key, {"app": label, "model": f"{label} · tool runs" if tool_run else None,
-                                    "kind": kind, "host": host, "cpu_percent": 0.0, "rss_mb": 0.0})
+                                    "kind": kind, "host": host, "cpu_percent": 0.0, "rss_mb": 0.0,
+                                    "pids": [], "model_path": model_path})
         app["cpu_percent"] += cpu
         app["rss_mb"] += rss / 1_048_576
+        app["pids"].append(pid)
     return list(apps.values())
-
-
-def ollama_loaded_models(timeout=0.5):
-    """Models Ollama currently has in memory, as [(name, size_vram_bytes)]."""
-    try:
-        with urllib.request.urlopen("http://127.0.0.1:11434/api/ps", timeout=timeout) as res:
-            data = json.load(res)
-    except (OSError, ValueError):
-        return []
-    return [(m["name"], m.get("size_vram") or m.get("size") or 1) for m in data.get("models", [])]
-
-
-def split_ollama_by_model(apps):
-    """Replace the single Ollama row with one row per loaded model, split by memory size."""
-    out = []
-    for app in apps:
-        models = ollama_loaded_models() if app["app"] == "Ollama" else []
-        if not models:
-            out.append(app)
-            continue
-        total = sum(size for _, size in models)
-        for name, size in models:
-            share = size / total
-            out.append({**app, "model": f"Ollama · {name}",
-                        "cpu_percent": app["cpu_percent"] * share, "rss_mb": app["rss_mb"] * share})
-    return out
 
 
 def label_active_models(apps, active):

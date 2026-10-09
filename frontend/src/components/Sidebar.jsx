@@ -8,8 +8,12 @@ export default function Sidebar({
   mobileOpen = false,
   setMobileOpen,
   badges = {},
+  liveReading,
+  dataSource,
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const reading = liveReading?.source === "collector";
+  const sensor = !liveReading ? "connecting…" : reading ? "device reader" : liveReading.source;
 
   const expanded = !collapsed || mobileOpen;
 
@@ -139,11 +143,13 @@ export default function Sidebar({
             {expanded && (
               <div className="flex-1 min-w-0 font-mono text-[10px]">
                 <div className="flex items-center justify-between text-slate-300 font-semibold">
-                  <span>SOC SENSORS</span>
-                  <span className="text-sky-400">ONLINE</span>
+                  <span>POWER SOURCE</span>
+                  <span className={liveReading?.estimated ? "text-amber-300" : "text-sky-400"}>
+                    {liveReading?.estimated ? "ESTIMATED" : liveReading ? "MEASURED" : "—"}
+                  </span>
                 </div>
-                <div className="text-slate-400 truncate mt-0.5">
-                  Loop: 2000ms · powermetrics
+                <div className="text-slate-400 truncate mt-0.5" title={sensor}>
+                  {sensor} · {dataSource === "device" ? "this device" : "sample data"}
                 </div>
               </div>
             )}

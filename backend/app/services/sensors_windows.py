@@ -3,7 +3,7 @@
   Energy Meter Interface (EMI)     CPU, integrated GPU and DRAM energy from Intel/AMD RAPL
                                    (Windows 10 1809+; the inbox driver exposes it on most recent PCs)
   CallNtPowerInformation           whole-laptop power while on battery
-  PDH "GPU Engine" counters        GPU utilization %
+  PDH "GPU Engine" counters        GPU utilization %, per engine and per process
 
 Each reader returns None or {} when the sensor is missing or access is denied, so
 the caller falls back to estimates. The parsing functions are plain Python and are
@@ -11,6 +11,7 @@ unit-tested on any OS; the ctypes parts need a Windows machine to try.
 """
 
 import ctypes
+import re
 import struct
 import time
 
@@ -205,11 +206,31 @@ def battery_watts():
 
 
 # --- GPU utilization --------------------------------------------------------
-GPU_3D_COUNTER = r"\GPU Engine(*engtype_3D)\Utilization Percentage"
+# Every engine (3D, Compute, Cuda, Copy, Video...): local models on NVIDIA GPUs run on the
+# Compute/Cuda engines, which the 3D counter alone would miss.
+GPU_ENGINE_COUNTER = r"\GPU Engine(*)\Utilization Percentage"
+GPU_INSTANCE = re.compile(r"pid_(\d+)_luid_(\w+?)_(\w+?)_phys_(\d+)_eng_(\d+)", re.I)
+
+
+def gpu_engine_usage(items):
+    """(GPU %, {pid: % summed over its engines}) from [(instance name, utilization %)].
+
+    GPU % is that of the busiest engine, as Task Manager shows it: engines run in parallel,
+    so adding the 3D and Compute engines together would overstate how busy the GPU is.
+    """
+    engines, by_pid = {}, {}
+    for name, value in items:
+        m = GPU_INSTANCE.search(name or "")
+        if not m or value <= 0:
+            continue
+        pid, engine = int(m.group(1)), m.group(2, 3, 4, 5)
+        engines[engine] = engines.get(engine, 0.0) + value
+        by_pid[pid] = by_pid.get(pid, 0.0) + value
+    return min(max(engines.values(), default=0.0), 100.0), by_pid
 
 
 class GpuCounters:
-    """Total 3D-engine utilization across all processes, from Windows performance counters."""
+    """GPU engine utilization per process, from Windows performance counters."""
 
     PDH_FMT_DOUBLE = 0x200
     PDH_MORE_DATA = 0x800007D2
@@ -224,11 +245,12 @@ class GpuCounters:
             _fields_ = [("szName", ctypes.c_wchar_p), ("FmtValue", FMT_VALUE)]
 
         self._item = FMT_ITEM
+        self.by_pid = {}  # from the latest percent() call
         self.pdh = ctypes.WinDLL("pdh")
         self.query, self.counter = ctypes.c_void_p(), ctypes.c_void_p()
         if self.pdh.PdhOpenQueryW(None, None, ctypes.byref(self.query)) != 0:
             raise OSError("PdhOpenQuery failed")
-        if self.pdh.PdhAddEnglishCounterW(self.query, GPU_3D_COUNTER, None, ctypes.byref(self.counter)) != 0:
+        if self.pdh.PdhAddEnglishCounterW(self.query, GPU_ENGINE_COUNTER, None, ctypes.byref(self.counter)) != 0:
             raise OSError("GPU Engine counters not available")
         self.pdh.PdhCollectQueryData(self.query)  # rate counters need a first sample
 
@@ -240,14 +262,17 @@ class GpuCounters:
         status = self.pdh.PdhGetFormattedCounterArrayW(self.counter, self.PDH_FMT_DOUBLE, ctypes.byref(size),
                                                        ctypes.byref(count), None)
         if status & 0xFFFFFFFF != self.PDH_MORE_DATA:
+            self.by_pid = {}
             return 0.0  # no GPU engine instances right now
         buf = ctypes.create_string_buffer(size.value)
         if self.pdh.PdhGetFormattedCounterArrayW(self.counter, self.PDH_FMT_DOUBLE, ctypes.byref(size),
                                                  ctypes.byref(count), buf) != 0:
             return None
         items = ctypes.cast(buf, ctypes.POINTER(self._item))
-        total = sum(items[i].FmtValue.doubleValue for i in range(count.value) if items[i].FmtValue.CStatus in (0, 1))
-        return min(total, 100.0)
+        pct, self.by_pid = gpu_engine_usage(
+            (items[i].szName, items[i].FmtValue.doubleValue)
+            for i in range(count.value) if items[i].FmtValue.CStatus in (0, 1))
+        return pct
 
 
 class WindowsSensors:
@@ -285,6 +310,10 @@ class WindowsSensors:
             return self.gpu.percent() if self.gpu else None
         except OSError:
             return None
+
+    def gpu_by_pid(self):
+        """{pid: GPU %} from the latest gpu_percent() reading."""
+        return self.gpu.by_pid if self.gpu else None
 
     def read_components(self):
         if not self.meters:

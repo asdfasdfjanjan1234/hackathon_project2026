@@ -17,6 +17,8 @@ def bill_params():
         "current_bill": arg("current_bill", "CURRENT_BILL"),
         "baseline_rate": request.args.get("baseline_rate", type=float, default=cfg["BASELINE_RATE"]),
         "budget": arg("budget", "MONTHLY_BUDGET"),
+        "cycle_start_day": min(max(request.args.get("cycle_start_day", type=int,
+                                                    default=cfg["BILLING_CYCLE_START_DAY"]), 1), 31),
     }
 
 

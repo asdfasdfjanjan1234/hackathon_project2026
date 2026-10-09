@@ -1,30 +1,37 @@
 import { useEffect, useState, useMemo } from "react";
 import {
-  Activity,
-  Cpu,
   Server,
   Terminal,
-  Layers,
   Radio,
 } from "lucide-react";
 import { formatWatts } from "../format";
 
+// Dial full-scale steps: the smallest that fits the readings, so a 5 W laptop and a
+// 400 W gaming PC both use the whole arc.
+const SCALES = [10, 20, 30, 60, 120, 300, 600, 1200, 2400];
+const HISTORY = 15;
+
 // The reading is polled once in App so it stays live whichever view is open.
 export default function LiveWattage({ reading }) {
-  const [history, setHistory] = useState([24, 28, 35, 42, 38, 45, 52, 48, 42, 47]);
+  const [history, setHistory] = useState([]);
 
   useEffect(() => {
     if (reading?.watts != null) {
-      setHistory((prev) => [...prev.slice(-15), reading.watts]);
+      setHistory((prev) => [...prev.slice(-(HISTORY - 1)), reading.watts]);
     }
   }, [reading]);
 
-  const currentWatts = reading?.watts ?? 47.7;
-  const isSimulated = reading?.simulated ?? true;
-  const sourceName = reading?.source ?? (isSimulated ? "SIMULATED" : "APPLE SILICON");
+  const currentWatts = reading?.watts ?? 0;
+  const collecting = reading?.source === "collector";
+  const estimated = reading?.estimated ?? false;
+  const sourceName = !reading ? "NO READING" : estimated ? "ESTIMATED" : collecting ? "MEASURED" : reading.source;
 
-  // Calibrated scale: 0 to 120 Watts
-  const maxWatts = 120;
+  const peak = Math.max(currentWatts, ...history, 1);
+  const maxWatts = SCALES.find((s) => s >= peak * 1.15) || SCALES[SCALES.length - 1];
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => {
+    const v = maxWatts * f;
+    return Number.isInteger(v) ? v : v.toFixed(1);
+  });
   const clampedWatts = Math.min(Math.max(currentWatts, 0), maxWatts);
   const percentage = Math.round((clampedWatts / maxWatts) * 100);
 
@@ -34,70 +41,44 @@ export default function LiveWattage({ reading }) {
   const arcLength = Math.PI * radius; // 257.61
   const strokeDashoffset = arcLength * (1 - clampedWatts / maxWatts);
 
-  // Status configuration
+  // Load relative to the dial's scale
   let powerState = {
     label: "NOMINAL LOAD",
     color: "#38BDF8", // Instrument Cyan
     stroke: "rgba(56, 189, 248, 0.35)",
     bg: "rgba(56, 189, 248, 0.08)",
   };
-  if (currentWatts > 80) {
+  if (percentage > 80) {
     powerState = {
-      label: "PEAK GPU DRAW",
+      label: "HIGH LOAD",
       color: "#FB7185", // Crimson
       stroke: "rgba(244, 63, 94, 0.35)",
       bg: "rgba(244, 63, 94, 0.08)",
     };
-  } else if (currentWatts < 25) {
+  } else if (percentage < 25) {
     powerState = {
-      label: "IDLE STANDBY",
+      label: "LOW LOAD",
       color: "#94A3B8", // Slate
       stroke: "rgba(148, 163, 184, 0.3)",
       bg: "rgba(148, 163, 184, 0.08)",
     };
   }
 
-  // Process attribution breakdown
-  const processList = useMemo(() => {
-    if (reading?.apps && Array.isArray(reading.apps) && reading.apps.length > 0) {
-      return reading.apps.map((a) => ({
-        name: a.name,
-        arch: a.kind === "local" ? "Metal GPU" : "Host Client",
+  // Watts per AI app, as attributed by the device reader. Nothing is shown that wasn't measured.
+  const processList = useMemo(
+    () =>
+      (reading?.apps || []).map((a) => ({
+        name: a.name || a.model || a.app,
+        arch: `${a.kind === "local" ? "Local model" : "AI app"}${a.host ? ` · in ${a.host}` : ""}`,
         watts: a.watts,
         cpu: `${(a.cpu_percent || 0).toFixed(1)}%`,
         icon: a.kind === "local" ? Server : Terminal,
-      }));
-    }
-
-    const totalAi = Math.max(10, currentWatts * 0.7);
-    return [
-      {
-        name: "ollama (llama3:8b)",
-        arch: "Apple Silicon Metal GPU",
-        watts: totalAi * 0.62,
-        cpu: "34.2%",
-        icon: Server,
-      },
-      {
-        name: "claude-code (node)",
-        arch: "CLI Agent Client",
-        watts: totalAi * 0.23,
-        cpu: "8.5%",
-        icon: Terminal,
-      },
-      {
-        name: "cursor (electron)",
-        arch: "IDE Agent IPC",
-        watts: totalAi * 0.15,
-        cpu: "4.1%",
-        icon: Layers,
-      },
-    ];
-  }, [reading, currentWatts]);
+      })),
+    [reading]
+  );
 
   if (!reading) return <section className="dash-card p-5 h-80 animate-pulse" />;
 
-  const model = reading.power_model;
   return (
     <section className="dash-card p-4 sm:p-5 flex flex-col justify-between select-none min-w-0">
       {/* Instrumentation Header */}
@@ -119,12 +100,12 @@ export default function LiveWattage({ reading }) {
         {/* Status Chip (Amber for simulated, Cyan for live) */}
         <span
           className={`tech-tag shrink-0 ${
-            isSimulated ? "tech-tag-sim" : "tech-tag-live"
+            estimated ? "tech-tag-sim" : "tech-tag-live"
           }`}
         >
           <span
             className={`w-1.5 h-1.5 rounded-full ${
-              isSimulated ? "bg-amber-400" : "bg-sky-400 animate-pulse"
+              estimated ? "bg-amber-400" : "bg-sky-400 animate-pulse"
             }`}
           />
           {sourceName}
@@ -161,24 +142,24 @@ export default function LiveWattage({ reading }) {
               }}
             />
 
-            {/* Calibration Tick Notches */}
-            {/* 0W: 180° */}
+            {/* Calibration Tick Notches at 0, ¼, ½, ¾ and full scale */}
+            {/* 0: 180° */}
             <line x1="38" y1="116" x2="31" y2="116" stroke="#475569" strokeWidth="1.5" />
-            {/* 30W: 135° */}
+            {/* ¼: 135° */}
             <line x1="62.0" y1="58.0" x2="57.0" y2="53.0" stroke="#475569" strokeWidth="1.5" />
-            {/* 60W: 90° (Apex) */}
+            {/* ½: 90° (Apex) */}
             <line x1="120" y1="34" x2="120" y2="27" stroke="#475569" strokeWidth="1.5" />
-            {/* 90W: 45° */}
+            {/* ¾: 45° */}
             <line x1="178.0" y1="58.0" x2="183.0" y2="53.0" stroke="#475569" strokeWidth="1.5" />
-            {/* 120W: 0° */}
+            {/* full scale: 0° */}
             <line x1="202" y1="116" x2="209" y2="116" stroke="#475569" strokeWidth="1.5" />
 
             {/* Calibration Numerical Labels */}
-            <text x="26" y="132" fill="#64748B" fontSize="9" fontFamily="'JetBrains Mono', monospace" textAnchor="middle">0W</text>
-            <text x="48" y="47" fill="#64748B" fontSize="9" fontFamily="'JetBrains Mono', monospace" textAnchor="end">30W</text>
-            <text x="120" y="22" fill="#64748B" fontSize="9" fontFamily="'JetBrains Mono', monospace" textAnchor="middle">60W</text>
-            <text x="192" y="47" fill="#64748B" fontSize="9" fontFamily="'JetBrains Mono', monospace" textAnchor="start">90W</text>
-            <text x="214" y="132" fill="#64748B" fontSize="9" fontFamily="'JetBrains Mono', monospace" textAnchor="middle">120W</text>
+            <text x="26" y="132" fill="#64748B" fontSize="9" fontFamily="'JetBrains Mono', monospace" textAnchor="middle">{ticks[0]}W</text>
+            <text x="48" y="47" fill="#64748B" fontSize="9" fontFamily="'JetBrains Mono', monospace" textAnchor="end">{ticks[1]}W</text>
+            <text x="120" y="22" fill="#64748B" fontSize="9" fontFamily="'JetBrains Mono', monospace" textAnchor="middle">{ticks[2]}W</text>
+            <text x="192" y="47" fill="#64748B" fontSize="9" fontFamily="'JetBrains Mono', monospace" textAnchor="start">{ticks[3]}W</text>
+            <text x="214" y="132" fill="#64748B" fontSize="9" fontFamily="'JetBrains Mono', monospace" textAnchor="middle">{ticks[4]}W</text>
 
             {/* Digital Readout */}
             <text
@@ -191,8 +172,8 @@ export default function LiveWattage({ reading }) {
               fontSize="28"
               letterSpacing="-0.02em"
             >
-              {currentWatts.toFixed(1)}
-              <tspan fontSize="15" fontWeight="600" fill="#38BDF8"> W</tspan>
+              {currentWatts >= 1000 ? (currentWatts / 1000).toFixed(2) : currentWatts.toFixed(1)}
+              <tspan fontSize="15" fontWeight="600" fill="#38BDF8">{currentWatts >= 1000 ? " kW" : " W"}</tspan>
             </text>
 
             {/* Operational Status Pill (Cleanly Positioned Inside Arc, No Overlap) */}
@@ -226,7 +207,7 @@ export default function LiveWattage({ reading }) {
         {/* 30s Hardware Histogram Bar Ticker */}
         <div className="w-full max-w-[280px] flex items-center justify-between text-[10px] text-slate-400 mt-2 px-3 font-mono bg-black/30 py-1.5 rounded border border-white/5">
           <span className="text-[9px] text-slate-400 uppercase tracking-wider shrink-0">
-            30S HISTORY:
+            {HISTORY * 2}S HISTORY:
           </span>
           <div className="flex items-end gap-1 h-3.5 mx-2">
             {history.map((val, idx) => (
@@ -254,6 +235,13 @@ export default function LiveWattage({ reading }) {
         </div>
 
         <div className="space-y-1.5">
+          {processList.length === 0 && (
+            <div className="p-2 rounded bg-black/30 border border-white/5 text-[11px] text-slate-400">
+              {collecting
+                ? "No AI apps running right now."
+                : "Start the device reader (This Device) to measure watts per AI app."}
+            </div>
+          )}
           {processList.map((proc, i) => {
             const Icon = proc.icon || Terminal;
             return (

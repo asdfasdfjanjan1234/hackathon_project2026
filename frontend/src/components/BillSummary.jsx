@@ -6,68 +6,81 @@ import {
   Calendar,
   ArrowRight,
 } from "lucide-react";
-import { peso, formatWatts, formatKwh } from "../format";
+import { peso, formatWatts, formatKwh, formatCo2, formatDuration, shortDate } from "../format";
 
-export default function BillSummary({ forecast, recs, liveReading, usage }) {
-  const currentWatts = liveReading?.watts ?? 48.5;
-  const isSimulated = liveReading?.simulated ?? false;
+export default function BillSummary({ forecast, recs, liveReading, usage, rate }) {
+  const currentWatts = liveReading?.watts;
+  const estimated = liveReading?.estimated ?? false;
+  const collecting = liveReading?.source === "collector";
 
-  const totalKwh = useMemo(() => {
-    if (!usage?.by_model) return 76.0;
-    return usage.by_model.reduce((sum, m) => sum + (m.kwh || 0), 0);
-  }, [usage]);
+  const totalKwh = useMemo(
+    () => (usage?.by_model || []).filter((m) => m.source === "measured").reduce((sum, m) => sum + (m.kwh || 0), 0),
+    [usage]
+  );
+  const windowDays = usage?.window_days || 30;
+  const factors = usage?.factors;
 
-  const baselineBill = forecast?.baseline_bill || 1500;
-  const forecastBill = forecast?.forecast_bill || 2650;
-  const aiCost = forecast?.ai_cost || (forecastBill - baselineBill);
-  const optimizedBill = recs?.bill_with_recommendations || (forecastBill - 520);
+  const baselineBill = forecast.baseline_bill;
+  const forecastBill = forecast.forecast_bill;
+  const aiCost = forecast.ai_cost;
+  const optimizedBill = forecast.forecast_bill_with_recommendations ?? recs?.bill_with_recommendations ?? forecastBill;
   const potentialSavings = Math.max(0, forecastBill - optimizedBill);
-
-  const budget = 2000;
-  const isOverBudget = forecastBill > budget;
+  const budget = forecast.budget;
+  const isOverBudget = budget != null && forecastBill > budget;
+  const nextMonth = forecast.projections?.[0];
+  const idle = liveReading?.power_model?.idle_watts;
 
   const cards = [
     {
       code: "METRIC-01",
       title: "Active Power Draw",
       value: formatWatts(currentWatts),
-      subtext: isSimulated ? "Simulated telemetry stream" : "Hardware sensor (Apple Silicon)",
-      badge: isSimulated ? "SIMULATED" : "HARDWARE SENSOR",
-      badgeType: isSimulated ? "sim" : "live", // Cyan in App.css, no green
+      subtext: !liveReading
+        ? "Waiting for the first reading"
+        : estimated
+        ? "No whole-machine sensor: estimated from CPU/GPU load"
+        : `Measured · ${collecting ? "device reader" : liveReading.source}`,
+      badge: !liveReading ? "OFFLINE" : estimated ? "ESTIMATED" : "HARDWARE SENSOR",
+      badgeType: estimated || !liveReading ? "sim" : "live",
       icon: Gauge,
-      delta: { text: "+33.5 W over idle", isPositive: false },
+      delta: {
+        text: collecting
+          ? `AI apps: ${formatWatts(liveReading.ai_watts)}${idle != null && currentWatts != null ? ` · ${formatWatts(Math.max(0, currentWatts - idle))} over idle` : ""}`
+          : "Start the device reader for watts per AI app",
+      },
     },
     {
       code: "METRIC-02",
-      title: "Integrated Energy (30D)",
+      title: `AI Energy on Bill (${windowDays}D)`,
       value: formatKwh(totalKwh, 1),
-      subtext: `Avg burn: ~${(totalKwh / 30).toFixed(2)} kWh / day`,
+      subtext: factors
+        ? `≈ ${formatCo2(totalKwh * factors.co2_kg_per_kwh)} · ${formatDuration((totalKwh * 1000) / factors.aircon_watts)} of a 1 HP aircon`
+        : `Avg ${formatKwh(totalKwh / windowDays, 2)} / day`,
       badge: "INTEGRATED",
       badgeType: "neutral",
       icon: Zap,
-      delta: { text: "4 active runtimes", isPositive: true },
+      delta: { text: `${usage?.by_model?.length || 0} AI runtimes · ${formatKwh(totalKwh / windowDays, 2)} / day` },
     },
     {
       code: "METRIC-03",
       title: "Attributed AI Tariff",
       value: peso(aiCost),
-      subtext: `${Math.round((aiCost / forecastBill) * 100)}% of total monthly billing`,
+      subtext: `${forecastBill > 0 ? Math.round((aiCost / forecastBill) * 100) : 0}% of this cycle's projected bill`,
       badge: `+${peso(aiCost)}`,
-      badgeType: "alert",
+      badgeType: aiCost >= 1 ? "alert" : "neutral",
       icon: DollarSign,
-      delta: { text: "₱12.00 / kWh tariff", isPositive: false },
+      delta: { text: `${peso(rate ?? usage?.rate_per_kwh)} / kWh tariff` },
     },
     {
       code: "METRIC-04",
-      title: "Cycle Projection (EOM)",
+      title: "Cycle Projection",
       value: peso(forecastBill),
-      subtext: `Target Cap: ${peso(budget)}`,
+      subtext: `${shortDate(forecast.cycle?.start)} – ${shortDate(forecast.cycle?.end)} · Cap: ${peso(budget)}`,
       badge: isOverBudget ? `OVER BY +${peso(forecastBill - budget)}` : "IN BUDGET",
-      badgeType: isOverBudget ? "alert" : "neutral", // Neutral monochrome, no green
+      badgeType: isOverBudget ? "alert" : "neutral",
       icon: Calendar,
       delta: {
-        text: potentialSavings > 0 ? `Optimizable to ${peso(optimizedBill)}` : "Within bounds",
-        isPositive: true,
+        text: potentialSavings > 0 ? `With recommendations: ${peso(optimizedBill)}` : "No savings found this cycle",
       },
     },
   ];
@@ -134,8 +147,16 @@ export default function BillSummary({ forecast, recs, liveReading, usage }) {
             TRAJECTORY:
           </span>
           <span className="text-slate-300 text-[11px] sm:text-xs truncate">
-            Unregulated projects to <strong className="text-rose-400 tabular-nums">{peso(forecastBill)}</strong> vs{" "}
-            <span className="text-slate-400 tabular-nums">{peso(baselineBill)}</span> base.
+            This cycle projects to <strong className="text-rose-400 tabular-nums">{peso(forecastBill)}</strong> vs{" "}
+            <span className="text-slate-400 tabular-nums">{peso(baselineBill)}</span> base
+            {nextMonth && (
+              <>
+                {" "}· next month <strong className="text-rose-300 tabular-nums">{peso(nextMonth.bill)}</strong>, or{" "}
+                <strong className="text-sky-300 tabular-nums">{peso(nextMonth.bill_with_recommendations)}</strong> with
+                recommendations
+              </>
+            )}
+            .
           </span>
         </div>
 
@@ -151,7 +172,7 @@ export default function BillSummary({ forecast, recs, liveReading, usage }) {
           </div>
 
           <div className="px-2 py-1 rounded bg-rose-500/10 border border-rose-500/25 text-center sm:text-left">
-            <span className="text-[8px] sm:text-[9px] text-rose-400 block uppercase truncate">Unregulated</span>
+            <span className="text-[8px] sm:text-[9px] text-rose-400 block uppercase truncate">Current path</span>
             <span className="text-rose-300 font-bold tabular-nums text-[11px] sm:text-xs">{peso(forecastBill)}</span>
           </div>
 
@@ -160,7 +181,7 @@ export default function BillSummary({ forecast, recs, liveReading, usage }) {
           </div>
 
           <div className="px-2 py-1 rounded bg-sky-500/10 border border-sky-500/25 text-center sm:text-left">
-            <span className="text-[8px] sm:text-[9px] text-sky-400 block uppercase truncate">Optimized</span>
+            <span className="text-[8px] sm:text-[9px] text-sky-400 block uppercase truncate">With recs</span>
             <span className="text-sky-300 font-bold tabular-nums text-[11px] sm:text-xs">{peso(optimizedBill)}</span>
           </div>
         </div>

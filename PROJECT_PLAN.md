@@ -64,17 +64,17 @@ All values come from the device's own resource readings while AI apps run. `back
 
 Before taking any reading, the collector works out which OS it's on and what hardware the computer has (`backend/app/services/system_info.py`). This runs once at startup and takes about 0.2 s on our M2. Python libraries handle the parts that work on every OS. Each OS's own hardware report fills in the rest, read once with `subprocess` and parsed as JSON. No extra packages are needed.
 
-| What | Python library (any OS) | macOS: `system_profiler -json` | Windows: PowerShell CIM queries |
-|---|---|---|---|
-| OS, version, architecture | `platform` | | |
-| Device type and model | `psutil` (has a battery → laptop) | Model name, e.g. "MacBook Air (Mac14,2)" | `Win32_ComputerSystem` (form factor, maker, model) |
-| CPU | `psutil` (cores, max clock) | Chip, e.g. "Apple M2" | `Win32_Processor` (full name) |
-| RAM | `psutil` (total GB) | | |
-| GPUs | `shutil` + `nvidia-smi` (NVIDIA, any OS) | Name, cores, built-in or discrete | `Win32_VideoController` (name, integrated or discrete) |
-| NPU (AI accelerator) | | Apple Neural Engine on Apple Silicon | `Win32_PnPEntity`, "ComputeAccelerator" class (e.g. Intel AI Boost, AMD Ryzen AI) |
-| Disks | | NVMe SSDs, size | `Get-PhysicalDisk` (NVMe / SATA SSD / HDD, size, USB) |
-| Displays | | Built-in or external, resolution | `WmiMonitorConnectionParams` (built-in or external) |
-| Battery | `psutil` (percent, plugged in) | Health: max capacity, cycles | |
+| What | Python library (any OS) | macOS: `system_profiler -json` | Windows: PowerShell CIM queries | Linux: sysfs, `/proc` |
+|---|---|---|---|---|
+| OS, version, architecture | `platform` | | | |
+| Device type and model | `psutil` (has a battery → laptop) | Model name, e.g. "MacBook Air (Mac14,2)" | `Win32_ComputerSystem` (form factor, maker, model) | DMI vendor, product, chassis type |
+| CPU | `psutil` (cores, max clock) | Chip, e.g. "Apple M2" | `Win32_Processor` (full name) | `/proc/cpuinfo` model name |
+| RAM | `psutil` (total GB) | | | |
+| GPUs | `shutil` + `nvidia-smi` (NVIDIA, any OS) | Name, cores, built-in or discrete | `Win32_VideoController` (name, integrated or discrete) | `lspci -mm`, else PCI vendor IDs |
+| NPU (AI accelerator) | | Apple Neural Engine on Apple Silicon | `Win32_PnPEntity`, "ComputeAccelerator" class (e.g. Intel AI Boost, AMD Ryzen AI) | `/sys/class/accel` (intel_vpu, amdxdna) |
+| Disks | | NVMe SSDs, size | `Get-PhysicalDisk` (NVMe / SATA SSD / HDD, size, USB) | `/sys/block` (NVMe / SSD / HDD, size, removable) |
+| Displays | | Built-in or external, resolution | `WmiMonitorConnectionParams` (built-in or external) | DRM connectors (eDP = built-in) |
+| Battery | `psutil` (percent, plugged in) | Health: max capacity, cycles | | Health from `power_supply` |
 
 **What the results are used for:**
 - **Choosing sensors:** OS and Apple Silicon pick the macOS or Windows readers below; an NVIDIA GPU adds `nvidia-smi`; a desktop has no battery, so there's no whole-machine reading.
@@ -93,20 +93,21 @@ Detected macos 27.0.1 (arm64) on a laptop: MacBook Air (Mac14,2)
   Battery   66%, on battery
 ```
 
-Mac detection is tested on our M2. The Windows parser is tested against sample output but **still needs a run on a real Windows PC**. If PowerShell fails, the basics from `platform` and `psutil` still come through.
+Mac detection is tested on our M2. The Windows and Linux parsers are tested against sample output but **still need a run on a real Windows PC and Linux PC**. If PowerShell fails, the basics from `platform` and `psutil` still come through.
 
 ### 2.2 Watts per part of the computer
 
 Using what 2.1 detected, the collector picks that OS's sensors once (`measurement.py`). Each part is *measured* where the OS exposes a sensor, otherwise *estimated*, and every value is labeled with its source. `GET /api/system` shows which sensor each part uses.
 
-| Part | macOS (Apple Silicon) | Windows | Fallback (estimated) |
-|---|---|---|---|
-| Whole machine | Battery controller, `ioreg -rn AppleSmartBattery` | Battery discharge rate, `CallNtPowerInformation` (on battery only) | None: desktops and plugged-in PCs need a smart plug |
-| CPU | `powermetrics`, only with passwordless sudo | Energy Meter Interface (EMI): RAPL cores or package, Intel and AMD | Fitted formula: `a · CPU%` |
-| GPU | IOReport `GPU Energy` channel, **no sudo** | EMI RAPL PP1 (Intel integrated GPU); `nvidia-smi` for NVIDIA on any OS | Fitted formula: `b · GPU%` |
-| RAM | Not available without root | EMI RAPL DRAM (mostly server CPUs) | RAM GB × (0.03 W idle + 0.15 W × load) |
-| Disk | Not available | Not available | By detected disk type × busy time: NVMe 0.05–3 W, SATA SSD 0.05–2 W, HDD 4–6 W |
-| Other (display, Wi-Fi, …) | Whole machine − the four parts | Same | |
+| Part | macOS (Apple Silicon) | Windows | Linux | Fallback (estimated) |
+|---|---|---|---|---|
+| Whole machine | Battery controller, `ioreg -rn AppleSmartBattery` | Battery discharge rate, `CallNtPowerInformation` (on battery only) | Battery `power_now` (on battery only) | None: desktops and plugged-in PCs need a smart plug |
+| CPU | `powermetrics`, only with passwordless sudo | Energy Meter Interface (EMI): RAPL cores or package, Intel and AMD | RAPL powercap (usually root only) | Fitted formula: `a · CPU%` |
+| GPU | IOReport `GPU Energy` channel, **no sudo** | EMI RAPL PP1 (Intel integrated GPU) | RAPL uncore; amdgpu hwmon | Fitted formula: `b · GPU%` |
+| | `nvidia-smi` for NVIDIA GPUs on any OS: watts, utilization and which processes run GPU compute | | | |
+| RAM | Not available without root | EMI RAPL DRAM (mostly server CPUs) | RAPL DRAM | RAM GB × (0.03 W idle + 0.15 W × load) |
+| Disk | Not available | Not available | Not available | By detected disk type × busy time: NVMe 0.05–3 W, SATA SSD 0.05–2 W, HDD 4–6 W |
+| Other (display, Wi-Fi, …) | Whole machine − the four parts | Same | Same | |
 
 Tested on our M2 (macOS 27, Oct 9, 2026): GPU measured 0.01–0.33 W. The IOReport CPU and DRAM channels exist but don't update without root, so CPU and RAM are estimated there. The Windows readers follow Microsoft's EMI documentation and the same approach Chromium and Firefox use, but **still need a test on a Windows PC**. If EMI is missing or access is denied, they fall back to estimates.
 
@@ -123,14 +124,15 @@ Tested on our M2 (macOS 27, Oct 9, 2026): GPU measured 0.01–0.33 W. The IORepo
 **Turning readings into watts per app:**
 1. Each time the battery reports a new average, store it with the average CPU % and GPU % for that window. On Mac, the battery controller keeps running totals that update about once a minute. On Windows, the instant readings are averaged over 60 s.
 2. Fit `watts ≈ idle + a·CPU% + b·GPU%` with non-negative least squares. This calibrates the formula to this specific device. Until there are about 8 readings, rough M2 defaults are used.
-3. Each AI app gets `a × its CPU share`, plus `b × GPU%` for local model runners. Idle power is never assigned to AI.
+3. Each AI app gets `a × its CPU share`, plus `b × GPU%` for local model runners. Where the OS measures CPU or GPU power (RAPL, `nvidia-smi`, IOReport), apps get their share of the **measured power above idle** instead. GPU power goes to the processes using the GPU: per process on Windows, NVIDIA's list of compute processes, otherwise active local runners. Idle power is never assigned to AI.
+   Until the formula is fitted, the defaults depend on the device: Apple M2, Windows/Linux laptop, or desktop (much higher idle and GPU power).
 4. Energy = watts × seconds, summed per app per day → kWh.
 
 **App types:** *local* (Ollama, LM Studio, llama.cpp, MLX): the model runs on the device, so inference energy is on the bill. *client* (Claude Code, Claude Desktop, ChatGPT, Cursor, Copilot, OpenCode): only the app's own device energy is on the bill; the model's energy is used in the provider's data center.
 
 **First real reading (M2 MacBook Air, Oct 9, 2026):** whole laptop ~4.5 W; Claude Code + Copilot clients 0.01–0.18 W.
 
-**Upgrades:** passwordless `sudo powermetrics` for measured CPU watts on Mac; per-process GPU % on Windows (the GPU Engine counters include each process ID) to give GPU power to the right local model runner; desktops have no battery sensor, so they rely on the fitted defaults or a smart plug.
+**Upgrades:** passwordless `sudo powermetrics` for measured CPU watts on Mac; desktops have no battery sensor, so they rely on measured CPU/GPU sensors, device defaults or a smart plug. (Done: per-process GPU % on Windows, across all GPU engines including CUDA.)
 
 ---
 
@@ -184,7 +186,7 @@ The device readings (CPU %, GPU %, memory, and total system watts from section 2
 **Local models (Ollama, LM Studio, MLX):** the model runs on the laptop, so the readings measure it directly.
 - CPU and GPU: the runner's share of the fitted power formula (section 2), split between the loaded models.
 - Memory: a loaded model holds gigabytes of RAM, but RAM adds little power on its own, and Apple Silicon doesn't report it separately without `sudo powermetrics`. Memory size is used to tell which model is loaded and to flag idle models that are still loaded.
-- Improvement: today Ollama's power is split between loaded models by memory size. Give it instead to the model that's actually generating (from Ollama's responses).
+- Each Ollama model runs in its own `ollama runner --model <blob>` process; the blob is matched to the model name through Ollama's manifests, so the model that's generating gets the power. Older Ollama versions (models inside the server) give it to the most recently used model. LM Studio's loaded models come from its REST API or `lms ps`.
 
 **Cloud models (Opus, Sonnet, Haiku, GPT):** the model runs in the provider's data center. The laptop's CPU, GPU and memory look almost the same whether Claude Code is using Opus or Sonnet, so **device readings can't show the difference between cloud models.** Each cloud model gets two separate numbers:
 
@@ -236,10 +238,11 @@ forecast_bill = baseline_bill + Σ (projected_kWh per model × electricity rate)
 projected_kWh = kWh used so far + average daily kWh × days left in billing cycle
 ```
 
-**Better version:**
-- Fit a trend line to daily usage per model, so growing usage gives a growing forecast.
-- Account for weekday vs. weekend patterns.
+**Better version (built, `forecasting.py`):**
+- Fit a trend line to daily usage per model, so growing usage gives a growing forecast. The trend levels off over time (damped), so a 12-month projection doesn't grow without limit.
+- Account for weekday vs. weekend patterns (with a week or more of data).
 - Show 1-month, 3-month and 12-month projections.
+- Follow the user's billing cycle (meter read day), and leave out days the device reader didn't run instead of counting them as zero.
 
 **Main visual: two lines on one chart**
 - 🔴 "If you keep using it like this": ₱2,500 → ₱2,800 next month
@@ -292,7 +295,7 @@ Measure (watts per model) → Store (daily kWh per model)
 - "Bill without AI vs. with AI"
 - Bill forecast (current path vs. with recommendations)
 - Recommendations with savings
-- Optional: CO₂ equivalent and comparisons like "= X hours of running an aircon"
+- CO₂ equivalent and comparisons like "= X hours of running an aircon" (Philippine DOE grid factor, 1 HP aircon; configurable)
 
 **Suggested stack:**
 - Python backend: `psutil`, `powermetrics`/`nvidia-smi` parsing, FastAPI
@@ -313,9 +316,10 @@ Measure (watts per model) → Store (daily kWh per model)
 - [x] Hardware for the demo: Mac with Apple Silicon (plus a Windows PC with an NVIDIA GPU, if a teammate has one)
 - [x] Stack: Flask backend + React (Vite) frontend
 - [x] Which AI tools the team uses: detected automatically (section 3)
-- [ ] Reference figure for cloud data-center energy (Google 0.24 Wh, OpenAI 0.34 Wh or Epoch AI 0.3 Wh per query)
+- [ ] Reference figure for cloud data-center energy (Google 0.24 Wh, OpenAI 0.34 Wh or Epoch AI 0.3 Wh per query). The code uses Epoch AI's 0.3 Wh for now.
 - [ ] Electricity rate and billing cycle to use as defaults
 - [ ] Test the Windows sensors and device detection on a real Windows PC (the code is only tested against sample data)
+- [ ] Test the Linux sensors and device detection on a real Linux PC, and Ollama / LM Studio / NVIDIA with them running (tested against sample output only)
 - [ ] Rehearse the Ollama demo on the Mac and record the real watt jump for step 2
 
 **Risks and how we handle them:**

@@ -45,7 +45,7 @@ def bill_impact(daily, baseline_bill, current_bill, baseline_rate, current_rate)
         "other_effect": round(other_effect, 2),
         "ai_share": None if share is None else round(share, 3),
         "verdict": _verdict(share),
-        "local_ai_kwh": round(local_kwh, 2),
-        "cloud_ai_kwh_estimated": round(cloud_kwh, 2),
+        "local_ai_kwh": round(local_kwh, 6),
+        "cloud_ai_kwh_estimated": round(cloud_kwh, 6),
         "note": "Cloud AI energy is billed to the data center, not to the user, so it is excluded from the bill.",
     }

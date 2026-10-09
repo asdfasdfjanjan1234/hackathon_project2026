@@ -7,13 +7,75 @@ user's bill. It is "estimated" from token counts: list price per token stands in
 for compute (the only public number that exists for every model and token type),
 scaled so that a typical query on the reference model matches a published figure.
 These numbers rank models; they don't measure them.
+
+For local models, energy per generated token follows model size: generating a token
+reads every weight once, so a model half the size in bytes (fewer parameters, or fewer
+bits per weight) needs about half the energy per token on the same hardware.
 """
 
+import re
+
+# Models in the sample data (John's gaming PC). Real devices list their own models
+# from Ollama and LM Studio (local_models.installed_local_models).
 LOCAL_MODELS = {
-    "llama3:70b": {"avg_watts": 280, "smaller_alternative": "llama3:8b"},
-    "llama3:8b": {"avg_watts": 75, "smaller_alternative": None},
-    "sdxl-turbo": {"avg_watts": 220, "smaller_alternative": None},
+    "llama3:70b": {"avg_watts": 280, "smaller_alternative": "llama3:8b", "family": "llama",
+                   "params_b": 70, "quantization": "Q4_0"},
+    "llama3:8b": {"avg_watts": 75, "smaller_alternative": None, "family": "llama",
+                  "params_b": 8, "quantization": "Q8_0"},
+    "sdxl-turbo": {"avg_watts": 220, "smaller_alternative": None, "family": "sdxl",
+                   "params_b": None, "quantization": None},  # image model: no GGUF quantization
 }
+
+# Average bits per weight of common GGUF / MLX quantizations (llama.cpp figures).
+QUANT_BITS = {
+    "f32": 32, "fp32": 32, "f16": 16, "fp16": 16, "bf16": 16,
+    "q8_0": 8.5, "q6_k": 6.6, "q5_k_m": 5.7, "q5_k_s": 5.5, "q5_0": 5.5, "q5_1": 6.0,
+    "q4_k_m": 4.8, "q4_k_s": 4.6, "q4_0": 4.5, "q4_1": 5.0, "iq4_xs": 4.3, "iq4_nl": 4.5,
+    "q3_k_m": 3.9, "q3_k_s": 3.5, "q3_k_l": 4.3, "q2_k": 2.6,
+    "8bit": 8.5, "6bit": 6.5, "4bit": 4.5, "3bit": 3.5,
+}
+RECOMMENDED_QUANT = "Q4_K_M"  # the usual default: close to full quality at about 4.8 bits per weight
+
+
+def quant_bits(quantization):
+    """Bits per weight for a quantization name like "Q4_K_M", "F16" or "mlx-4bit"; None if unknown."""
+    if not quantization:
+        return None
+    q = quantization.lower().replace("-", "_")
+    if q in QUANT_BITS:
+        return QUANT_BITS[q]
+    for key in sorted(QUANT_BITS, key=len, reverse=True):
+        if q.endswith(key) or q.startswith(key):
+            return QUANT_BITS[key]
+    m = re.match(r"i?q(\d)", q)
+    return {2: 2.6, 3: 3.9, 4: 4.8, 5: 5.7, 6: 6.6, 8: 8.5}.get(int(m.group(1))) if m else None
+
+
+def parse_params_b(text):
+    """Billions of parameters from "8.0B", "llama3:70b", "qwen2.5-7b-instruct" or "mixtral:8x7b"."""
+    if not text:
+        return None
+    t = str(text).lower()
+    m = re.search(r"(\d+)x(\d+(?:\.\d+)?)b(?![a-z])", t)
+    if m:
+        return float(m.group(1)) * float(m.group(2))
+    m = re.search(r"(?<![\d.])(\d+(?:\.\d+)?)\s*b(?![a-z])", t)
+    return float(m.group(1)) if m else None
+
+
+def local_name(model_label):
+    """"Ollama · llama3:8b" → "llama3:8b"; sample-data names have no app prefix."""
+    return model_label.split(" · ", 1)[1] if " · " in model_label else model_label
+
+
+def model_bytes(info):
+    """Size of a local model's weights in bytes, from its file size or parameters × bits."""
+    if info.get("size_bytes"):
+        return info["size_bytes"]
+    bits = quant_bits(info.get("quantization"))
+    if info.get("params_b") and bits:
+        return info["params_b"] * 1e9 * bits / 8
+    return None
 
 # USD per 1M tokens, list prices as of Sep 25, 2026 (PROJECT_PLAN.md §3.3).
 CLOUD_MODELS = {

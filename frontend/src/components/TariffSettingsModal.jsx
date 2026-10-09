@@ -1,6 +1,41 @@
 import { useEffect, useState } from "react";
-import { X, SlidersHorizontal, RotateCcw, Check, Zap } from "lucide-react";
+import { X, SlidersHorizontal, RotateCcw, Check } from "lucide-react";
 import { peso } from "../format";
+
+// One setting: a slider for quick changes plus a number box for any exact value,
+// so bills and rates outside the slider's range still work.
+function Field({ label, value, onChange, min, max, step, format, accent, hint, children }) {
+  return (
+    <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-slate-300 font-bold uppercase text-[11px]">{label}</span>
+        <span className={`font-bold text-sm tabular-nums ${accent}`}>{format(value)}</span>
+      </div>
+      <div className="flex items-center gap-3">
+        <input
+          type="range"
+          min={min}
+          max={Math.max(max, value || 0)}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(parseFloat(e.target.value))}
+          className="flex-1 accent-sky-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
+        />
+        <input
+          type="number"
+          min={0}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(e.target.value === "" ? 0 : parseFloat(e.target.value))}
+          className="w-24 px-2 py-1 rounded bg-slate-950 border border-white/10 text-right text-slate-100 tabular-nums"
+          aria-label={label}
+        />
+      </div>
+      {hint && <div className="text-[10px] text-slate-400 font-sans">{hint}</div>}
+      {children}
+    </div>
+  );
+}
 
 export default function TariffSettingsModal({
   isOpen,
@@ -9,38 +44,46 @@ export default function TariffSettingsModal({
   currentBudget,
   currentBaseline,
   currentBill,
+  currentCycleStartDay,
+  defaults,
   onSave,
 }) {
-  const [rate, setRate] = useState(currentRate || 12.0);
-  const [budget, setBudget] = useState(currentBudget || 2000);
-  const [baseline, setBaseline] = useState(currentBaseline || 1500);
-  const [bill, setBill] = useState(currentBill || 2500);
+  const [rate, setRate] = useState(currentRate ?? 12);
+  const [budget, setBudget] = useState(currentBudget ?? 2000);
+  const [baseline, setBaseline] = useState(currentBaseline ?? 1500);
+  const [bill, setBill] = useState(currentBill ?? 2500);
+  const [cycleDay, setCycleDay] = useState(currentCycleStartDay ?? 1);
 
   // Start from the values in use each time the modal opens.
   useEffect(() => {
     if (!isOpen) return;
-    setRate(currentRate || 12.0);
-    setBudget(currentBudget || 2000);
-    setBaseline(currentBaseline || 1500);
-    setBill(currentBill || 2500);
-  }, [isOpen, currentRate, currentBudget, currentBaseline, currentBill]);
+    setRate(currentRate ?? 12);
+    setBudget(currentBudget ?? 2000);
+    setBaseline(currentBaseline ?? 1500);
+    setBill(currentBill ?? 2500);
+    setCycleDay(currentCycleStartDay ?? 1);
+  }, [isOpen, currentRate, currentBudget, currentBaseline, currentBill, currentCycleStartDay]);
 
   if (!isOpen) return null;
 
+  // Back to the backend's .env values.
   const handleReset = () => {
-    setRate(12.0);
-    setBudget(2000);
-    setBaseline(1500);
-    setBill(2500);
+    if (!defaults) return;
+    setRate(defaults.rate);
+    setBudget(defaults.budget);
+    setBaseline(defaults.baseline);
+    setBill(defaults.currentBill);
+    setCycleDay(defaults.cycleStartDay);
   };
 
   const handleApply = () => {
     if (onSave) {
       onSave({
-        rate: Number(rate),
-        budget: Number(budget),
-        baseline: Number(baseline),
-        currentBill: Number(bill),
+        rate: Number(rate) || 0,
+        budget: Number(budget) || 0,
+        baseline: Number(baseline) || 0,
+        currentBill: Number(bill) || 0,
+        cycleStartDay: Math.min(Math.max(Math.round(Number(cycleDay)) || 1, 1), 31),
       });
     }
     onClose();
@@ -48,7 +91,7 @@ export default function TariffSettingsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm select-none font-mono">
-      <div className="relative w-full max-w-lg rounded-xl bg-slate-900 border border-white/10 shadow-2xl p-5 sm:p-6 space-y-5">
+      <div className="relative w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl bg-slate-900 border border-white/10 shadow-2xl p-5 sm:p-6 space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2">
@@ -56,123 +99,76 @@ export default function TariffSettingsModal({
               <SlidersHorizontal className="w-3.5 h-3.5" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                Tariff & Grid Hardware Parameters
-              </h2>
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider">Your Tariff & Bill</h2>
               <div className="text-[10px] text-slate-400 font-sans">
-                Real-time dynamic recalculation of billing projections & thresholds
+                From your electricity bill. Every projection is recalculated with these values.
               </div>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.04]"
-          >
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.04]">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Sliders Form */}
-        <div className="space-y-4 text-xs">
-          {/* 1. Electricity Rate */}
-          <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-300 font-bold uppercase text-[11px]">
-                GRID TARIFF RATE (₱/kWh)
-              </span>
-              <span className="text-sky-300 font-bold text-sm tabular-nums">
-                {peso(rate, 2)} / kWh
-              </span>
+        <div className="space-y-3 text-xs">
+          <Field
+            label="Rate (₱ per kWh)"
+            value={rate}
+            onChange={setRate}
+            min={1}
+            max={30}
+            step={0.01}
+            format={(v) => `${peso(v, 2)} / kWh`}
+            accent="text-sky-300"
+            hint="The total ₱/kWh on your bill (generation, transmission, distribution and taxes)."
+          />
+          <Field
+            label="Monthly budget"
+            value={budget}
+            onChange={setBudget}
+            min={0}
+            max={20000}
+            step={50}
+            format={(v) => `${peso(v, 0)} / mo`}
+            accent="text-amber-400"
+          />
+          <Field
+            label="Bill before AI (baseline)"
+            value={baseline}
+            onChange={setBaseline}
+            min={0}
+            max={20000}
+            step={50}
+            format={(v) => peso(v, 0)}
+            accent="text-slate-200"
+            hint="A typical month before you started using AI on this computer."
+          />
+          <Field
+            label="This month's bill"
+            value={bill}
+            onChange={setBill}
+            min={0}
+            max={20000}
+            step={50}
+            format={(v) => peso(v, 0)}
+            accent="text-rose-300"
+            hint={'Used to answer "did AI raise my bill?": the increase over the baseline is split into rate change, AI and other usage.'}
+          />
+          <div className="p-3 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-slate-300 font-bold uppercase text-[11px]">Billing cycle starts on day</div>
+              <div className="text-[10px] text-slate-400 font-sans">The meter reading day on your bill (1–31).</div>
             </div>
             <input
-              type="range"
-              min="6"
-              max="28"
-              step="0.5"
-              value={rate}
-              onChange={(e) => setRate(parseFloat(e.target.value))}
-              className="w-full accent-sky-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
+              type="number"
+              min={1}
+              max={31}
+              step={1}
+              value={cycleDay}
+              onChange={(e) => setCycleDay(e.target.value === "" ? "" : parseInt(e.target.value, 10))}
+              className="w-20 px-2 py-1 rounded bg-slate-950 border border-white/10 text-right text-slate-100 tabular-nums"
+              aria-label="Billing cycle start day"
             />
-            <div className="flex justify-between text-[10px] text-slate-400">
-              <span>₱6.00 (Provincial)</span>
-              <span>₱12.00 (Meralco Avg)</span>
-              <span>₱28.00 (Peak Commercial)</span>
-            </div>
-          </div>
-
-          {/* 2. Monthly Budget Cap */}
-          <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-300 font-bold uppercase text-[11px]">
-                MONTHLY BUDGET TARGET CAP
-              </span>
-              <span className="text-amber-400 font-bold text-sm tabular-nums">
-                {peso(budget, 0)} / mo
-              </span>
-            </div>
-            <input
-              type="range"
-              min="1000"
-              max="6000"
-              step="100"
-              value={budget}
-              onChange={(e) => setBudget(parseFloat(e.target.value))}
-              className="w-full accent-amber-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
-            />
-            <div className="flex justify-between text-[10px] text-slate-400">
-              <span>₱1,000</span>
-              <span>₱2,000 (Target)</span>
-              <span>₱6,000 (Unconstrained)</span>
-            </div>
-          </div>
-
-          {/* 3. Non-AI Baseline Bill */}
-          <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-300 font-bold uppercase text-[11px]">
-                BASELINE BILL (NON-AI HOUSEHOLD)
-              </span>
-              <span className="text-slate-200 font-bold text-sm tabular-nums">
-                {peso(baseline, 0)}
-              </span>
-            </div>
-            <input
-              type="range"
-              min="500"
-              max="4000"
-              step="100"
-              value={baseline}
-              onChange={(e) => setBaseline(parseFloat(e.target.value))}
-              className="w-full accent-slate-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
-            />
-            <div className="flex justify-between text-[10px] text-slate-400">
-              <span>₱500</span>
-              <span>₱1,500 (John's Pre-AI)</span>
-              <span>₱4,000</span>
-            </div>
-          </div>
-          {/* 4. This month's bill */}
-          <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-300 font-bold uppercase text-[11px]">
-                THIS MONTH'S BILL
-              </span>
-              <span className="text-rose-300 font-bold text-sm tabular-nums">
-                {peso(bill, 0)}
-              </span>
-            </div>
-            <input
-              type="range"
-              min="500"
-              max="8000"
-              step="50"
-              value={bill}
-              onChange={(e) => setBill(parseFloat(e.target.value))}
-              className="w-full accent-rose-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
-            />
-            <div className="text-[10px] text-slate-400 font-sans">
-              Used to answer "did AI raise my bill?": the increase over the baseline is split into rate change, AI and other usage.
-            </div>
           </div>
         </div>
 
@@ -180,7 +176,8 @@ export default function TariffSettingsModal({
         <div className="flex items-center justify-between pt-3 border-t border-white/10 gap-3 text-xs">
           <button
             onClick={handleReset}
-            className="px-3 py-2 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-colors flex items-center gap-1.5"
+            disabled={!defaults}
+            className="px-3 py-2 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] disabled:opacity-50 text-slate-400 hover:text-white transition-colors flex items-center gap-1.5"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>RESET DEFAULTS</span>
@@ -198,7 +195,7 @@ export default function TariffSettingsModal({
               className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold transition-colors flex items-center gap-1.5 shadow-sm"
             >
               <Check className="w-3.5 h-3.5" />
-              <span>APPLY PARAMETERS</span>
+              <span>APPLY</span>
             </button>
           </div>
         </div>
