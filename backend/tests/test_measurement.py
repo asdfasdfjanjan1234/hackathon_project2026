@@ -97,3 +97,36 @@ def test_dashboard_uses_collected_data(tmp_path):
     live = client.get("/api/live").json
     assert live["source"] == "collector" and live["apps"][0]["name"] == "Claude Code"
     assert client.get("/api/impact").json["local_ai_kwh"] == pytest.approx(0.002, abs=0.01)
+
+
+def test_formula_cpu_watts_give_their_memory_part_to_memory():
+    model = PowerModel(idle_watts=3, watts_per_cpu_pct=0.2, watts_per_gpu_pct=0.1)
+    apps = [{"app": "Ollama", "kind": "local", "cpu_percent": 400.0}]  # 4 of 8 cores, 50 % of the CPU
+    attribute(model, gpu_pct=0, apps=apps, ncpu=8, cpu_pct=50, memory_est=2.0)
+    (a,) = apps
+    assert a["memory_watts"] == pytest.approx(2.0)          # all the compute, so all the memory traffic
+    assert a["cpu_watts"] == pytest.approx(0.2 * 50 - 2.0)  # moved out of the CPU formula
+    assert a["watts"] == pytest.approx(0.2 * 50)            # total unchanged
+    assert a["cpu_watts"] + a["gpu_watts"] + a["memory_watts"] == pytest.approx(a["watts"])
+
+
+def test_measured_parts_are_kept_separate():
+    model = PowerModel()
+    apps = [{"app": "Ollama", "kind": "local", "cpu_percent": 100.0, "pids": [1]},
+            {"app": "Claude Code", "kind": "client", "cpu_percent": 100.0, "pids": [2]}]
+    # 2 of 4 busy cores in each app; the GPU is all Ollama's.
+    attribute(model, 80, apps, ncpu=4, cpu_pct=50, measured={"cpu": 20.0, "gpu": 30.0, "memory": 5.0},
+              gpu_pids={1})
+    ollama, claude = apps
+    assert ollama["cpu_watts"] == pytest.approx(10.0) and claude["cpu_watts"] == pytest.approx(10.0)
+    assert ollama["gpu_watts"] == pytest.approx(30.0) and ollama["gpu_share"] == 1.0
+    assert claude["gpu_watts"] == 0.0
+    # Memory follows compute: Ollama did 40 of the 50 W of CPU+GPU work.
+    assert ollama["memory_watts"] == pytest.approx(4.0) and claude["memory_watts"] == pytest.approx(1.0)
+    assert ollama["watts"] == pytest.approx(44.0)
+
+
+def test_loaded_model_that_is_not_generating_gets_no_memory_power():
+    apps = [{"app": "Ollama", "kind": "local", "cpu_percent": 0.0, "rss_mb": 40_000}]
+    attribute(PowerModel(), 0, apps, ncpu=8, cpu_pct=10, measured={"memory": 3.0})
+    assert apps[0]["memory_watts"] == 0.0 and apps[0]["watts"] == 0.0

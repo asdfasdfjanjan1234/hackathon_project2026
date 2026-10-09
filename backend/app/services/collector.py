@@ -8,7 +8,7 @@ from . import storage
 from .ai_processes import find_ai_processes, label_active_models
 from .attribution import attribute, default_power_model, fit_power_model
 from .local_models import label_local_models
-from .measurement import Sensors
+from .measurement import Sensors, estimate_memory_watts
 from .model_usage import latest_models
 
 REFIT_EVERY = 5  # refit the power model after this many new telemetry readings
@@ -53,8 +53,9 @@ class Collector:
         apps = label_active_models(label_local_models(find_ai_processes()), self.active_models)
         measured = self._update_telemetry(ts, cpu, gpu, self.sensors.system_power())
         components = self.sensors.components(cpu, gpu, self.model, measured)
+        memory_est = estimate_memory_watts(self.sensors.system.get("memory_gb", 8), max(cpu, gpu), active_only=True)
         apps = attribute(self.model, gpu, apps, self.ncpu, cpu_pct=cpu, measured=self._above_idle(components),
-                         gpu_by_pid=gpu_by_pid, gpu_pids=gpu_pids)
+                         gpu_by_pid=gpu_by_pid, gpu_pids=gpu_pids, memory_est=memory_est)
         est = self._estimate_total(cpu, gpu, components)
 
         storage.save_sample(self.conn, ts, interval_s, cpu, gpu, est, measured, apps, components,
@@ -63,9 +64,9 @@ class Collector:
                 "components": components, "apps": apps}
 
     def _above_idle(self, components):
-        """Measured CPU and GPU watts above the lowest seen this session (their idle power)."""
+        """Measured CPU, GPU and memory watts above the lowest seen this session (their idle power)."""
         out = {}
-        for part in ("cpu", "gpu"):
+        for part in ("cpu", "gpu", "memory"):
             c = components.get(part)
             if c and c["source"] != "estimated":
                 self.idle[part] = min(self.idle.get(part, c["watts"]), c["watts"])

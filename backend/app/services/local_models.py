@@ -108,18 +108,27 @@ def ollama_model_for_blob(model_path, loaded_names=()):
     return (loaded or sorted(names) or [None])[0]
 
 
+def _memory_split(loaded_model):
+    """How much of a loaded model sits in GPU memory (VRAM), from /api/ps. On Apple Silicon
+    the GPU shares system memory, and Ollama counts a model running on it as all VRAM."""
+    mib = 1_048_576
+    return {"vram_mb": round(loaded_model["size_vram"] / mib, 1), "model_mb": round(loaded_model["size"] / mib, 1)}
+
+
 def _label_ollama(rows):
     if not rows:
         return []
     loaded = ollama_loaded_models()
-    loaded_names = {m["name"] for m in loaded}
+    by_name = {m["name"]: m for m in loaded}
     runners = [r for r in rows if r.get("model_path")]
     if runners:
         for r in runners:
-            name = ollama_model_for_blob(r["model_path"], loaded_names)
+            name = ollama_model_for_blob(r["model_path"], by_name)
             if not name and len(loaded) == 1 and len(runners) == 1:
                 name = loaded[0]["name"]
             r["model"] = f"Ollama · {name or 'unknown model'}"
+            if name in by_name:
+                r.update(_memory_split(by_name[name]))
         return rows  # the server process keeps the plain "Ollama" row
     if not loaded:
         return rows
@@ -136,7 +145,7 @@ def _label_ollama(rows):
             share = (m["size"] or 1) / total
             out.append({**row, "model": f"Ollama · {m['name']}", "pids": row.get("pids", []) if m is active else [],
                         "cpu_percent": row["cpu_percent"] if m is active else 0.0,
-                        "rss_mb": row["rss_mb"] * share})
+                        "rss_mb": row["rss_mb"] * share, **_memory_split(m)})
     return out
 
 

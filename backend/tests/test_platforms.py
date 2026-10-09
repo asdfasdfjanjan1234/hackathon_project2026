@@ -191,6 +191,17 @@ def test_ollama_without_runner_processes_gives_the_work_to_the_last_used_model(m
     assert out["Ollama · llama3:8b"]["rss_mb"] == pytest.approx(500.0)
 
 
+def test_ollama_rows_carry_how_much_of_the_model_is_in_vram(tmp_path, monkeypatch):
+    manifest(tmp_path, "registry.ollama.ai/library/qwen2.5/32b", "bbb")
+    gib = 1024 ** 3
+    monkeypatch.setattr(local_models, "ollama_loaded_models", lambda: [
+        {"name": "qwen2.5:32b", "size": 20 * gib, "size_vram": 12 * gib, "expires_at": 1}])  # partly on the CPU
+    rows = [{"app": "Ollama", "model": None, "kind": "local", "cpu_percent": 300.0, "rss_mb": 9000.0, "pids": [2],
+             "model_path": str(tmp_path / "blobs" / "sha256-bbb")}]
+    (row,) = local_models.label_local_models(rows)
+    assert row["vram_mb"] == 12 * 1024 and row["model_mb"] == 20 * 1024
+
+
 def test_lms_ps_and_ollama_times():
     out = json.dumps([{"identifier": "qwen2.5-7b-instruct", "sizeBytes": 4_700_000_000}, {"other": 1}])
     assert local_models.parse_lms_ps(out) == [{"name": "qwen2.5-7b-instruct", "size": 4_700_000_000}]

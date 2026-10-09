@@ -5,6 +5,7 @@ import {
   Radio,
 } from "lucide-react";
 import { formatWatts } from "../format";
+import AppPowerParts from "./AppPowerParts";
 
 // Dial full-scale steps: the smallest that fits the readings, so a 5 W laptop and a
 // 400 W gaming PC both use the whole arc.
@@ -72,6 +73,7 @@ export default function LiveWattage({ reading }) {
         arch: `${a.kind === "local" ? "Local model" : "AI app"}${a.host ? ` · in ${a.host}` : ""}`,
         watts: a.watts,
         cpu: `${(a.cpu_percent || 0).toFixed(1)}%`,
+        app: a,
         icon: a.kind === "local" ? Server : Terminal,
       })),
     [reading]
@@ -247,19 +249,20 @@ export default function LiveWattage({ reading }) {
             return (
               <div
                 key={i}
-                className="flex items-center justify-between p-2 rounded bg-black/30 border border-white/5 text-xs font-mono"
+                className="flex items-start justify-between p-2 rounded bg-black/30 border border-white/5 text-xs font-mono"
               >
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-start gap-2 min-w-0 flex-1">
                   <div className="w-5 h-5 rounded bg-white/[0.04] border border-white/5 flex items-center justify-center text-slate-400 shrink-0">
                     <Icon className="w-3 h-3" />
                   </div>
-                  <div className="truncate min-w-0">
+                  <div className="truncate min-w-0 flex-1">
                     <div className="text-slate-200 font-medium truncate text-[11px]">
                       {proc.name}
                     </div>
                     <div className="text-[9px] text-slate-400 truncate">
                       {proc.arch} · CPU {proc.cpu}
                     </div>
+                    <AppPowerParts app={proc.app} />
                   </div>
                 </div>
 

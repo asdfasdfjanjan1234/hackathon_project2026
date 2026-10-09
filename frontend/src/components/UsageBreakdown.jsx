@@ -6,6 +6,7 @@ import {
   Cloud,
 } from "lucide-react";
 import { peso, formatKwh, formatWatts } from "../format";
+import { PARTS } from "./AppPowerParts";
 
 // Power class from the average watts while the model was doing work (measured, not a rating).
 const POWER_CLASSES = [
@@ -34,10 +35,17 @@ export default function UsageBreakdown({ usage }) {
       const eff = powerClass(m.active_watts);
       const percentage = Math.round((m.kwh / maxKwh) * 100);
 
+      // CPU / GPU / RAM kWh, for models measured on this device after the split was recorded.
+      const split = usage.parts_by_model?.[m.model];
+      const partKwh = split ? PARTS.map((p) => split[`${p.key}_kwh`] || 0) : null;
+      const splitKwh = partKwh ? partKwh.reduce((a, b) => a + b, 0) : 0;
+
       return {
         ...m,
         efficiency: eff,
         percentage,
+        partKwh: splitKwh > 0 ? partKwh : null,
+        splitKwh,
       };
     });
 
@@ -151,6 +159,24 @@ export default function UsageBreakdown({ usage }) {
                     <div className="font-bold text-slate-200 tabular-nums text-xs">
                       {formatKwh(m.kwh, 2)}
                     </div>
+                    {m.partKwh ? (
+                      <>
+                        <div className="w-full bg-slate-800 rounded-sm h-1 overflow-hidden">
+                          <div className="h-full flex" style={{ width: `${m.percentage}%` }}>
+                            {PARTS.map((p, i) => (
+                              <div key={p.key} className={p.bar} style={{ width: `${(m.partKwh[i] / m.splitKwh) * 100}%` }} />
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-x-1.5 text-[9px] font-mono tabular-nums">
+                          {PARTS.map((p, i) => (
+                            <span key={p.key} className={p.text}>
+                              {p.label} {formatKwh(m.partKwh[i], 2)}
+                            </span>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
                     <div className="w-full bg-slate-800 rounded-sm h-1 overflow-hidden">
                       <div
                         className={`h-full ${
@@ -163,6 +189,7 @@ export default function UsageBreakdown({ usage }) {
                         style={{ width: `${m.percentage}%` }}
                       />
                     </div>
+                    )}
                   </div>
                 </td>
 

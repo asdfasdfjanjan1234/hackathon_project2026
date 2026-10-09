@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS samples (
 );
 CREATE TABLE IF NOT EXISTS ai_samples (
     ts REAL, interval_s REAL, app TEXT, model TEXT, kind TEXT,
-    cpu_percent REAL, rss_mb REAL, watts REAL, host TEXT, device_id INTEGER
+    cpu_percent REAL, rss_mb REAL, watts REAL, host TEXT, device_id INTEGER,
+    cpu_watts REAL, gpu_watts REAL, memory_watts REAL, gpu_share REAL, vram_mb REAL, model_mb REAL
 );
 CREATE TABLE IF NOT EXISTS power_windows (
     ts REAL, avg_watts REAL, avg_cpu REAL, avg_gpu REAL, n_samples INTEGER, device_id INTEGER
@@ -56,6 +57,7 @@ CREATE TABLE IF NOT EXISTS ai_samples (
     id BIGINT AUTO_INCREMENT PRIMARY KEY, device_id INT, ts DOUBLE NOT NULL, interval_s DOUBLE,
     app VARCHAR(255), model VARCHAR(255), kind VARCHAR(32), cpu_percent DOUBLE, rss_mb DOUBLE,
     watts DOUBLE, host VARCHAR(255),
+    cpu_watts DOUBLE, gpu_watts DOUBLE, memory_watts DOUBLE, gpu_share DOUBLE, vram_mb DOUBLE, model_mb DOUBLE,
     INDEX idx_ai_samples_ts (ts), FOREIGN KEY (device_id) REFERENCES devices(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS power_windows (
@@ -74,6 +76,9 @@ CREATE TABLE IF NOT EXISTS settings (
 """
 
 READING_TABLES = ("samples", "ai_samples", "power_windows", "component_samples")
+# Per-app parts of `watts`, GPU share and model memory, added after the first databases were created.
+APP_PART_COLUMNS = ("cpu_watts", "gpu_watts", "memory_watts", "gpu_share", "vram_mb", "model_mb")
+APP_COLUMNS = "app, model, kind, host, cpu_percent, rss_mb, watts, " + ", ".join(APP_PART_COLUMNS)
 
 
 class Database:
@@ -130,8 +135,9 @@ def connect(target):
     raw = sqlite3.connect(target, timeout=10)
     raw.row_factory = sqlite3.Row
     raw.executescript(SQLITE_SCHEMA)
-    # Databases from before the host and device_id columns were added.
-    for table, column, kind in [("ai_samples", "host", "TEXT")] + [(t, "device_id", "INTEGER") for t in READING_TABLES]:
+    # Databases from before the host, device_id and per-app part columns were added.
+    for table, column, kind in ([("ai_samples", "host", "TEXT")] + [(t, "device_id", "INTEGER") for t in READING_TABLES]
+                                + [("ai_samples", c, "REAL") for c in APP_PART_COLUMNS]):
         if column not in {r["name"] for r in raw.execute(f"PRAGMA table_info({table})")}:
             raw.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
     return Database(raw, "sqlite")
@@ -154,6 +160,13 @@ def _connect_mysql(url):
     db.execute("SET time_zone = ?", (f"{sign}{abs(offset) // 3600:02d}:{abs(offset) % 3600 // 60:02d}",))
     for statement in filter(str.strip, MYSQL_SCHEMA.split(";")):
         db.execute(statement)
+    # Databases from before the per-app part columns were added.
+    have = {r["COLUMN_NAME"] for r in db.execute(
+        "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
+        ("ai_samples",))}
+    for column in APP_PART_COLUMNS:
+        if column not in have:
+            db.execute(f"ALTER TABLE ai_samples ADD COLUMN {column} DOUBLE")
     db.commit()
     return db
 
@@ -195,10 +208,9 @@ def save_sample(conn, ts, interval_s, cpu, gpu, est_watts, measured_watts, apps,
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
         (ts, interval_s, cpu, gpu, est_watts, measured_watts, device_id))
     conn.executemany(
-        "INSERT INTO ai_samples (ts, interval_s, app, model, kind, cpu_percent, rss_mb, watts, host, device_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [(ts, interval_s, a["app"], a["model"], a["kind"], a["cpu_percent"], a["rss_mb"], a["watts"], a.get("host"),
-          device_id) for a in apps],
+        f"INSERT INTO ai_samples (ts, interval_s, device_id, {APP_COLUMNS}) VALUES ({', '.join(['?'] * (10 + len(APP_PART_COLUMNS)))})",
+        [(ts, interval_s, device_id, a["app"], a["model"], a["kind"], a.get("host"), a["cpu_percent"], a["rss_mb"],
+          a["watts"], *(a.get(c) for c in APP_PART_COLUMNS)) for a in apps],
     )
     conn.executemany(
         "INSERT INTO component_samples (ts, interval_s, component, watts, source, device_id) "
@@ -259,8 +271,8 @@ def latest_sample(conn, max_age_s=15):
     if not s or time.time() - s["ts"] > max_age_s:
         return None
     apps = conn.execute(
-        "SELECT COALESCE(model, app) AS name, app, kind, host, cpu_percent, rss_mb, watts "
-        "FROM ai_samples WHERE ts = ? ORDER BY watts DESC", (s["ts"],)
+        f"SELECT COALESCE(model, app) AS name, {APP_COLUMNS} FROM ai_samples WHERE ts = ? ORDER BY watts DESC",
+        (s["ts"],)
     ).fetchall()
     model = get_power_model(conn, s["device_id"]) or PowerModel()
     components = conn.execute(
@@ -354,6 +366,24 @@ def host_usage(conn, days=30, device_id=None):
     return [{"app": r["app"], "host": r["host"], "kwh": round(r["kwh"], 6)} for r in rows]
 
 
+def app_part_usage(conn, days=30, device_id=None):
+    """kWh per AI app or model, split into CPU, GPU and memory. Readings stored before the
+    split was recorded count as "unsplit"."""
+    since = time.time() - days * 86400
+    where, params = _device_filter(device_id)
+    sums = ", ".join(f"SUM(COALESCE({p}_watts, 0) * interval_s) / 3600000.0 AS {p}_kwh" for p in ("cpu", "gpu", "memory"))
+    rows = conn.execute(
+        f"""
+        SELECT COALESCE(model, app) AS model, {sums},
+               SUM(CASE WHEN cpu_watts IS NULL THEN watts * interval_s ELSE 0 END) / 3600000.0 AS unsplit_kwh
+        FROM ai_samples WHERE ts >= ?{where} GROUP BY 1
+        """,
+        (since, *params),
+    ).fetchall()
+    return [{"model": r["model"], **{k: round(r[k] or 0, 6) for k in ("cpu_kwh", "gpu_kwh", "memory_kwh", "unsplit_kwh")}}
+            for r in rows]
+
+
 def sample_count(conn):
     return conn.execute("SELECT COUNT(*) AS n FROM samples").fetchone()["n"]
 
@@ -395,8 +425,7 @@ def readings(conn, since=None, until=None, device_id=None, limit=1000):
     for r in conn.execute("SELECT ts, device_id, component, watts, source FROM component_samples "
                           "WHERE ts BETWEEN ? AND ?", (lo, hi)):
         parts.setdefault((r["ts"], r["device_id"]), {})[r["component"]] = {"watts": r["watts"], "source": r["source"]}
-    for r in conn.execute("SELECT ts, device_id, app, model, kind, host, cpu_percent, rss_mb, watts FROM ai_samples "
-                          "WHERE ts BETWEEN ? AND ?", (lo, hi)):
+    for r in conn.execute(f"SELECT ts, device_id, {APP_COLUMNS} FROM ai_samples WHERE ts BETWEEN ? AND ?", (lo, hi)):
         r = dict(r)
         apps.setdefault((r.pop("ts"), r.pop("device_id")), []).append(r)
     for r in rows:

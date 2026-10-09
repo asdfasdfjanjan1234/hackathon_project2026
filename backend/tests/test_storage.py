@@ -104,3 +104,31 @@ def test_old_sqlite_databases_get_device_columns(tmp_path):
 
 def test_password_is_hidden_when_printed():
     assert storage.describe("mysql://wattage:s3cret@localhost/ai_wattage") == "mysql://wattage@localhost:3306/ai_wattage"
+
+
+def test_app_parts_are_stored_and_summed(database):
+    now = time.time()
+    parts = {"cpu_watts": 2.0, "gpu_watts": 6.0, "memory_watts": 1.0, "gpu_share": 1.0, "vram_mb": 4800.0,
+             "model_mb": 4800.0}
+    with closing(storage.connect(database)) as conn:
+        mac = storage.register_device(conn, MAC)
+        storage.save_sample(conn, now - 10, 3600, 40, 60, 12, None, [{**APP, "watts": 5.0}], device_id=mac)  # before the split
+        storage.save_sample(conn, now, 3600, 40, 60, 12, 11.0, [{**APP, **parts, "watts": 9.0}], device_id=mac)
+        (row,) = storage.app_part_usage(conn, device_id=mac)
+        latest = storage.latest_sample(conn)
+        stored = storage.readings(conn, device_id=mac)
+    assert row == {"model": "Ollama · llama3:8b", "cpu_kwh": 0.002, "gpu_kwh": 0.006, "memory_kwh": 0.001,
+                   "unsplit_kwh": 0.005}
+    assert {k: latest["apps"][0][k] for k in parts} == parts
+    assert stored[0]["apps"][0]["gpu_watts"] == 6.0 and stored[1]["apps"][0]["gpu_watts"] is None
+
+
+def test_old_sqlite_databases_get_app_part_columns(tmp_path):
+    path = str(tmp_path / "old.db")
+    with closing(sqlite3.connect(path)) as raw:
+        raw.execute("CREATE TABLE ai_samples (ts REAL, interval_s REAL, app TEXT, model TEXT, kind TEXT, "
+                    "cpu_percent REAL, rss_mb REAL, watts REAL)")
+        raw.commit()
+    with closing(storage.connect(path)) as conn:
+        storage.save_sample(conn, time.time(), 2, 10, 0, 5, None, [{**APP, "watts": 1.0, "cpu_watts": 1.0}])
+        assert storage.app_part_usage(conn)[0]["cpu_kwh"] > 0

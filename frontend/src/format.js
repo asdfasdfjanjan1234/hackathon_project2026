@@ -71,3 +71,14 @@ export const shortDate = (iso) => {
   const d = new Date(`${iso}T00:00:00`);
   return d.toLocaleDateString("en-PH", { month: "short", day: "numeric" });
 };
+
+// Watts with enough decimals for the fractions of a watt one AI app often draws.
+export const formatAppWatts = (w) => {
+  if (w === null || w === undefined || isNaN(w)) return "—";
+  return Number(w) >= 10 ? formatWatts(w) : `${Number(w).toFixed(2)} W`;
+};
+
+export const formatMb = (mb) => {
+  if (mb === null || mb === undefined || isNaN(mb)) return "—";
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${Math.round(mb)} MB`;
+};

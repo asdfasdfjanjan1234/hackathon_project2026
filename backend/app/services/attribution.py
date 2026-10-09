@@ -8,7 +8,8 @@ minute. We fit
 to those readings with non-negative least squares, which calibrates the
 formula to this specific machine. The formula then gives watts every few
 seconds, and each AI app gets the share matching its CPU use (and GPU use
-for local model runners). Idle power is never assigned to an app.
+for local model runners), kept as separate CPU, GPU and memory watts so each
+can be monitored. Idle power is never assigned to an app.
 
 Where the OS measures CPU or GPU power directly (RAPL, nvidia-smi, IOReport),
 apps get their share of that measured power above idle instead of the formula.
@@ -114,21 +115,47 @@ def _gpu_shares(apps, gpu_by_pid, gpu_pids):
     return [1 / n if u else 0.0 for u in users] if n else [0.0] * len(apps)
 
 
-def attribute(model, gpu_pct, apps, ncpu, cpu_pct=None, measured=None, gpu_by_pid=None, gpu_pids=None):
-    """Set apps[i]["watts"]. App CPU % is per core (can exceed 100), so divide by core count.
+def attribute(model, gpu_pct, apps, ncpu, cpu_pct=None, measured=None, gpu_by_pid=None, gpu_pids=None,
+              memory_est=0.0):
+    """Set each app's watts and its parts: cpu_watts, gpu_watts, memory_watts, plus gpu_share.
+    App CPU % is per core (can exceed 100), so divide by core count.
 
-    `measured` = {"cpu": W, "gpu": W} above idle, for components with a power sensor.
+    `measured` = {"cpu": W, "gpu": W, "memory": W} above idle, for components with a power sensor.
     CPU: with a sensor, the app's share of all CPU use × measured CPU power; else the formula.
     GPU: measured GPU power (else the formula), split by who used the GPU (_gpu_shares).
+    Memory: traffic follows compute, so the memory power above idle (measured, else `memory_est`)
+    is split by each app's share of the CPU and GPU watts. Holding RAM adds no power (refresh
+    runs either way), so a loaded model that isn't generating gets none. When CPU watts come
+    from the formula, its coefficient already covers the memory traffic CPU work causes, so
+    that part moves from cpu_watts to memory_watts instead of being counted twice.
     """
     measured = measured or {}
-    gpu_watts = measured["gpu"] if "gpu" in measured else model.watts_per_gpu_pct * gpu_pct
+    cpu_measured = "cpu" in measured and bool(cpu_pct)
+    gpu_total = measured["gpu"] if "gpu" in measured else model.watts_per_gpu_pct * gpu_pct
+    memory_total = measured.get("memory", memory_est)
     shares = _gpu_shares(apps, gpu_by_pid, gpu_pids)
+    parts = []
     for a, share in zip(apps, shares):
         app_pct = a["cpu_percent"] / ncpu  # % of the whole CPU
-        if "cpu" in measured and cpu_pct:
+        if cpu_measured:
             cpu_w = measured["cpu"] * min(app_pct / cpu_pct, 1.0)
         else:
             cpu_w = model.watts_per_cpu_pct * app_pct
-        a["watts"] = round(cpu_w + gpu_watts * share, 3)
+        parts.append((cpu_w, gpu_total * share))
+    if cpu_measured:
+        cpu_total = measured["cpu"]
+    elif cpu_pct is not None:
+        cpu_total = model.watts_per_cpu_pct * cpu_pct
+    else:
+        cpu_total = sum(c for c, _ in parts)
+    compute_total = cpu_total + gpu_total
+    for a, share, (cpu_w, gpu_w) in zip(apps, shares, parts):
+        memory_w = memory_total * min((cpu_w + gpu_w) / compute_total, 1.0) if compute_total > 0 else 0.0
+        if not cpu_measured:
+            moved = min(memory_w, cpu_w)
+            cpu_w -= moved
+            if "memory" not in measured:
+                memory_w = moved
+        a.update(cpu_watts=round(cpu_w, 3), gpu_watts=round(gpu_w, 3), memory_watts=round(memory_w, 3),
+                 gpu_share=round(share, 3), watts=round(cpu_w + gpu_w + memory_w, 3))
     return apps

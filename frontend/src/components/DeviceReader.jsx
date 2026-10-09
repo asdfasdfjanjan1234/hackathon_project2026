@@ -11,7 +11,8 @@ import {
   ShieldCheck,
   Database,
 } from "lucide-react";
-import { formatWatts, formatWh, formatTokens, peso } from "../format";
+import { formatWatts, formatWh, formatTokens, formatAppWatts, peso } from "../format";
+import AppPowerParts from "./AppPowerParts";
 
 const SENSOR_LABELS = { system: "Whole machine", cpu: "CPU", gpu: "GPU", memory: "Memory", disk: "Disk" };
 
@@ -87,15 +88,16 @@ function AppsPanel({ status }) {
           <div className="mt-2 space-y-1.5">
             {apps.length === 0 && <div className="text-[11px] text-slate-400">No AI apps running.</div>}
             {apps.map((a, i) => (
-              <div key={`${a.model || a.app}-${a.host}-${i}`} className="flex items-center justify-between gap-2 text-[11px]">
-                <div className="min-w-0">
+              <div key={`${a.model || a.app}-${a.host}-${i}`} className="flex items-start justify-between gap-2 text-[11px]">
+                <div className="min-w-0 flex-1">
                   <div className="text-slate-100 truncate">{a.model || a.app}</div>
                   <div className="text-[10px] text-slate-500">
                     {a.kind === "local" ? "local model" : "cloud client"}
                     {a.host ? ` · in ${a.host}` : ""} · {(a.cpu_percent || 0).toFixed(1)}% CPU
                   </div>
+                  <AppPowerParts app={a} />
                 </div>
-                <span className="font-mono tabular-nums text-sky-300 shrink-0">{(a.watts || 0).toFixed(2)} W</span>
+                <span className="font-mono tabular-nums text-sky-300 shrink-0">{formatAppWatts(a.watts || 0)}</span>
               </div>
             ))}
           </div>
