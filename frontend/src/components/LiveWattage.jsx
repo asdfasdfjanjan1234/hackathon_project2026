@@ -70,7 +70,7 @@ export default function LiveWattage({ reading }) {
     () =>
       (reading?.apps || []).map((a) => ({
         name: a.name || a.model || a.app,
-        arch: `${a.kind === "local" ? "Local model" : "AI app"}${a.host ? ` · in ${a.host}` : ""}`,
+        arch: `${a.kind === "local" ? "Local model" : "AI app"}${a.host ? ` · in ${a.host}` : ""}${a.effort ? ` · ${a.effort} effort` : ""}`,
         watts: a.watts,
         cpu: `${(a.cpu_percent || 0).toFixed(1)}%`,
         app: a,

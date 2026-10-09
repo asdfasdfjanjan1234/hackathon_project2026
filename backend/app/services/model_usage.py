@@ -1,14 +1,17 @@
 """Which AI models the apps on this device used, read from their local logs.
 
-  Claude Code     ~/.claude/projects/**/*.jsonl                exact tokens per response
-  Codex           ~/.codex/sessions/**/rollout-*.jsonl         exact tokens per turn
-  OpenCode        ~/.local/share/opencode/opencode.db          exact tokens per response
+  Claude Code     ~/.claude/projects/**/*.jsonl                exact tokens per response, effort
+  Codex           ~/.codex/sessions/**/rollout-*.jsonl         exact tokens per turn, effort
+  OpenCode        ~/.local/share/opencode/opencode.db          exact tokens per response, effort
   Gemini CLI      ~/.gemini/tmp/*/chats/session-*.json         exact tokens per response
   GitHub Copilot  VS Code logs (GitHub.copilot-chat)           model name per request, no tokens
   Kiro            Kiro logs (kiro.kiroAgent/Kiro Logs.log)     model name per request, no tokens
   Amazon Q        ~/.aws/amazonq/history/chat-history-*.json   model name per answer, no tokens
+  Devin           ~/.local/share/devin/cli/sessions.db         selected model per session (live label only)
 
-Only model names, token counts and timestamps are read, never prompts or code.
+Effort is the reasoning effort the app asked the model for ("low" ... "max"), where it
+records one; Copilot only has it in VS Code's settings, when the user set one.
+Only model names, efforts, token counts and timestamps are read, never prompts or code.
 Files are parsed again only when they change.
 """
 
@@ -49,19 +52,28 @@ AI_EXTENSIONS = {
 COPILOT_REQUEST = re.compile(r"^(\d{4}-\d{2}-\d{2}) [\d:.]+ \[\w+\] (ccreq:\S+) \| success \| ([\w.\-]+) \|")
 KIRO_REQUEST = re.compile(r"^((\d{4}-\d{2}-\d{2}) [\d:.]+) \[\w+\] \[q-developer-converse\] "
                           r"Sending GenerateAssistantResponse modelId=(\S+) agentMode=(\S+)")
+# Kiro's newer log format: `q.converse.dispatch {"modelId": ..., "agentMode": ..., ...}`.
+KIRO_DISPATCH = re.compile(r"^((\d{4}-\d{2}-\d{2}) [\d:.]+) \[\w+\] q\.converse\.dispatch (\{.*\})\s*$")
+# Commented-out lines (VS Code settings allow `//`) don't match: the key must start the line.
+COPILOT_EFFORT = re.compile(r'^\s*"github\.copilot\.chat\.(reasoningEffortOverride|claudeDefaultReasoningEffort)"'
+                            r'\s*:\s*"(\w+)"', re.M)
 
 
 def _home(*parts):
     return os.path.join(os.path.expanduser("~"), *parts)
 
 
-def _logs_dir(app):
-    """Logs folder of a VS Code-based editor ("Code", "Kiro", ...)."""
+def _app_dir(app):
+    """User data folder of a VS Code-based editor ("Code", "Kiro", ...)."""
     if sys.platform == "darwin":
-        return _home("Library", "Application Support", app, "logs")
+        return _home("Library", "Application Support", app)
     if sys.platform == "win32":
-        return os.path.join(os.environ.get("APPDATA", ""), app, "logs")
-    return _home(".config", app, "logs")
+        return os.path.join(os.environ.get("APPDATA", ""), app)
+    return _home(".config", app)
+
+
+def _logs_dir(app):
+    return os.path.join(_app_dir(app), "logs")
 
 
 def _local_date(iso_ts):
@@ -73,7 +85,7 @@ def _ms_date(ms):
 
 
 def parse_claude_code(lines):
-    """{response key: (date, model, tokens)}. A response is repeated once per content
+    """{response key: (date, model, tokens, effort)}. A response is repeated once per content
     block with the same usage, so it is keyed by message id and request id."""
     out = {}
     for line in lines:
@@ -95,13 +107,13 @@ def parse_claude_code(lines):
             "cache_read": usage.get("cache_read_input_tokens", 0) or 0,
             "cache_write_5m": (usage.get("cache_creation_input_tokens", 0) or 0) - write_1h,
             "cache_write_1h": write_1h,
-        })
+        }, d.get("effort"))
     return out
 
 
 def parse_codex(lines):
-    """{(turn timestamp,): (date, model, tokens)}. Token totals are cumulative per session."""
-    out, model, last = {}, None, None
+    """{(turn timestamp,): (date, model, tokens, effort)}. Token totals are cumulative per session."""
+    out, model, effort, last = {}, None, None, None
     for line in lines:
         try:
             d = json.loads(line)
@@ -110,6 +122,8 @@ def parse_codex(lines):
         payload = d.get("payload") or {}
         if d.get("type") == "turn_context":
             model = payload.get("model") or model
+            mode = (payload.get("collaboration_mode") or {}).get("settings") or {}
+            effort = payload.get("effort") or mode.get("reasoning_effort") or effort
         elif payload.get("type") == "token_count" and model:
             total = (payload.get("info") or {}).get("total_token_usage")
             if not total:
@@ -121,22 +135,23 @@ def parse_codex(lines):
             if d_in or d_out:
                 # OpenAI counts cached tokens inside input_tokens.
                 out[(d["timestamp"],)] = (_local_date(d["timestamp"]), model, {
-                    "input": max(0, d_in - d_cached), "output": d_out, "cache_read": d_cached})
+                    "input": max(0, d_in - d_cached), "output": d_out, "cache_read": d_cached}, effort)
     return out
 
 
 def parse_copilot(lines):
-    """{(request id,): (date, model, {})}: one entry per successful request, no token counts."""
+    """{(request id,): (date, model, {}, None)}: one entry per successful request, no token counts."""
     out = {}
     for line in lines:
         m = COPILOT_REQUEST.match(line)
         if m:
-            out[(m.group(2),)] = (m.group(1), m.group(3), {})
+            out[(m.group(2),)] = (m.group(1), m.group(3), {}, None)
     return out
 
 
 def parse_opencode(rows):
-    """{(message id,): (date, model, tokens)} from OpenCode's assistant messages (JSON rows)."""
+    """{(message id,): (date, model, tokens, effort)} from OpenCode's assistant messages (JSON
+    rows). OpenCode calls the effort the model's "variant"."""
     out = {}
     for row in rows:
         try:
@@ -150,12 +165,12 @@ def parse_opencode(rows):
                   "cache_read": cache.get("read", 0) or 0,
                   "cache_write_5m": cache.get("write", 0) or 0}
         if model and any(tokens.values()):
-            out[(d.get("id"),)] = (_ms_date(created), model, tokens)
+            out[(d.get("id"),)] = (_ms_date(created), model, tokens, d.get("variant"))
     return out
 
 
 def parse_gemini(lines):
-    """{(message id,): (date, model, tokens)} from one Gemini CLI chat session file."""
+    """{(message id,): (date, model, tokens, None)} from one Gemini CLI chat session file."""
     try:
         messages = json.loads("".join(lines)).get("messages") or []
     except (ValueError, AttributeError):
@@ -170,23 +185,33 @@ def parse_gemini(lines):
         out[(m.get("id"), m.get("timestamp"))] = (_local_date(m["timestamp"]), model, {
             "input": max(0, (t.get("input", 0) or 0) - cached),
             "output": (t.get("output", 0) or 0) + (t.get("thoughts", 0) or 0),
-            "cache_read": cached})
+            "cache_read": cached}, None)
     return out
 
 
 def parse_kiro(lines):
-    """{(time,): (date, model, {})}: one entry per agent request, no token counts.
-    Intent classification is Kiro's own router call, not the model the user works with."""
+    """{(time, conversation): (date, model, {}, None)}: one entry per agent request, no token
+    counts. Intent classification is Kiro's own router call, not the model the user works with."""
     out = {}
     for line in lines:
         m = KIRO_REQUEST.match(line)
-        if m and m.group(4) != "intent-classification":
-            out[(m.group(1),)] = (m.group(2), m.group(3), {})
+        if m:
+            time, day, model, mode, conv = m.group(1), m.group(2), m.group(3), m.group(4), None
+        elif m := KIRO_DISPATCH.match(line):
+            try:
+                d = json.loads(m.group(3))
+            except ValueError:
+                continue
+            time, day, model, mode, conv = m.group(1), m.group(2), d.get("modelId"), d.get("agentMode"), d.get("conversationId")
+        else:
+            continue
+        if model and mode != "intent-classification":
+            out[(time, conv)] = (day, model, {}, None)
     return out
 
 
 def parse_amazon_q(lines):
-    """{(tab, time): (date, model, {})}: one entry per answer, no token counts. The model is
+    """{(tab, time): (date, model, {}, None)}: one entry per answer, no token counts. The model is
     stored per chat tab; tabs from before Amazon Q had a model picker have none."""
     try:
         collections = json.loads("".join(lines)).get("collections") or []
@@ -198,7 +223,7 @@ def parse_amazon_q(lines):
         for conv in tab.get("conversations") or []:
             for msg in conv.get("messages") or []:
                 if msg.get("type") == "answer" and msg.get("timestamp"):
-                    out[(tab.get("historyId"), msg["timestamp"])] = (_local_date(msg["timestamp"]), model, {})
+                    out[(tab.get("historyId"), msg["timestamp"])] = (_local_date(msg["timestamp"]), model, {}, None)
     return out
 
 
@@ -262,7 +287,7 @@ def scan_events(days=30, sources=None):
             for path in glob.glob(pattern, recursive=True):
                 # Claude Code can copy responses into a resumed session's file; keys dedupe them.
                 merged.update(_parse_file(path, parser))
-        events += [(app, day, model, tokens) for day, model, tokens in merged.values() if day >= since]
+        events += [(app, day, model, tokens) for day, model, tokens, _ in merged.values() if day >= since]
     return events
 
 
@@ -342,16 +367,63 @@ def _mtime(path):
         return 0
 
 
-def latest_models(sources=None):
-    """The model of each app's most recent response, from its newest log: {app: model id}."""
+def copilot_effort(model, settings=None):
+    """The effort Copilot asks for, from VS Code's settings: Copilot doesn't log it. None when
+    the user hasn't set one, so the model's own default applies."""
+    try:
+        with open(settings or os.path.join(_app_dir("Code"), "User", "settings.json"), encoding="utf-8") as f:
+            found = dict(COPILOT_EFFORT.findall(f.read()))
+    except OSError:
+        return None
+    return found.get("reasoningEffortOverride") or (
+        found.get("claudeDefaultReasoningEffort") if model.startswith("claude") else None)
+
+
+def devin_model(db=None):
+    """(model, effort) of the most recently active Devin session (CLI and Devin Desktop), or None.
+    Devin stores the model selected per session, not each request, so it only labels the live app."""
+    db = db or _home(".local", "share", "devin", "cli", "sessions.db")
+    if not os.path.exists(db):
+        return None
+    uri = "file:" + db.replace("?", "%3f").replace("#", "%23") + "?mode=ro"
+    try:
+        with sqlite3.connect(uri, uri=True, timeout=1) as conn:
+            row = conn.execute("SELECT model, metadata FROM sessions WHERE model IS NOT NULL AND model != '' "
+                               "ORDER BY last_activity_at DESC LIMIT 1").fetchone()
+    except sqlite3.Error:
+        return None
+    if not row:
+        return None
+    try:
+        meta = json.loads(row[1] or "{}")
+    except ValueError:
+        meta = {}
+    effort = meta.get("reasoning_effort") or meta.get("effort") if isinstance(meta, dict) else None
+    return row[0], effort if isinstance(effort, str) else None
+
+
+# Effort an app doesn't log, read from its settings: {app: (model id -> effort or None)}.
+EFFORT_SETTINGS = {"GitHub Copilot": copilot_effort}
+# Apps that store their selected model but not each request: {app: () -> (model, effort) or None}.
+SELECTED_MODELS = {"Devin": devin_model}
+
+
+def latest_models(sources=None, selected=None):
+    """The model and effort of each app's most recent response, from its newest log that has
+    one: {app: (model id, effort or None)}."""
     out = {}
     for app, patterns, parser in sources or SOURCES:
         paths = [p for pattern in patterns() for p in glob.glob(pattern, recursive=True)]
-        if not paths:
-            continue
-        parsed = _parse_file(max(paths, key=_mtime), parser)
-        if parsed:
-            out[app] = list(parsed.values())[-1][1]
+        # A new editor window's log can have no requests yet, so fall back to older ones.
+        for path in sorted(paths, key=_mtime, reverse=True):
+            parsed = _parse_file(path, parser)
+            if parsed:
+                _, model, _, effort = list(parsed.values())[-1]
+                out[app] = (model, effort or (EFFORT_SETTINGS[app](model) if app in EFFORT_SETTINGS else None))
+                break
+    for app, read in (SELECTED_MODELS if selected is None else selected).items():
+        if app not in out and (found := read()):
+            out[app] = found
     return out
 
 

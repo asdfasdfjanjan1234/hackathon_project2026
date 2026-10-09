@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS samples (
 CREATE TABLE IF NOT EXISTS ai_samples (
     ts REAL, interval_s REAL, app TEXT, model TEXT, kind TEXT,
     cpu_percent REAL, rss_mb REAL, watts REAL, host TEXT, device_id INTEGER,
-    cpu_watts REAL, gpu_watts REAL, memory_watts REAL, gpu_share REAL, vram_mb REAL, model_mb REAL
+    cpu_watts REAL, gpu_watts REAL, memory_watts REAL, gpu_share REAL, vram_mb REAL, model_mb REAL,
+    effort TEXT
 );
 CREATE TABLE IF NOT EXISTS power_windows (
     ts REAL, avg_watts REAL, avg_cpu REAL, avg_gpu REAL, n_samples INTEGER, device_id INTEGER
@@ -58,6 +59,7 @@ CREATE TABLE IF NOT EXISTS ai_samples (
     app VARCHAR(255), model VARCHAR(255), kind VARCHAR(32), cpu_percent DOUBLE, rss_mb DOUBLE,
     watts DOUBLE, host VARCHAR(255),
     cpu_watts DOUBLE, gpu_watts DOUBLE, memory_watts DOUBLE, gpu_share DOUBLE, vram_mb DOUBLE, model_mb DOUBLE,
+    effort VARCHAR(32),
     INDEX idx_ai_samples_ts (ts), FOREIGN KEY (device_id) REFERENCES devices(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS power_windows (
@@ -78,7 +80,8 @@ CREATE TABLE IF NOT EXISTS settings (
 READING_TABLES = ("samples", "ai_samples", "power_windows", "component_samples")
 # Per-app parts of `watts`, GPU share and model memory, added after the first databases were created.
 APP_PART_COLUMNS = ("cpu_watts", "gpu_watts", "memory_watts", "gpu_share", "vram_mb", "model_mb")
-APP_COLUMNS = "app, model, kind, host, cpu_percent, rss_mb, watts, " + ", ".join(APP_PART_COLUMNS)
+# The reasoning effort a cloud app asks its model for ("low" ... "max"), when its logs say.
+APP_COLUMNS = "app, model, kind, host, cpu_percent, rss_mb, watts, effort, " + ", ".join(APP_PART_COLUMNS)
 
 
 class Database:
@@ -135,9 +138,10 @@ def connect(target):
     raw = sqlite3.connect(target, timeout=10)
     raw.row_factory = sqlite3.Row
     raw.executescript(SQLITE_SCHEMA)
-    # Databases from before the host, device_id and per-app part columns were added.
+    # Databases from before the host, device_id, per-app part and effort columns were added.
     for table, column, kind in ([("ai_samples", "host", "TEXT")] + [(t, "device_id", "INTEGER") for t in READING_TABLES]
-                                + [("ai_samples", c, "REAL") for c in APP_PART_COLUMNS]):
+                                + [("ai_samples", c, "REAL") for c in APP_PART_COLUMNS]
+                                + [("ai_samples", "effort", "TEXT")]):
         if column not in {r["name"] for r in raw.execute(f"PRAGMA table_info({table})")}:
             raw.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
     return Database(raw, "sqlite")
@@ -160,13 +164,13 @@ def _connect_mysql(url):
     db.execute("SET time_zone = ?", (f"{sign}{abs(offset) // 3600:02d}:{abs(offset) % 3600 // 60:02d}",))
     for statement in filter(str.strip, MYSQL_SCHEMA.split(";")):
         db.execute(statement)
-    # Databases from before the per-app part columns were added.
+    # Databases from before the per-app part and effort columns were added.
     have = {r["COLUMN_NAME"] for r in db.execute(
         "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
         ("ai_samples",))}
-    for column in APP_PART_COLUMNS:
+    for column, kind in [(c, "DOUBLE") for c in APP_PART_COLUMNS] + [("effort", "VARCHAR(32)")]:
         if column not in have:
-            db.execute(f"ALTER TABLE ai_samples ADD COLUMN {column} DOUBLE")
+            db.execute(f"ALTER TABLE ai_samples ADD COLUMN {column} {kind}")
     db.commit()
     return db
 
@@ -208,9 +212,9 @@ def save_sample(conn, ts, interval_s, cpu, gpu, est_watts, measured_watts, apps,
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
         (ts, interval_s, cpu, gpu, est_watts, measured_watts, device_id))
     conn.executemany(
-        f"INSERT INTO ai_samples (ts, interval_s, device_id, {APP_COLUMNS}) VALUES ({', '.join(['?'] * (10 + len(APP_PART_COLUMNS)))})",
+        f"INSERT INTO ai_samples (ts, interval_s, device_id, {APP_COLUMNS}) VALUES ({', '.join(['?'] * (11 + len(APP_PART_COLUMNS)))})",
         [(ts, interval_s, device_id, a["app"], a["model"], a["kind"], a.get("host"), a["cpu_percent"], a["rss_mb"],
-          a["watts"], *(a.get(c) for c in APP_PART_COLUMNS)) for a in apps],
+          a["watts"], a.get("effort"), *(a.get(c) for c in APP_PART_COLUMNS)) for a in apps],
     )
     conn.executemany(
         "INSERT INTO component_samples (ts, interval_s, component, watts, source, device_id) "

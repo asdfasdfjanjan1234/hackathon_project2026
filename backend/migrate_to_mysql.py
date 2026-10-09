@@ -18,7 +18,7 @@ from app.services.system_info import detect_system
 COLUMNS = {
     "samples": "ts, interval_s, cpu_percent, gpu_percent, est_watts, measured_watts, device_id",
     "ai_samples": "ts, interval_s, app, model, kind, cpu_percent, rss_mb, watts, host, "
-                  "cpu_watts, gpu_watts, memory_watts, gpu_share, vram_mb, model_mb, device_id",
+                  "cpu_watts, gpu_watts, memory_watts, gpu_share, vram_mb, model_mb, effort, device_id",
     "component_samples": "ts, interval_s, component, watts, source, device_id",
     "power_windows": "ts, avg_watts, avg_cpu, avg_gpu, n_samples, device_id",
 }

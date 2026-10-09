@@ -83,8 +83,27 @@ def test_client_apps_are_labeled_with_their_active_model():
     apps = [{"app": "Claude Code", "kind": "client", "model": None},
             {"app": "Claude Code", "kind": "client", "model": "Claude Code · tool runs"},
             {"app": "Ollama", "kind": "local", "model": None}]
-    label_active_models(apps, {"Claude Code": "claude-opus-5-5", "Ollama": "x"})
+    label_active_models(apps, {"Claude Code": ("claude-opus-5-5", "high"), "Ollama": ("x", None)})
     assert [a["model"] for a in apps] == ["Claude Code · claude-opus-5-5", "Claude Code · tool runs", None]
+    assert apps[0]["effort"] == "high" and "effort" not in apps[1]
+
+
+@pytest.mark.parametrize("name, exe, host", [
+    ("code", "/usr/share/code/code", "VS Code"),
+    ("Cursor.exe", "C:\\Users\\x\\AppData\\Local\\Programs\\cursor\\Cursor.exe", "Cursor"),
+    ("Kiro", "/Applications/Kiro.app/Contents/MacOS/Kiro", "Kiro"),
+    ("KiroCrew", "/Applications/KiroCrew.app/Contents/MacOS/KiroCrew", "Kiro Crew"),
+    ("zed", "/Applications/Zed.app/Contents/MacOS/zed", "Zed"),
+    ("Orca", "/Applications/Orca.app/Contents/MacOS/Orca", "Orca"),
+    ("pycharm", "/Applications/PyCharm CE.app/Contents/MacOS/pycharm", "PyCharm"),
+    ("idea64.exe", "C:\\Program Files\\JetBrains\\IntelliJ IDEA\\bin\\idea64.exe", "IntelliJ IDEA"),
+    ("studio", "/Applications/Android Studio.app/Contents/MacOS/studio", "Android Studio"),
+    ("Xcode", "/Applications/Xcode.app/Contents/MacOS/Xcode", "Xcode"),
+    ("ghostty", "/Applications/Ghostty.app/Contents/MacOS/ghostty", "Ghostty"),
+    ("clang", "/Applications/Xcode.app/Contents/Developer/usr/bin/clang", None),  # a tool, not the IDE
+])
+def test_editors_and_terminals_are_found_as_hosts(name, exe, host):
+    assert ai_processes.host_of(name, exe) == host
 
 
 @pytest.fixture
@@ -161,7 +180,7 @@ def test_claude_code_responses_are_counted_once():
              json.dumps({"type": "user", "message": {"content": "hi"}})]
     parsed = model_usage.parse_claude_code(lines)
     assert len(parsed) == 2
-    _, model, tokens = parsed[("a", "ra")]
+    _, model, tokens, _ = parsed[("a", "ra")]
     assert model == "claude-opus-5-5"
     assert tokens == {"input": 10, "output": 50, "cache_read": 1000, "cache_write_5m": 200, "cache_write_1h": 100}
     assert "secret" not in repr(parsed)
@@ -175,14 +194,32 @@ def test_codex_tokens_are_deltas_of_cumulative_totals():
              count("2026-10-09T01:00:00Z", 100, 40, 10),
              count("2026-10-09T01:00:01Z", 100, 40, 10),  # repeated total: no new tokens
              count("2026-10-09T01:01:00Z", 250, 140, 30)]
-    tokens = [t for _, _, t in model_usage.parse_codex(lines).values()]
+    tokens = [t for _, _, t, _ in model_usage.parse_codex(lines).values()]
     assert tokens == [{"input": 60, "output": 10, "cache_read": 40}, {"input": 50, "output": 20, "cache_read": 100}]
+
+
+def test_claude_code_and_codex_record_effort():
+    line = json.loads(_assistant("a", "claude-opus-5-5", 50))
+    assert [e for *_, e in model_usage.parse_claude_code([json.dumps({**line, "effort": "xhigh"})]).values()] == ["xhigh"]
+    lines = [json.dumps({"type": "turn_context", "payload": {"model": "gpt-5.5", "effort": "low"}}),
+             json.dumps({"timestamp": "2026-10-09T01:00:00Z", "type": "event_msg", "payload": {
+                 "type": "token_count", "info": {"total_token_usage": {"input_tokens": 9, "output_tokens": 1}}}})]
+    assert [e for *_, e in model_usage.parse_codex(lines).values()] == ["low"]
 
 
 def test_copilot_counts_successful_requests():
     lines = ["2026-10-06 09:34:25.905 [info] ccreq:07.copilotmd | success | gpt-4o-mini-2024-07-18 | 662ms | [x]",
              "2026-10-06 09:35:06.175 [info] ccreq:f5.copilotmd | failed | gpt-5.3-codex | 248ms | [y]"]
-    assert list(model_usage.parse_copilot(lines).values()) == [("2026-10-06", "gpt-4o-mini-2024-07-18", {})]
+    assert list(model_usage.parse_copilot(lines).values()) == [("2026-10-06", "gpt-4o-mini-2024-07-18", {}, None)]
+
+
+def test_copilot_effort_comes_from_vs_code_settings(tmp_path):
+    settings = tmp_path / "settings.json"
+    settings.write_text('{\n  // "github.copilot.chat.reasoningEffortOverride": "low",\n'
+                        '  "github.copilot.chat.claudeDefaultReasoningEffort": "max",\n}')
+    assert model_usage.copilot_effort("claude-sonnet-4.5", settings) == "max"
+    assert model_usage.copilot_effort("gpt-5", settings) is None  # the Claude setting only applies to Claude
+    assert model_usage.copilot_effort("gpt-5", tmp_path / "missing.json") is None
 
 
 def test_copilot_requests_in_different_log_files_are_all_counted(tmp_path):
@@ -200,7 +237,7 @@ def test_opencode_reads_tokens_from_its_database(tmp_path):
         conn.executemany("INSERT INTO message VALUES (?, ?)", [
             ("m1", json.dumps({"role": "user", "time": {"created": 1789529000000}})),
             ("m2", json.dumps({"role": "assistant", "modelID": "claude-sonnet-5-5", "time": {"created": 1789529012575},
-                               "tokens": {"input": 537, "output": 391, "reasoning": 9,
+                               "variant": "xhigh", "tokens": {"input": 537, "output": 391, "reasoning": 9,
                                           "cache": {"read": 142193, "write": 10}}})),
             ("m3", json.dumps({"role": "assistant", "modelID": "claude-sonnet-5-5", "time": {"created": 1789529012575},
                                "tokens": {"input": 0, "output": 0, "cache": {}}})),  # aborted: nothing used
@@ -208,8 +245,8 @@ def test_opencode_reads_tokens_from_its_database(tmp_path):
     conn.close()
     parsed = model_usage._parse_file(str(db), model_usage.parse_opencode)
     assert list(parsed) == [("m2",)]
-    _, model, tokens = parsed[("m2",)]
-    assert model == "claude-sonnet-5-5"
+    _, model, tokens, effort = parsed[("m2",)]
+    assert (model, effort) == ("claude-sonnet-5-5", "xhigh")
     assert tokens == {"input": 537, "output": 400, "cache_read": 142193, "cache_write_5m": 10}
 
 
@@ -219,7 +256,7 @@ def test_gemini_cli_tokens_exclude_cached_input():
         {"id": "g", "type": "gemini", "timestamp": "2026-10-09T10:00:05Z", "content": "secret answer",
          "model": "gemini-2.5-flash", "tokens": {"input": 1000, "output": 50, "cached": 600, "thoughts": 25}}]}
     parsed = model_usage.parse_gemini(json.dumps(session, indent=1).splitlines(True))
-    assert [(m, t) for _, m, t in parsed.values()] == [
+    assert [(m, t) for _, m, t, _ in parsed.values()] == [
         ("gemini-2.5-flash", {"input": 400, "output": 75, "cache_read": 600})]
     assert "secret" not in repr(parsed)
 
@@ -230,7 +267,36 @@ def test_kiro_counts_agent_requests_but_not_its_router():
              log.format("33.994", "claude-sonnet-4.5", "vibe"),
              log.format("39.060", "claude-sonnet-4.5", "vibe"),
              "2026-06-30 16:26:40.000 [info] [q-developer-converse] Received response"]
-    assert list(model_usage.parse_kiro(lines).values()) == [("2026-06-30", "claude-sonnet-4.5", {})] * 2
+    assert list(model_usage.parse_kiro(lines).values()) == [("2026-06-30", "claude-sonnet-4.5", {}, None)] * 2
+
+
+def test_kiro_reads_its_newer_dispatch_log_format():
+    log = '2026-10-09 20:27:{} [info] q.converse.dispatch {{"api":"GenerateAssistantResponse","modelId":"{}",' \
+          '"agentMode":"{}","origin":"AI_EDITOR","conversationId":"{}"}}'
+    lines = [log.format("35.509", "simple-task", "intent-classification", "s1"),
+             log.format("35.509", "claude-sonnet-4.5", "bug-fix", "s1"),
+             log.format("35.509", "claude-opus-4.5", "vibe", "s2"),  # same moment, other chat
+             '2026-10-09 20:27:19.389 [info] agent_controller.triggered {"modelId":"claude-sonnet-4.5"}']
+    assert [m for _, m, _, _ in model_usage.parse_kiro(lines).values()] == ["claude-sonnet-4.5", "claude-opus-4.5"]
+
+
+def test_latest_model_skips_logs_without_requests_and_reads_devin(tmp_path):
+    today = date.today().isoformat()
+    (tmp_path / "old.log").write_text(f"{today} 09:00:00.000 [info] ccreq:aa.copilotmd | success | gpt-4o | 1ms | [x]\n")
+    (tmp_path / "new.log").write_text("nothing yet\n")
+    os_time = time.time()
+    import os
+    os.utime(tmp_path / "old.log", (os_time - 60, os_time - 60))
+    db = tmp_path / "sessions.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE sessions (id text, model text, last_activity_at integer, metadata text)")
+        conn.executemany("INSERT INTO sessions VALUES (?, ?, ?, ?)", [
+            ("a", "swe-1.5", 1, None), ("b", "claude-opus-4.7", 2, '{"reasoning_effort": "high"}')])
+    conn.close()
+    source = ("GitHub Copilot", lambda: [str(tmp_path / "*.log")], model_usage.parse_copilot)
+    found = model_usage.latest_models([source], {"Devin": lambda: model_usage.devin_model(str(db))})
+    assert found["Devin"] == ("claude-opus-4.7", "high")
+    assert found["GitHub Copilot"][0] == "gpt-4o"
 
 
 def test_amazon_q_counts_answers_per_tab_model():
@@ -240,7 +306,7 @@ def test_amazon_q_counts_answers_per_tab_model():
     history = {"collections": [{"data": [tab("a", "claude-sonnet-4.5", "prompt", "answer", "prompt", "answer"),
                                          tab("b", None, "prompt", "answer")]}]}
     parsed = model_usage.parse_amazon_q([json.dumps(history)])
-    assert sorted(m for _, m, _ in parsed.values()) == ["claude-sonnet-4.5", "claude-sonnet-4.5", "default"]
+    assert sorted(m for _, m, _, _ in parsed.values()) == ["claude-sonnet-4.5", "claude-sonnet-4.5", "default"]
     assert "secret" not in repr(parsed)
 
 

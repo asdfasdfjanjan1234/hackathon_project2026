@@ -93,7 +93,7 @@ function AppsPanel({ status }) {
                   <div className="text-slate-100 truncate">{a.model || a.app}</div>
                   <div className="text-[10px] text-slate-500">
                     {a.kind === "local" ? "local model" : "cloud client"}
-                    {a.host ? ` · in ${a.host}` : ""} · {(a.cpu_percent || 0).toFixed(1)}% CPU
+                    {a.host ? ` · in ${a.host}` : ""}{a.effort ? ` · ${a.effort} effort` : ""} · {(a.cpu_percent || 0).toFixed(1)}% CPU
                   </div>
                   <AppPowerParts app={a} />
                 </div>

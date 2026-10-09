@@ -26,9 +26,15 @@ def _is_antigravity(name, exe):
     return "/antigravity.app/" in exe or "/antigravity/" in exe or name == "antigravity.exe"
 
 
+def _is_ide(name, exe, app, exe_name=None):
+    """An editor installed as a macOS app bundle (Kiro.app), on Windows (%LOCALAPPDATA%/Programs/Kiro/
+    Kiro.exe) or on Linux (/usr/share/kiro). `app` is lowercase."""
+    return (f"/{app}.app/" in exe or f"/programs/{app}/" in exe or f"/share/{app}/" in exe
+            or name == f"{exe_name or app}.exe")
+
+
 def _is_kiro(name, exe):
-    # macOS app bundle, Windows (%LOCALAPPDATA%/Programs/Kiro) and Linux (/usr/share/kiro).
-    return "/kiro.app/" in exe or "/programs/kiro/" in exe or "/share/kiro/" in exe or name == "kiro.exe"
+    return _is_ide(name, exe, "kiro")
 
 
 def _is_devin_desktop(name, exe):
@@ -47,8 +53,9 @@ AI_APPS = [
     ("Codex", "client", lambda name, exe, cmd: name in ("codex", "codex.exe") or "/openai.chatgpt-" in exe),
     ("Amazon Q", "client", lambda name, exe, cmd: "/aws/language-servers/" in exe or "amazonq" in name),
     ("ChatGPT", "client", lambda name, exe, cmd: "/chatgpt.app/" in exe),
-    ("Cursor", "client", lambda name, exe, cmd: "/cursor.app/" in exe),
-    ("Windsurf", "client", lambda name, exe, cmd: "/windsurf.app/" in exe),
+    ("Cursor", "client", lambda name, exe, cmd: _is_ide(name, exe, "cursor")),
+    ("Windsurf", "client", lambda name, exe, cmd: _is_ide(name, exe, "windsurf")),
+    ("Trae", "client", lambda name, exe, cmd: _is_ide(name, exe, "trae")),
     # The `devin` agent is the Devin CLI, and Devin Desktop runs the same binary (`devin acp`).
     # Devin Desktop's own main process is also named Devin.
     ("Devin", "client", lambda name, exe, cmd: name in ("devin", "devin.exe")
@@ -56,6 +63,7 @@ AI_APPS = [
     ("Devin Desktop", "client", lambda name, exe, cmd: _is_devin_desktop(name, exe)),
     ("Antigravity", "client", lambda name, exe, cmd: _is_antigravity(name, exe)),
     ("Kiro", "client", lambda name, exe, cmd: _is_kiro(name, exe)),
+    ("Kiro Crew", "client", lambda name, exe, cmd: _is_ide(name, exe, "kirocrew")),
     ("Gemini CLI", "client", lambda name, exe, cmd: name == "gemini" or "@google/gemini-cli" in cmd),
     ("OpenCode", "client", lambda name, exe, cmd: "/opencode.app/" in exe or name == "opencode"),
     # Last: VS Code forks bundle VS Code's Copilot runtime, so they must match first.
@@ -66,19 +74,54 @@ AI_APPS = [
 # Cursor: their children include the user's own terminals.
 TOOL_RUNNERS = {"Claude Code", "Codex", "Gemini CLI", "OpenCode", "Devin"}
 
+# JetBrains IDEs: macOS bundle name, and the program name on Windows (idea64.exe) and in
+# Toolbox installs (~/.local/share/JetBrains/Toolbox/apps/idea-ultimate/...).
+JETBRAINS = {"IntelliJ IDEA": "idea", "PyCharm": "pycharm", "WebStorm": "webstorm", "GoLand": "goland",
+             "PhpStorm": "phpstorm", "RubyMine": "rubymine", "CLion": "clion", "Rider": "rider",
+             "DataGrip": "datagrip", "RustRover": "rustrover", "Android Studio": "studio"}
+
+
+def _is_jetbrains(name, exe, label, program):
+    return ((f"/{label.lower()}" in exe and ".app/" in exe) or name == f"{program}64.exe"
+            or ("/jetbrains/" in exe and f"/{program}" in exe))
+
+
 HOSTS = [
-    ("VS Code", lambda name, exe: "/visual studio code.app/" in exe or name == "code.exe"),
-    ("Cursor", lambda name, exe: "/cursor.app/" in exe or name == "cursor.exe"),
-    ("Windsurf", lambda name, exe: "/windsurf.app/" in exe or name == "windsurf.exe"),
+    ("VS Code", lambda name, exe: "/visual studio code.app/" in exe or name == "code.exe" or "/share/code/" in exe),
+    ("VS Code Insiders", lambda name, exe: "/visual studio code - insiders.app/" in exe
+     or name == "code - insiders.exe" or "/share/code-insiders/" in exe),
+    ("VSCodium", lambda name, exe: _is_ide(name, exe, "vscodium") or name == "codium"),
+    ("Cursor", lambda name, exe: _is_ide(name, exe, "cursor")),
+    ("Windsurf", lambda name, exe: _is_ide(name, exe, "windsurf")),
     ("Devin Desktop", lambda name, exe: _is_devin_desktop(name, exe)),
     ("Antigravity", lambda name, exe: _is_antigravity(name, exe)),
     ("Kiro", lambda name, exe: _is_kiro(name, exe)),
+    ("Kiro Crew", lambda name, exe: _is_ide(name, exe, "kirocrew")),
+    ("Trae", lambda name, exe: _is_ide(name, exe, "trae")),
+    ("Zed", lambda name, exe: "/zed.app/" in exe or "/zed preview.app/" in exe or name in ("zed", "zed.exe", "zed-editor")),
+    ("Orca", lambda name, exe: _is_ide(name, exe, "orca")),
+    ("OpenCode", lambda name, exe: "/opencode.app/" in exe),
+    *[(label, lambda name, exe, label=label, program=program: _is_jetbrains(name, exe, label, program))
+      for label, program in JETBRAINS.items()],
+    ("Xcode", lambda name, exe: "/xcode.app/contents/macos/" in exe),
     ("Terminal", lambda name, exe: "/terminal.app/" in exe),
     ("iTerm", lambda name, exe: "/iterm.app/" in exe),
-    ("Warp", lambda name, exe: "/warp.app/" in exe),
+    ("Warp", lambda name, exe: "/warp.app/" in exe or name in ("warp.exe", "warp-terminal")),
+    ("Ghostty", lambda name, exe: "/ghostty.app/" in exe or name == "ghostty"),
+    ("WezTerm", lambda name, exe: "/wezterm.app/" in exe or name in ("wezterm-gui", "wezterm-gui.exe")),
+    ("Alacritty", lambda name, exe: "/alacritty.app/" in exe or name in ("alacritty", "alacritty.exe")),
+    ("kitty", lambda name, exe: "/kitty.app/" in exe or name == "kitty"),
+    ("Hyper", lambda name, exe: "/hyper.app/" in exe or name == "hyper.exe"),
+    ("Tabby", lambda name, exe: "/tabby.app/" in exe or name == "tabby.exe"),
+    ("GNOME Terminal", lambda name, exe: name == "gnome-terminal-server"),
+    ("Konsole", lambda name, exe: name == "konsole"),
     ("Windows Terminal", lambda name, exe: name == "windowsterminal.exe"),
     ("PowerShell", lambda name, exe: name in ("powershell.exe", "pwsh.exe")),
 ]
+
+# Editors whose built-in AI runs in the editor's own process, so they are still counted
+# (as unrecognized AI apps) while they talk to an AI API.
+IN_PROCESS_AI_HOSTS = {"Zed", "Xcode"}
 
 MAX_DEPTH = 40  # guards against cycles in the parent chain
 
@@ -218,10 +261,11 @@ def app_key(pid, p):
 def is_candidate(pid, procs, known):
     """Could this be an AI app we don't know? Not a known app or a child of one (those are
     tool runs), not a known editor or terminal (their AI extensions share one process with
-    everything else), not a browser and not part of the OS. known = {pid: classify(...)}."""
+    everything else) unless its AI is built in, not a browser and not part of the OS.
+    known = {pid: classify(...)}."""
     p = procs[pid]
     name, exe, _ = _norm(p["name"], p["exe"], "")
-    if known[pid] or host_of(name, exe) or exe.startswith(SYSTEM_DIRS):
+    if known[pid] or host_of(name, exe) not in (None, *IN_PROCESS_AI_HOSTS) or exe.startswith(SYSTEM_DIRS):
         return False
     if any(known[a] for a in _ancestors(pid, procs)):
         return False
@@ -302,7 +346,7 @@ def find_ai_processes():
         model_path = flag_value(argv[pid], "--model") if label == "Ollama" and not tool_run else None
         key = (label, host, tool_run, model_path)
         model = f"{label} · tool runs" if tool_run else f"{label} · {UNRECOGNIZED}" if label in unknown else None
-        app = apps.setdefault(key, {"app": label, "model": model,
+        app = apps.setdefault(key, {"app": label, "model": model, "effort": None,
                                     "kind": kind, "host": host, "cpu_percent": 0.0, "rss_mb": 0.0,
                                     "pids": [], "model_path": model_path})
         app["cpu_percent"] += cpu
@@ -312,9 +356,11 @@ def find_ai_processes():
 
 
 def label_active_models(apps, active):
-    """Name the cloud model each client app is using, from `active` = {app: model id}."""
+    """Name the cloud model each client app is using, and the reasoning effort it asks for,
+    from `active` = {app: (model id, effort or None)}."""
     for app in apps:
-        model = active.get(app["app"])
+        model, effort = active.get(app["app"]) or (None, None)
         if app["kind"] == "client" and app["model"] is None and model:
             app["model"] = f"{app['app']} · {model}"
+            app["effort"] = effort
     return apps
