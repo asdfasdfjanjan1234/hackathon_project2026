@@ -5,7 +5,7 @@ import {
   HardDrive,
   Cloud,
 } from "lucide-react";
-import { peso, formatKwh, formatWatts } from "../format";
+import { peso, formatKwh, formatWatts, shortDate } from "../format";
 import { PARTS } from "./AppPowerParts";
 
 // Power class from the average watts while the model was doing work (measured, not a rating).
@@ -83,6 +83,7 @@ export default function UsageBreakdown({ usage }) {
             </h2>
             <div className="text-[10px] text-slate-400 font-sans truncate">
               Model execution benchmarks & cost attribution
+              {usage?.window && ` · ${shortDate(usage.window.start)} – ${shortDate(usage.window.end)}`}
             </div>
           </div>
         </div>
@@ -117,7 +118,7 @@ export default function UsageBreakdown({ usage }) {
             <tr className="border-b border-white/5 text-slate-400 uppercase tracking-wider text-[10px]">
               <th className="py-2.5 px-2 font-bold">MODEL RUNTIME</th>
               <th className="py-2.5 px-2 font-bold">HOST BUS</th>
-              <th className="py-2.5 px-2 font-bold">{usage?.window_days || 30}D ENERGY</th>
+              <th className="py-2.5 px-2 font-bold">{usage?.window?.short || `${usage?.window_days || 30}D`} ENERGY</th>
               <th className="py-2.5 px-2 font-bold">ATTRIBUTED TARIFF</th>
               <th className="py-2.5 px-2 font-bold text-center">POWER CLASS</th>
               <th className="py-2.5 px-2 font-bold text-right">TELEMETRY</th>
@@ -240,7 +241,7 @@ export default function UsageBreakdown({ usage }) {
       {/* Energy per host app (VS Code, Terminal, ...), from the device reader */}
       {usage?.by_host?.length > 0 && (
         <div className="mt-2 pt-3 border-t border-white/5">
-          <div className="text-[10px] uppercase tracking-wider text-slate-400 mb-1.5">By host (last 30 days)</div>
+          <div className="text-[10px] uppercase tracking-wider text-slate-400 mb-1.5">By host ({(usage.window?.label || "Last 30 days").toLowerCase()})</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
             {usage.by_host.map((h) => (
               <div

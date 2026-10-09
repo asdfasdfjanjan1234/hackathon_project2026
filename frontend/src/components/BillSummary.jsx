@@ -18,6 +18,7 @@ export default function BillSummary({ forecast, recs, liveReading, usage, rate }
     [usage]
   );
   const windowDays = usage?.window_days || 30;
+  const windowShort = usage?.window?.short || `${windowDays}D`;
   const factors = usage?.factors;
 
   const baselineBill = forecast.baseline_bill;
@@ -51,7 +52,7 @@ export default function BillSummary({ forecast, recs, liveReading, usage, rate }
     },
     {
       code: "METRIC-02",
-      title: `AI Energy on Bill (${windowDays}D)`,
+      title: `AI Energy on Bill (${windowShort})`,
       value: formatKwh(totalKwh, 1),
       subtext: factors
         ? `≈ ${formatCo2(totalKwh * factors.co2_kg_per_kwh)} · ${formatDuration((totalKwh * 1000) / factors.aircon_watts)} of a 1 HP aircon`

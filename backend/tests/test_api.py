@@ -55,3 +55,25 @@ def test_cloud_energy_not_counted_in_bill():
     daily = [{"kwh": 500, "source": "estimated"}]
     d = bill_impact(daily, 1500, 2500, 12, 12)
     assert d["ai_effect"] == 0 and d["cloud_ai_kwh_estimated"] == 500
+
+
+@pytest.mark.parametrize("window, days", [("7d", 7), ("30d", 30)])
+def test_usage_window_narrows_daily_rows(client, window, days):
+    data = client.get(f"/api/usage?range={window}").json
+    assert data["window"]["id"] == window
+    assert data["window_days"] == days
+    dates = {r["date"] for r in data["daily"]}
+    assert len(dates) == days
+    assert all(data["window"]["start"] <= d <= data["window"]["end"] for d in dates)
+
+
+def test_usage_month_to_date_starts_on_the_first(client):
+    data = client.get("/api/usage?range=month").json
+    assert data["window"]["start"].endswith("-01")
+    assert all(r["date"] >= data["window"]["start"] for r in data["daily"])
+
+
+def test_usage_shorter_window_uses_less_energy(client):
+    week = sum(m["kwh"] for m in client.get("/api/usage?range=7d").json["by_model"])
+    month = sum(m["kwh"] for m in client.get("/api/usage?range=30d").json["by_model"])
+    assert 0 < week < month

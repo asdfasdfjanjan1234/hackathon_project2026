@@ -33,6 +33,9 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [system, setSystem] = useState(null);
   const mainRef = useRef(null);
+  // Read by fetchData so a refresh keeps the selected window without re-creating the callback.
+  const dateRangeRef = useRef(dateRange);
+  dateRangeRef.current = dateRange;
 
   const effectiveLiveReading = useMemo(() => {
     if (!liveReading) return null;
@@ -66,7 +69,7 @@ export default function App() {
 
     try {
       const [usage, forecast, recs, impact] = await Promise.all([
-        api.usage(params),
+        api.usage(params, dateRangeRef.current),
         api.forecast(params),
         api.recommendations(params),
         api.impact(params),
@@ -146,37 +149,24 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  // The backend does the bill math; here we only narrow the usage table to the date range.
-  const processedData = useMemo(() => {
-    if (!rawData) return null;
-    const rate = rawData.usage.rate_per_kwh;
-    const today = new Date();
-    const since = new Date(today);
-    if (dateRange === "7d") since.setDate(today.getDate() - 7);
-    else if (dateRange === "month") since.setDate(1);
-    else since.setDate(today.getDate() - 30);
-    const sinceIso = since.toISOString().slice(0, 10);
-
-    const totals = {};
-    for (const row of rawData.usage.daily || []) {
-      if (row.date < sinceIso) continue;
-      const m = (totals[row.model] ||= {
-        model: row.model, kind: row.kind, source: row.source, kwh: 0, active_hours: 0,
+  // 7D / 30D / MTD: only usage depends on the window; the forecast and bill follow the billing cycle.
+  const usageRequest = useRef(0);
+  useEffect(() => {
+    if (!rawData) return;
+    const id = ++usageRequest.current;
+    setIsRefreshing(true);
+    api
+      .usage(customParams, dateRange)
+      .then((usage) => {
+        if (id === usageRequest.current) setRawData((d) => ({ ...d, usage }));
+      })
+      .catch((e) => setError(e.message || "Failed to load usage for this window."))
+      .finally(() => {
+        if (id === usageRequest.current) setIsRefreshing(false);
       });
-      m.kwh += row.kwh;
-      m.active_hours += row.active_hours || 0;
-    }
-    const byModel = Object.values(totals)
-      .map((m) => ({
-        ...m,
-        cost: m.kwh * rate,
-        active_watts: m.active_hours > 0 ? (m.kwh * 1000) / m.active_hours : null,
-      }))
-      .sort((a, b) => b.kwh - a.kwh);
-    const days = dateRange === "7d" ? 7 : dateRange === "month" ? today.getDate() : 30;
-
-    return { ...rawData, usage: { ...rawData.usage, by_model: byModel, window_days: days } };
-  }, [rawData, dateRange]);
+    // Runs only when the window changes; settings changes refetch everything through fetchData.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange]);
 
   // Header alerts: the budget warning and the biggest saving, straight from the recommendations.
   const alerts = useMemo(() => {
@@ -279,22 +269,22 @@ export default function App() {
       case "analytics":
         return (
           <>
-            <ForecastChart forecast={processedData.forecast} recs={processedData.recs} />
-            <BillImpact impact={processedData.impact} />
+            <ForecastChart forecast={rawData.forecast} recs={rawData.recs} />
+            <BillImpact impact={rawData.impact} />
           </>
         );
       case "models":
-        return <UsageBreakdown usage={processedData.usage} />;
+        return <UsageBreakdown usage={rawData.usage} />;
       case "recommendations":
-        return <Recommendations recs={processedData.recs} liveReading={liveReading} onApplied={refresh} />;
+        return <Recommendations recs={rawData.recs} liveReading={liveReading} onApplied={refresh} />;
       default:
         return (
           <>
             <BillSummary
-              forecast={processedData.forecast}
-              recs={processedData.recs}
+              forecast={rawData.forecast}
+              recs={rawData.recs}
               liveReading={effectiveLiveReading}
-              usage={processedData.usage}
+              usage={rawData.usage}
               rate={customParams?.rate}
             />
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-w-0">
@@ -302,14 +292,14 @@ export default function App() {
                 <LiveWattage reading={effectiveLiveReading} />
               </div>
               <div className="lg:col-span-7 flex flex-col min-w-0">
-                <ForecastChart forecast={processedData.forecast} recs={processedData.recs} />
+                <ForecastChart forecast={rawData.forecast} recs={rawData.recs} />
               </div>
             </div>
             <ScaleUp
               liveReading={liveReading}
-              forecast={processedData.forecast}
-              recs={processedData.recs}
-              rate={customParams?.rate ?? processedData.usage.rate_per_kwh}
+              forecast={rawData.forecast}
+              recs={rawData.recs}
+              rate={customParams?.rate ?? rawData.usage.rate_per_kwh}
             />
           </>
         );

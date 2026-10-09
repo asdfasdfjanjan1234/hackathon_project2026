@@ -365,9 +365,9 @@ def idle_loaded(conn, days=7, device_id=None):
              "rss_mb": round(r["rss_mb"] or 0, 1), "days": days} for r in rows]
 
 
-def host_usage(conn, days=30, device_id=None):
+def host_usage(conn, days=30, device_id=None, since=None):
     """kWh per AI app and the host it ran in (VS Code, Terminal, ...)."""
-    since = time.time() - days * 86400
+    since = time.time() - days * 86400 if since is None else since
     where, params = _device_filter(device_id)
     rows = conn.execute(
         f"""
@@ -379,10 +379,10 @@ def host_usage(conn, days=30, device_id=None):
     return [{"app": r["app"], "host": r["host"], "kwh": round(r["kwh"], 6)} for r in rows]
 
 
-def app_part_usage(conn, days=30, device_id=None):
+def app_part_usage(conn, days=30, device_id=None, since=None):
     """kWh per AI app or model, split into CPU, GPU and memory. Readings stored before the
     split was recorded count as "unsplit"."""
-    since = time.time() - days * 86400
+    since = time.time() - days * 86400 if since is None else since
     where, params = _device_filter(device_id)
     sums = ", ".join(f"SUM(COALESCE({p}_watts, 0) * interval_s) / 3600000.0 AS {p}_kwh" for p in ("cpu", "gpu", "memory"))
     rows = conn.execute(

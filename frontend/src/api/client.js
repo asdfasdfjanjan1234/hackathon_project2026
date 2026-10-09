@@ -32,7 +32,11 @@ function billQuery(params) {
 }
 
 export const api = {
-  usage: (params) => get(`/usage${billQuery(params)}`),
+  // range: "7d", "30d" or "month" (month to date).
+  usage: (params, range = "30d") => {
+    const q = billQuery(params);
+    return get(`/usage${q ? `${q}&` : "?"}range=${range}`);
+  },
   forecast: (params) => get(`/forecast${billQuery(params)}`),
   recommendations: (params) => get(`/recommendations${billQuery(params)}`),
   impact: (params) => get(`/impact${billQuery(params)}`),

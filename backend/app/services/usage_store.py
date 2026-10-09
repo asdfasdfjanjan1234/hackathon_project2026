@@ -3,6 +3,7 @@
 import platform
 from collections import defaultdict
 from contextlib import closing
+from datetime import date, datetime, timedelta
 from functools import lru_cache
 
 from flask import current_app
@@ -36,11 +37,31 @@ def connect():
     return closing(storage.connect(current_app.config["DATABASE"]))
 
 
-def get_daily_usage():
+def get_daily_usage(days=30):
     if data_source() == "sample":
         return generate_daily_usage()
     with connect() as conn:
-        return storage.daily_usage(conn, device_id=this_device_id(conn))
+        return storage.daily_usage(conn, days=days, device_id=this_device_id(conn))
+
+
+# The dashboard's time windows: id -> (short label, label).
+WINDOWS = {"7d": ("7D", "Last 7 days"), "30d": ("30D", "Last 30 days"), "month": ("MTD", "Month to date")}
+
+
+def usage_window(window_id, end=None):
+    """The 7D, 30D or MTD window: N calendar days through `end` (default today), or the 1st of
+    the month through `end`. The sample data ends yesterday, so it passes that as `end`."""
+    if window_id not in WINDOWS:
+        window_id = "30d"
+    end = end or date.today()
+    if window_id == "month":
+        start = end.replace(day=1)
+    else:
+        start = end - timedelta(days=(7 if window_id == "7d" else 30) - 1)
+    short, label = WINDOWS[window_id]
+    return {"id": window_id, "short": short, "label": label, "start": start.isoformat(),
+            "end": end.isoformat(), "days": (end - start).days + 1,
+            "since_ts": datetime.combine(start, datetime.min.time()).timestamp()}
 
 
 def get_signals():
