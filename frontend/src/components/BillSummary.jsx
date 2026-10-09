@@ -16,7 +16,44 @@ const TAG_CLASS = {
   neutral: "tech-tag-neutral",
 };
 
-export default function BillSummary({ forecast, recs, liveReading, usage, rate }) {
+export function TrajectoryBanner({ forecast, recs }) {
+  if (!forecast) return null;
+  const baselineBill = forecast.baseline_bill;
+  const forecastBill = forecast.forecast_bill;
+  const optimizedBill = forecast.forecast_bill_with_recommendations ?? recs?.bill_with_recommendations ?? forecastBill;
+  const budget = forecast.budget;
+  const isOverBudget = budget != null && forecastBill > budget;
+  const nextMonth = forecast.projections?.[0];
+  const forecastTone = isOverBudget ? "text-neg" : "text-ink";
+
+  return (
+    <div className="dash-card p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 min-w-0">
+      <p className="text-sm text-ink-soft leading-relaxed min-w-0">
+        <span className="font-medium text-ink">Trajectory: </span>
+        This cycle projects to <strong className={`font-semibold tabular-nums ${forecastTone}`}>{peso(forecastBill)}</strong> vs{" "}
+        <span className="tabular-nums">{peso(baselineBill)}</span> base
+        {nextMonth && (
+          <>
+            {" "}· next month <strong className="font-semibold text-ink tabular-nums">{peso(nextMonth.bill)}</strong>, or{" "}
+            <strong className="font-semibold text-pos tabular-nums">{peso(nextMonth.bill_with_recommendations)}</strong> with
+            recommendations
+          </>
+        )}
+        .
+      </p>
+
+      <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 shrink-0">
+        <Step label="Baseline" value={peso(baselineBill)} />
+        <ArrowRight className="hidden sm:block w-4 h-4 text-ink-muted shrink-0" />
+        <Step label="Current path" value={peso(forecastBill)} valueClass={forecastTone} />
+        <ArrowRight className="hidden sm:block w-4 h-4 text-ink-muted shrink-0" />
+        <Step label="With recs" value={peso(optimizedBill)} valueClass="text-pos" />
+      </div>
+    </div>
+  );
+}
+
+export function BillMetricsGrid({ forecast, recs, liveReading, usage, rate }) {
   const currentWatts = liveReading?.watts;
   const estimated = liveReading?.estimated ?? false;
   const collecting = liveReading?.source === "collector";
@@ -29,14 +66,13 @@ export default function BillSummary({ forecast, recs, liveReading, usage, rate }
   const windowShort = usage?.window?.short || `${windowDays}D`;
   const factors = usage?.factors;
 
-  const baselineBill = forecast.baseline_bill;
-  const forecastBill = forecast.forecast_bill;
-  const aiCost = forecast.ai_cost;
-  const optimizedBill = forecast.forecast_bill_with_recommendations ?? recs?.bill_with_recommendations ?? forecastBill;
-  const potentialSavings = Math.max(0, forecastBill - optimizedBill);
-  const budget = forecast.budget;
+  const baselineBill = forecast?.baseline_bill;
+  const forecastBill = forecast?.forecast_bill;
+  const aiCost = forecast?.ai_cost ?? 0;
+  const optimizedBill = forecast?.forecast_bill_with_recommendations ?? recs?.bill_with_recommendations ?? forecastBill;
+  const potentialSavings = Math.max(0, (forecastBill ?? 0) - (optimizedBill ?? 0));
+  const budget = forecast?.budget;
   const isOverBudget = budget != null && forecastBill > budget;
-  const nextMonth = forecast.projections?.[0];
   const idle = liveReading?.power_model?.idle_watts;
   const forecastTone = isOverBudget ? "text-neg" : "text-ink";
 
@@ -82,7 +118,7 @@ export default function BillSummary({ forecast, recs, liveReading, usage, rate }
       title: "Cycle projection",
       value: peso(forecastBill),
       valueClass: forecastTone,
-      subtext: `${shortDate(forecast.cycle?.start)} – ${shortDate(forecast.cycle?.end)} · Cap: ${peso(budget)}`,
+      subtext: `${shortDate(forecast?.cycle?.start)} – ${shortDate(forecast?.cycle?.end)} · Cap: ${peso(budget)}`,
       badge: isOverBudget ? `Over by +${peso(forecastBill - budget)}` : "In budget",
       badgeType: isOverBudget ? "alert" : "pos",
       icon: Calendar,
@@ -93,58 +129,40 @@ export default function BillSummary({ forecast, recs, liveReading, usage, rate }
   ];
 
   return (
-    <div className="space-y-4 min-w-0">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 min-w-0">
-        {cards.map((card, i) => {
-          const Icon = card.icon;
-          return (
-            <div key={i} className="stat-card flex flex-col justify-between min-w-0">
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <span className="eyebrow">{card.title}</span>
-                  <Icon className="w-4 h-4 text-ink-muted shrink-0" />
-                </div>
-                <div className={`text-[28px] leading-none font-semibold tracking-tight tabular-nums truncate ${card.valueClass || "text-ink"}`}>
-                  {card.value}
-                </div>
-                <div className="text-xs text-ink-muted mt-2 leading-snug">{card.subtext}</div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0 h-full">
+      {cards.map((card, i) => {
+        const Icon = card.icon;
+        return (
+          <div key={i} className="stat-card flex flex-col justify-between min-w-0 h-full">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <span className="eyebrow">{card.title}</span>
+                <Icon className="w-4 h-4 text-ink-muted shrink-0" />
               </div>
-
-              <div className="mt-4 pt-3 border-t border-line flex items-center justify-between gap-2">
-                <span className="text-xs text-ink-soft truncate" title={card.delta.text}>
-                  {card.delta.text}
-                </span>
-                <span className={`tech-tag shrink-0 ${TAG_CLASS[card.badgeType]}`}>{card.badge}</span>
+              <div className={`text-[28px] leading-none font-semibold tracking-tight tabular-nums truncate ${card.valueClass || "text-ink"}`}>
+                {card.value}
               </div>
+              <div className="text-xs text-ink-muted mt-2 leading-snug">{card.subtext}</div>
             </div>
-          );
-        })}
-      </div>
 
-      {/* Where this cycle's bill is heading */}
-      <div className="dash-card p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 min-w-0">
-        <p className="text-sm text-ink-soft leading-relaxed min-w-0">
-          <span className="font-medium text-ink">Trajectory: </span>
-          This cycle projects to <strong className={`font-semibold tabular-nums ${forecastTone}`}>{peso(forecastBill)}</strong> vs{" "}
-          <span className="tabular-nums">{peso(baselineBill)}</span> base
-          {nextMonth && (
-            <>
-              {" "}· next month <strong className="font-semibold text-ink tabular-nums">{peso(nextMonth.bill)}</strong>, or{" "}
-              <strong className="font-semibold text-pos tabular-nums">{peso(nextMonth.bill_with_recommendations)}</strong> with
-              recommendations
-            </>
-          )}
-          .
-        </p>
+            <div className="mt-4 pt-3 border-t border-line flex items-center justify-between gap-2">
+              <span className="text-xs text-ink-soft truncate" title={card.delta.text}>
+                {card.delta.text}
+              </span>
+              <span className={`tech-tag shrink-0 ${TAG_CLASS[card.badgeType]}`}>{card.badge}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
-        <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 shrink-0">
-          <Step label="Baseline" value={peso(baselineBill)} />
-          <ArrowRight className="hidden sm:block w-4 h-4 text-ink-muted shrink-0" />
-          <Step label="Current path" value={peso(forecastBill)} valueClass={forecastTone} />
-          <ArrowRight className="hidden sm:block w-4 h-4 text-ink-muted shrink-0" />
-          <Step label="With recs" value={peso(optimizedBill)} valueClass="text-pos" />
-        </div>
-      </div>
+export default function BillSummary(props) {
+  return (
+    <div className="space-y-4 min-w-0">
+      <TrajectoryBanner forecast={props.forecast} recs={props.recs} />
+      <BillMetricsGrid {...props} />
     </div>
   );
 }

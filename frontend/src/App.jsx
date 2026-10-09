@@ -3,7 +3,7 @@ import { api } from "./api/client";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import LiveWattage from "./components/LiveWattage";
-import BillSummary from "./components/BillSummary";
+import { TrajectoryBanner, BillMetricsGrid } from "./components/BillSummary";
 import UsageBreakdown from "./components/UsageBreakdown";
 import ForecastChart from "./components/ForecastChart";
 import Recommendations from "./components/Recommendations";
@@ -246,22 +246,32 @@ export default function App() {
       default:
         return (
           <>
-            <BillSummary
-              forecast={rawData.forecast}
-              recs={rawData.recs}
-              liveReading={liveReading}
-              usage={rawData.usage}
-              rate={customParams?.rate}
-            />
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-w-0">
-              <div className="lg:col-span-5 flex flex-col min-w-0">
-                <LiveWattage reading={liveReading} />
+            {/* Row 1: Trajectory container */}
+            <TrajectoryBanner forecast={rawData.forecast} recs={rawData.recs} />
+
+            {/* Row 2: 2x2 cards (Left) + Cycle projection trajectory card (Right, equal height) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0 items-stretch">
+              <div className="min-w-0 flex flex-col h-full">
+                <BillMetricsGrid
+                  forecast={rawData.forecast}
+                  recs={rawData.recs}
+                  liveReading={liveReading}
+                  usage={rawData.usage}
+                  rate={customParams?.rate}
+                />
               </div>
-              <div className="lg:col-span-7 flex flex-col min-w-0">
-                <ForecastChart forecast={rawData.forecast} recs={rawData.recs} />
+              <div className="min-w-0 flex flex-col h-full">
+                <ForecastChart forecast={rawData.forecast} recs={rawData.recs} className="h-full" />
               </div>
             </div>
+
+            {/* Row 3: Active power draw monitor (divided into two balanced cards, scrollable) */}
+            <LiveWattage reading={liveReading} />
+
+            {/* Row 4: Best time to run local AI card */}
             <BestTime info={rawData.bestTime} onOpenSettings={() => setSettingsOpen(true)} />
+
+            {/* Row 5: If you kept this up */}
             <ScaleUp
               liveReading={liveReading}
               forecast={rawData.forecast}

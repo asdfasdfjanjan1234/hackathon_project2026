@@ -39,11 +39,11 @@ function CustomTooltip({ active, payload, label }) {
 
 // Cumulative bill over the billing cycle, from the backend's day-by-day forecast:
 // measured days, then the projection on the current path and with the recommendations.
-export default function ForecastChart({ forecast }) {
+export default function ForecastChart({ forecast, recs, className = "" }) {
   const daily = forecast?.daily || [];
   const baselineBill = forecast?.baseline_bill ?? 0;
   const forecastBill = forecast?.forecast_bill ?? 0;
-  const recsBill = forecast?.forecast_bill_with_recommendations ?? forecastBill;
+  const recsBill = forecast?.forecast_bill_with_recommendations ?? recs?.bill_with_recommendations ?? forecastBill;
   const budget = forecast?.budget;
   const cycle = forecast?.cycle;
   const coverage = forecast?.coverage;
@@ -70,7 +70,7 @@ export default function ForecastChart({ forecast }) {
   const totalSavings = Math.max(0, forecastBill - recsBill);
 
   return (
-    <section className="dash-card p-5 flex flex-col justify-between min-w-0">
+    <section className={`dash-card p-5 flex flex-col justify-between min-w-0 ${className}`}>
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between pb-4 border-b border-line gap-2">
         <div className="min-w-0">
@@ -90,7 +90,7 @@ export default function ForecastChart({ forecast }) {
         <span className="tech-tag tech-tag-pos tabular-nums">Savings with recs: {peso(totalSavings)}</span>
       </div>
 
-      <div className="pt-4 pb-1 h-64 sm:h-80 w-full min-w-0 overflow-hidden">
+      <div className="pt-4 pb-1 flex-1 min-h-[260px] sm:min-h-[280px] w-full min-w-0 overflow-hidden">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -6, bottom: 0 }}>
             <CartesianGrid stroke={color("line")} vertical={false} />
