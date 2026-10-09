@@ -143,7 +143,7 @@ def test_system_endpoint_reports_detected_os_and_sensors(tmp_path, monkeypatch):
     fake = Sensors(system=WINDOWS, platform_sensors=FakePlatform({"cpu": "EMI (RAPL)"}, {}))
     monkeypatch.setattr(system_route, "default_sensors", lambda: fake)
     flask_app = create_app()
-    flask_app.config.update(TESTING=True, DB_PATH=str(tmp_path / "t.db"))
+    flask_app.config.update(TESTING=True, DATABASE=str(tmp_path / "t.db"))
     body = flask_app.test_client().get("/api/system").json
     assert body["system"]["os"] == "windows"
     assert body["sensors"]["cpu"] == "EMI (RAPL)" and body["sensors"]["memory"] is None

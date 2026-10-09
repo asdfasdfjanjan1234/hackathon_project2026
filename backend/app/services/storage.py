@@ -1,65 +1,216 @@
-"""SQLite storage for collector readings."""
+"""Database for device readings: MySQL when DATABASE is a mysql:// URL, otherwise a SQLite file.
+
+    mysql://user:password@localhost:3306/ai_wattage   MySQL (tables are created on first connect)
+    /path/to/wattage.db                               SQLite (default, used by the tests)
+
+Every reading row carries the device_id of the computer that took it (the `devices` table).
+"""
 
 import json
 import os
 import sqlite3
 import time
+from urllib.parse import unquote, urlparse
 
 from .attribution import PowerModel
 from .measurement import DERIVED
 
-SCHEMA = """
+SQLITE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS devices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, machine_id TEXT UNIQUE NOT NULL, name TEXT,
+    os TEXT, os_version TEXT, arch TEXT, model TEXT, cpu TEXT, memory_gb REAL, first_seen REAL
+);
 CREATE TABLE IF NOT EXISTS samples (
     ts REAL, interval_s REAL, cpu_percent REAL, gpu_percent REAL,
-    est_watts REAL, measured_watts REAL
+    est_watts REAL, measured_watts REAL, device_id INTEGER
 );
 CREATE TABLE IF NOT EXISTS ai_samples (
     ts REAL, interval_s REAL, app TEXT, model TEXT, kind TEXT,
-    cpu_percent REAL, rss_mb REAL, watts REAL, host TEXT
+    cpu_percent REAL, rss_mb REAL, watts REAL, host TEXT, device_id INTEGER
 );
 CREATE TABLE IF NOT EXISTS power_windows (
-    ts REAL, avg_watts REAL, avg_cpu REAL, avg_gpu REAL, n_samples INTEGER
+    ts REAL, avg_watts REAL, avg_cpu REAL, avg_gpu REAL, n_samples INTEGER, device_id INTEGER
 );
 CREATE TABLE IF NOT EXISTS component_samples (
-    ts REAL, interval_s REAL, component TEXT, watts REAL, source TEXT
+    ts REAL, interval_s REAL, component TEXT, watts REAL, source TEXT, device_id INTEGER
 );
-CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS settings (`key` TEXT PRIMARY KEY, value TEXT);
 CREATE INDEX IF NOT EXISTS idx_samples_ts ON samples(ts);
 CREATE INDEX IF NOT EXISTS idx_ai_samples_ts ON ai_samples(ts);
 CREATE INDEX IF NOT EXISTS idx_component_samples_ts ON component_samples(ts);
 """
 
+MYSQL_SCHEMA = """
+CREATE TABLE IF NOT EXISTS devices (
+    id INT AUTO_INCREMENT PRIMARY KEY, machine_id VARCHAR(128) NOT NULL UNIQUE, name VARCHAR(255),
+    os VARCHAR(32), os_version VARCHAR(255), arch VARCHAR(32), model VARCHAR(255), cpu VARCHAR(255),
+    memory_gb DOUBLE, first_seen DOUBLE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS samples (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, device_id INT, ts DOUBLE NOT NULL, interval_s DOUBLE,
+    cpu_percent DOUBLE, gpu_percent DOUBLE, est_watts DOUBLE, measured_watts DOUBLE,
+    INDEX idx_samples_ts (ts), INDEX idx_samples_device_ts (device_id, ts),
+    FOREIGN KEY (device_id) REFERENCES devices(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS ai_samples (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, device_id INT, ts DOUBLE NOT NULL, interval_s DOUBLE,
+    app VARCHAR(255), model VARCHAR(255), kind VARCHAR(32), cpu_percent DOUBLE, rss_mb DOUBLE,
+    watts DOUBLE, host VARCHAR(255),
+    INDEX idx_ai_samples_ts (ts), FOREIGN KEY (device_id) REFERENCES devices(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS power_windows (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, device_id INT, ts DOUBLE NOT NULL, avg_watts DOUBLE,
+    avg_cpu DOUBLE, avg_gpu DOUBLE, n_samples INT,
+    INDEX idx_power_windows_ts (ts), FOREIGN KEY (device_id) REFERENCES devices(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS component_samples (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, device_id INT, ts DOUBLE NOT NULL, interval_s DOUBLE,
+    component VARCHAR(32), watts DOUBLE, source VARCHAR(64),
+    INDEX idx_component_samples_ts (ts), FOREIGN KEY (device_id) REFERENCES devices(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS settings (
+    `key` VARCHAR(64) PRIMARY KEY, value TEXT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+"""
 
-def connect(path):
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+READING_TABLES = ("samples", "ai_samples", "power_windows", "component_samples")
+
+
+class Database:
+    """One connection to SQLite or MySQL. Queries use ? placeholders and rows read like dicts."""
+
+    def __init__(self, raw, dialect):
+        self.raw = raw
+        self.dialect = dialect
+
+    def execute(self, sql, params=()):
+        cur = self.raw.cursor()
+        cur.execute(self._sql(sql), params)
+        return cur
+
+    def executemany(self, sql, rows):
+        rows = list(rows)
+        if rows:
+            self.raw.cursor().executemany(self._sql(sql), rows)
+
+    def commit(self):
+        self.raw.commit()
+
+    def close(self):
+        self.raw.close()
+
+    def day(self, column="ts"):
+        """SQL for the local calendar day of a Unix timestamp column."""
+        if self.dialect == "mysql":
+            return f"DATE(FROM_UNIXTIME({column}))"  # session time zone is set to local time on connect
+        return f"date({column}, 'unixepoch', 'localtime')"
+
+    def _sql(self, sql):
+        return sql.replace("?", "%s") if self.dialect == "mysql" else sql
+
+
+def is_mysql(target):
+    return str(target).startswith("mysql://")
+
+
+def describe(target):
+    """`target` without its password, for printing."""
+    if not is_mysql(target):
+        return target
+    u = urlparse(target)
+    return f"mysql://{u.username or 'root'}@{u.hostname or 'localhost'}:{u.port or 3306}{u.path}"
+
+
+def connect(target):
+    """Open the database at `target` (a SQLite path or a mysql:// URL) and create missing tables."""
+    if is_mysql(target):
+        return _connect_mysql(target)
+    os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
     # The device reader writes from its own thread while requests read, so wait on locks.
-    conn = sqlite3.connect(path, timeout=10)
-    conn.row_factory = sqlite3.Row
-    conn.executescript(SCHEMA)
-    # Databases from before the host column was added.
-    if "host" not in {r["name"] for r in conn.execute("PRAGMA table_info(ai_samples)")}:
-        conn.execute("ALTER TABLE ai_samples ADD COLUMN host TEXT")
-    return conn
+    raw = sqlite3.connect(target, timeout=10)
+    raw.row_factory = sqlite3.Row
+    raw.executescript(SQLITE_SCHEMA)
+    # Databases from before the host and device_id columns were added.
+    for table, column, kind in [("ai_samples", "host", "TEXT")] + [(t, "device_id", "INTEGER") for t in READING_TABLES]:
+        if column not in {r["name"] for r in raw.execute(f"PRAGMA table_info({table})")}:
+            raw.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+    return Database(raw, "sqlite")
 
 
-def save_sample(conn, ts, interval_s, cpu, gpu, est_watts, measured_watts, apps, components=None):
-    conn.execute("INSERT INTO samples VALUES (?, ?, ?, ?, ?, ?)",
-                 (ts, interval_s, cpu, gpu, est_watts, measured_watts))
+def _connect_mysql(url):
+    import pymysql
+
+    u = urlparse(url)
+    raw = pymysql.connect(
+        host=u.hostname or "localhost", port=u.port or 3306,
+        user=unquote(u.username or "root"), password=unquote(u.password or ""),
+        database=u.path.lstrip("/") or "ai_wattage",
+        charset="utf8mb4", cursorclass=pymysql.cursors.DictCursor,
+    )
+    db = Database(raw, "mysql")
+    # Group readings by the day on this computer's clock, as SQLite's 'localtime' does.
+    offset = time.localtime().tm_gmtoff
+    sign = "+" if offset >= 0 else "-"
+    db.execute("SET time_zone = ?", (f"{sign}{abs(offset) // 3600:02d}:{abs(offset) % 3600 // 60:02d}",))
+    for statement in filter(str.strip, MYSQL_SCHEMA.split(";")):
+        db.execute(statement)
+    db.commit()
+    return db
+
+
+def register_device(conn, system):
+    """Add this computer to `devices` (or refresh its details) and return its id."""
+    mid = system.get("machine_id") or system.get("hostname") or "unknown"
+    details = (system.get("hostname"), system.get("os"), system.get("os_version"), system.get("arch"),
+               (system.get("device") or {}).get("model"), system.get("cpu"), system.get("memory_gb"))
+    row = conn.execute("SELECT id FROM devices WHERE machine_id = ?", (mid,)).fetchone()
+    if row:
+        conn.execute("UPDATE devices SET name = ?, os = ?, os_version = ?, arch = ?, model = ?, cpu = ?, "
+                     "memory_gb = ? WHERE id = ?", (*details, row["id"]))
+        conn.commit()
+        return row["id"]
+    conn.execute("INSERT INTO devices (machine_id, name, os, os_version, arch, model, cpu, memory_gb, first_seen) "
+                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (mid, *details, time.time()))
+    conn.commit()
+    return conn.execute("SELECT id FROM devices WHERE machine_id = ?", (mid,)).fetchone()["id"]
+
+
+def list_devices(conn):
+    """Every device that has stored readings, with how many and when it last read."""
+    rows = conn.execute(
+        """
+        SELECT d.id, d.name, d.os, d.os_version, d.arch, d.model, d.cpu, d.memory_gb, d.first_seen,
+               COUNT(s.ts) AS samples, MAX(s.ts) AS last_seen
+        FROM devices d LEFT JOIN samples s ON s.device_id = d.id
+        GROUP BY d.id, d.name, d.os, d.os_version, d.arch, d.model, d.cpu, d.memory_gb, d.first_seen
+        ORDER BY last_seen DESC
+        """
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def save_sample(conn, ts, interval_s, cpu, gpu, est_watts, measured_watts, apps, components=None, device_id=None):
+    conn.execute(
+        "INSERT INTO samples (ts, interval_s, cpu_percent, gpu_percent, est_watts, measured_watts, device_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (ts, interval_s, cpu, gpu, est_watts, measured_watts, device_id))
     conn.executemany(
-        "INSERT INTO ai_samples (ts, interval_s, app, model, kind, cpu_percent, rss_mb, watts, host) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [(ts, interval_s, a["app"], a["model"], a["kind"], a["cpu_percent"], a["rss_mb"], a["watts"], a.get("host"))
-         for a in apps],
+        "INSERT INTO ai_samples (ts, interval_s, app, model, kind, cpu_percent, rss_mb, watts, host, device_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [(ts, interval_s, a["app"], a["model"], a["kind"], a["cpu_percent"], a["rss_mb"], a["watts"], a.get("host"),
+          device_id) for a in apps],
     )
     conn.executemany(
-        "INSERT INTO component_samples VALUES (?, ?, ?, ?, ?)",
-        [(ts, interval_s, name, c["watts"], c["source"]) for name, c in (components or {}).items()],
+        "INSERT INTO component_samples (ts, interval_s, component, watts, source, device_id) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        [(ts, interval_s, name, c["watts"], c["source"], device_id) for name, c in (components or {}).items()],
     )
     conn.commit()
 
 
-def save_window(conn, ts, avg_watts, avg_cpu, avg_gpu, n_samples):
-    conn.execute("INSERT INTO power_windows VALUES (?, ?, ?, ?, ?)", (ts, avg_watts, avg_cpu, avg_gpu, n_samples))
+def save_window(conn, ts, avg_watts, avg_cpu, avg_gpu, n_samples, device_id=None):
+    conn.execute("INSERT INTO power_windows (ts, avg_watts, avg_cpu, avg_gpu, n_samples, device_id) "
+                 "VALUES (?, ?, ?, ?, ?, ?)", (ts, avg_watts, avg_cpu, avg_gpu, n_samples, device_id))
     conn.commit()
 
 
@@ -67,16 +218,16 @@ def recent_windows(conn, limit=500):
     rows = conn.execute(
         "SELECT avg_watts, avg_cpu, avg_gpu FROM power_windows ORDER BY ts DESC LIMIT ?", (limit,)
     ).fetchall()
-    return [tuple(r) for r in rows]
+    return [(r["avg_watts"], r["avg_cpu"], r["avg_gpu"]) for r in rows]
 
 
 def get_power_model(conn):
-    row = conn.execute("SELECT value FROM settings WHERE key = 'power_model'").fetchone()
+    row = conn.execute("SELECT value FROM settings WHERE `key` = 'power_model'").fetchone()
     return PowerModel(**json.loads(row["value"])) if row else None
 
 
 def set_power_model(conn, model):
-    conn.execute("INSERT OR REPLACE INTO settings VALUES ('power_model', ?)", (json.dumps(model.to_dict()),))
+    conn.execute("REPLACE INTO settings (`key`, value) VALUES ('power_model', ?)", (json.dumps(model.to_dict()),))
     conn.commit()
 
 
@@ -102,6 +253,7 @@ def latest_sample(conn, max_age_s=15):
         "apps": [dict(a) for a in apps],
         "components": {c["component"]: {"watts": c["watts"], "source": c["source"]} for c in components},
         "power_model": model.to_dict(),
+        "device_id": s["device_id"],
         "source": "collector",
         "simulated": False,
     }
@@ -111,8 +263,8 @@ def daily_usage(conn, days=30):
     """Daily kWh per AI app or model, in the same shape as the sample data."""
     since = time.time() - days * 86400
     rows = conn.execute(
-        """
-        SELECT date(ts, 'unixepoch', 'localtime') AS date,
+        f"""
+        SELECT {conn.day()} AS date,
                COALESCE(model, app) AS model,
                kind,
                SUM(watts * interval_s) / 3600000.0 AS kwh
@@ -121,7 +273,7 @@ def daily_usage(conn, days=30):
         """,
         (since,),
     ).fetchall()
-    return [{"date": r["date"], "model": r["model"], "kind": r["kind"],
+    return [{"date": str(r["date"]), "model": r["model"], "kind": r["kind"],
              "kwh": round(r["kwh"], 6), "source": "measured"} for r in rows]
 
 
@@ -139,15 +291,15 @@ def host_usage(conn, days=30):
 
 
 def sample_count(conn):
-    return conn.execute("SELECT COUNT(*) FROM samples").fetchone()[0]
+    return conn.execute("SELECT COUNT(*) AS n FROM samples").fetchone()["n"]
 
 
 def daily_component_usage(conn, days=30):
     """Daily kWh per component (cpu, gpu, memory, disk, other) and how it was obtained."""
     since = time.time() - days * 86400
     rows = conn.execute(
-        """
-        SELECT date(ts, 'unixepoch', 'localtime') AS date, component,
+        f"""
+        SELECT {conn.day()} AS date, component,
                SUM(watts * interval_s) / 3600000.0 AS kwh,
                SUM(CASE WHEN source IN ('estimated', ?) THEN 0 ELSE interval_s END)
                    / SUM(interval_s) AS measured_share
@@ -156,5 +308,33 @@ def daily_component_usage(conn, days=30):
         """,
         (DERIVED, since),
     ).fetchall()
-    return [{"date": r["date"], "component": r["component"], "kwh": round(r["kwh"], 6),
+    return [{"date": str(r["date"]), "component": r["component"], "kwh": round(r["kwh"], 6),
              "measured_share": round(r["measured_share"], 3)} for r in rows]
+
+
+def readings(conn, since=None, until=None, device_id=None, limit=1000):
+    """Stored readings, newest first, each with its per-component watts and AI apps."""
+    where, params = ["1 = 1"], []
+    for clause, value in (("ts >= ?", since), ("ts <= ?", until), ("device_id = ?", device_id)):
+        if value is not None:
+            where.append(clause)
+            params.append(value)
+    rows = [dict(r) for r in conn.execute(
+        f"SELECT ts, device_id, interval_s, cpu_percent, gpu_percent, est_watts, measured_watts FROM samples "
+        f"WHERE {' AND '.join(where)} ORDER BY ts DESC LIMIT ?", (*params, limit)
+    ).fetchall()]
+    if not rows:
+        return rows
+    lo, hi = rows[-1]["ts"], rows[0]["ts"]
+    parts, apps = {}, {}
+    for r in conn.execute("SELECT ts, device_id, component, watts, source FROM component_samples "
+                          "WHERE ts BETWEEN ? AND ?", (lo, hi)):
+        parts.setdefault((r["ts"], r["device_id"]), {})[r["component"]] = {"watts": r["watts"], "source": r["source"]}
+    for r in conn.execute("SELECT ts, device_id, app, model, kind, host, cpu_percent, rss_mb, watts FROM ai_samples "
+                          "WHERE ts BETWEEN ? AND ?", (lo, hi)):
+        r = dict(r)
+        apps.setdefault((r.pop("ts"), r.pop("device_id")), []).append(r)
+    for r in rows:
+        key = (r["ts"], r["device_id"])
+        r["components"], r["apps"] = parts.get(key, {}), apps.get(key, [])
+    return rows

@@ -14,8 +14,10 @@ e.g. disk power depends on whether the disk is an NVMe SSD, a SATA SSD or a hard
 
 import json
 import platform
+import re
 import shutil
 import subprocess
+import uuid
 
 import psutil
 
@@ -186,6 +188,8 @@ def detect_system():
     freq = psutil.cpu_freq() if hasattr(psutil, "cpu_freq") else None
 
     info = {
+        "machine_id": machine_id(os_name),
+        "hostname": platform.node(),
         "os": os_name,
         "os_version": platform.mac_ver()[0] if os_name == "macos" else platform.version(),
         "arch": arch,
@@ -215,3 +219,25 @@ def detect_system():
         known = {g["name"] for g in info["gpus"]}
         info["gpus"] += [g for g in _nvidia_gpus() if g["name"] not in known]
     return info
+
+
+def machine_id(os_name):
+    """An ID that stays the same for this computer, so its readings are stored under one device."""
+    if os_name == "macos":
+        m = re.search(r'"IOPlatformUUID" = "([^"]+)"', _run(["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"]))
+        if m:
+            return m.group(1)
+    elif os_name == "windows":
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography") as key:
+                return winreg.QueryValueEx(key, "MachineGuid")[0]
+        except OSError:
+            pass
+    elif os_name == "linux":
+        try:
+            with open("/etc/machine-id") as f:
+                return f.read().strip()
+        except OSError:
+            pass
+    return f"{platform.node()}-{uuid.getnode():012x}"

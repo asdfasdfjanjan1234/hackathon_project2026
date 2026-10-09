@@ -6,7 +6,7 @@ from app import create_app
 @pytest.fixture
 def client(tmp_path):
     app = create_app()
-    app.config.update(TESTING=True, USE_SAMPLE_DATA=True, DB_PATH=str(tmp_path / "test.db"))
+    app.config.update(TESTING=True, USE_SAMPLE_DATA=True, DATABASE=str(tmp_path / "test.db"))
     return app.test_client()
 
 

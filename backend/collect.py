@@ -4,7 +4,7 @@
     python collect.py --interval 5
 
 Leave it running while you use AI tools. The dashboard reads the results
-when USE_SAMPLE_DATA=false in .env.
+when USE_SAMPLE_DATA=false in .env. Readings go to MySQL when DATABASE_URL is set.
 """
 
 import argparse
@@ -44,13 +44,13 @@ def main():
     # Stop cleanly on `kill` too, not only Ctrl+C.
     signal.signal(signal.SIGTERM, signal.default_int_handler)
 
-    conn = storage.connect(Config.DB_PATH)
+    conn = storage.connect(Config.DATABASE)
     collector = Collector(conn, args.interval)
     print_devices(collector.sensors.system)
     print("Power readings:")
     for part, sensor in collector.sensors.sources().items():
         print(f"  {part:9} {sensor or 'estimated'}")
-    print(f"Collecting into {Config.DB_PATH}. Press Ctrl+C to stop.")
+    print(f"Collecting into {storage.describe(Config.DATABASE)} as device #{collector.device_id}. Press Ctrl+C to stop.")
     fitted = collector.model.fitted_on
     print(f"Power model: {'fitted on %d readings' % fitted if fitted else 'defaults (fits after ~8 minutes of readings)'}\n")
     print(f"{'time':8}  {'CPU%':>5}  {'GPU%':>5}  {'est W':>6}  {'meas W':>6}  "

@@ -8,6 +8,8 @@ Measures how much electricity AI models use, forecasts the electricity bill, and
 backend/                  Flask API (port 5001)
   run.py                  Entry point
   collect.py              Device collector (run while using AI tools)
+  migrate_to_mysql.py     Copies readings from the SQLite file into MySQL
+  db/setup_mysql.sql      Creates the MySQL database and user
   app/
     __init__.py           App factory
     config.py             Rate, baseline bill, budget (from .env)
@@ -18,6 +20,7 @@ backend/                  Flask API (port 5001)
       recommendations.py  GET /api/recommendations  STOP / SWITCH / REDUCE tips
       system.py           GET /api/system           detected OS and devices, sensor per component, kWh per component
       device.py           POST /api/device/start|stop, GET /api/device/status, POST /api/device/source
+      readings.py         GET /api/devices, GET /api/readings   stored devices and readings
       models.py           GET /api/models           models found in app logs: tokens, estimated data-center Wh
       health.py           GET /api/health
     services/             Logic, separate from routes
@@ -30,7 +33,7 @@ backend/                  Flask API (port 5001)
       collector.py        Sampling loop used by collect.py and the device reader
       device_reader.py    Runs the collector in a background thread ("Start reading my device")
       model_usage.py      Reads Claude Code / Codex / Copilot logs → tokens per model per day
-      storage.py          SQLite storage of samples
+      storage.py          MySQL or SQLite storage of devices and readings
       models_catalog.py   Local models (watts) and cloud models (list prices → data-center Wh estimate)
       usage_store.py      Daily usage per model (sample data for now)
       sample_data.py      Generates 30 days of realistic demo data
@@ -76,7 +79,7 @@ Click **Start reading my device** at the top of the dashboard. The backend, runn
 1. detects the OS and hardware (CPU, GPU, NPU, RAM, disks, battery) and picks a sensor for each part,
 2. finds the AI apps running (Claude Code, Codex, Copilot, Ollama, …), the host they run in (VS Code, Terminal) and the commands agents run for you ("tool runs"),
 3. reads which models they used from their local logs (Claude Code transcripts, Codex sessions, Copilot logs): model names and token counts only, never prompts or code,
-4. measures watts every 2 seconds into `backend/data/wattage.db` until you click **Stop reading**.
+4. measures watts every 2 seconds into the database (MySQL, or `backend/data/wattage.db`) until you click **Stop reading**.
 
 The dashboard switches to this device's data; the **This device / Sample (John)** toggle switches back to the demo data. A browser can't read hardware or local files, which is why the backend has to run on the computer being measured.
 
@@ -100,7 +103,31 @@ Power readings:
 
 The same information is at `GET /api/system`. Detection uses `platform` and `psutil` on every OS, plus `system_profiler` on macOS and PowerShell CIM queries on Windows; no extra packages. See [PROJECT_PLAN.md §2](PROJECT_PLAN.md#2-measurement-from-device-resources) for what each OS can measure.
 
-Tests: `cd backend && .venv/bin/python -m pytest`
+### Database (MySQL)
+
+Readings go to a local SQLite file by default. To store them in MySQL instead:
+
+```bash
+mysql -u root -p < backend/db/setup_mysql.sql      # creates the ai_wattage database and a wattage user
+# backend/.env:
+DATABASE_URL=mysql://wattage:change-me@localhost:3306/ai_wattage
+cd backend && python migrate_to_mysql.py          # optional: copy readings already in wattage.db
+```
+
+The backend creates the tables on first connect:
+
+| Table | One row per |
+|---|---|
+| `devices` | computer that took readings (machine ID, hostname, OS, model, CPU, RAM) |
+| `samples` | 2-second reading: CPU %, GPU %, estimated and measured watts |
+| `component_samples` | component in a reading: cpu / gpu / memory / disk / other watts and its sensor |
+| `ai_samples` | AI app in a reading: app, model, host, CPU %, memory, attributed watts |
+| `power_windows` | averaged battery-sensor window used to fit the power model |
+| `settings` | stored values, e.g. the fitted power model |
+
+Every reading row has the `device_id` of the computer that took it. `GET /api/devices` lists the devices; `GET /api/readings?device_id=&since=&until=&limit=` returns stored readings with their components and AI apps.
+
+Tests: `cd backend && .venv/bin/python -m pytest` (add `TEST_DATABASE_URL=mysql://…/ai_wattage_test` to also run the storage tests on MySQL)
 
 ## Notes
 

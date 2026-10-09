@@ -22,6 +22,7 @@ class Collector:
         self.ncpu = psutil.cpu_count() or 1
         self.sensors = sensors or Sensors()  # detects the OS and picks its sensors
         self.model = storage.get_power_model(conn) or PowerModel()
+        self.device_id = storage.register_device(conn, self.sensors.system)
         self._last_ts = None
         self._last_tel = None
         self._skip_first_window = True  # it started before we did, so our samples don't cover it
@@ -50,7 +51,8 @@ class Collector:
         est = self.model.total(cpu, gpu)
         components = self.sensors.components(cpu, gpu, self.model, measured)
 
-        storage.save_sample(self.conn, ts, interval_s, cpu, gpu, est, measured, apps, components)
+        storage.save_sample(self.conn, ts, interval_s, cpu, gpu, est, measured, apps, components,
+                            self.device_id)
         return {"ts": ts, "cpu": cpu, "gpu": gpu, "est_watts": est, "measured_watts": measured,
                 "components": components, "apps": apps}
 
@@ -64,7 +66,8 @@ class Collector:
         if avg_watts is not None:
             n = len(self._window)
             storage.save_window(self.conn, ts, avg_watts,
-                                sum(c for c, _, _ in self._window) / n, sum(g for _, g, _ in self._window) / n, n)
+                                sum(c for c, _, _ in self._window) / n, sum(g for _, g, _ in self._window) / n, n,
+                                self.device_id)
             self._new_windows += 1
             if self._new_windows >= REFIT_EVERY:
                 self._refit()

@@ -25,22 +25,23 @@ class DeviceReader:
         self.last = None
         self.error = None
         self.power_model = None
+        self.device_id = None
 
     @property
     def running(self):
         return self._thread is not None and self._thread.is_alive()
 
-    def start(self, db_path, interval=2.0):
+    def start(self, database, interval=2.0):
         """Start reading. Returns False if this reader or collect.py is already running."""
         with self._lock:
             if self.running:
                 return False
-            with closing(storage.connect(db_path)) as conn:
+            with closing(storage.connect(database)) as conn:
                 if storage.latest_sample(conn):  # collect.py is already writing samples
                     return False
             self._stop.clear()
             self.started_at, self.samples, self.last, self.error = time.time(), 0, None, None
-            self._thread = threading.Thread(target=self._run, args=(db_path, interval),
+            self._thread = threading.Thread(target=self._run, args=(database, interval),
                                             name="device-reader", daemon=True)
             self._thread.start()
             return True
@@ -51,12 +52,13 @@ class DeviceReader:
         if thread:
             thread.join(timeout=10)
 
-    def _run(self, db_path, interval):
+    def _run(self, database, interval):
         try:
             # SQLite connections belong to the thread that opened them.
-            with closing(storage.connect(db_path)) as conn:
+            with closing(storage.connect(database)) as conn:
                 collector = Collector(conn, interval, sensors=default_sensors())
                 self.power_model = collector.model.to_dict()
+                self.device_id = collector.device_id
                 while not self._stop.wait(interval):
                     try:
                         self.last = collector.step()
@@ -70,8 +72,8 @@ class DeviceReader:
             self.error = f"{type(e).__name__}: {e}"
             traceback.print_exc()
 
-    def status(self, db_path):
-        with closing(storage.connect(db_path)) as conn:
+    def status(self, database):
+        with closing(storage.connect(database)) as conn:
             external = not self.running and storage.latest_sample(conn) is not None
             stored = storage.sample_count(conn)
         last = self.last or {}
@@ -82,6 +84,7 @@ class DeviceReader:
             "samples": self.samples,
             "stored_samples": stored,
             "error": self.error,
+            "device_id": self.device_id,
             "power_model": self.power_model,
             "latest": {
                 "ts": last.get("ts"),

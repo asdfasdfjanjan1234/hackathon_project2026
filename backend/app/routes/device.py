@@ -8,14 +8,14 @@ from . import api_bp
 
 def _status():
     cfg = current_app.config
-    return {**reader.status(cfg["DB_PATH"]), "data_source": data_source()}
+    return {**reader.status(cfg["DATABASE"]), "data_source": data_source()}
 
 
 @api_bp.post("/device/start")
 def device_start():
     """Detect this device's OS and hardware, then start measuring AI apps every 2 s."""
     sensors = default_sensors()  # detection runs once and is shared with the reader
-    started = reader.start(current_app.config["DB_PATH"])
+    started = reader.start(current_app.config["DATABASE"])
     current_app.config["DATA_SOURCE"] = "device"
     return jsonify({**_status(), "started": started, "system": sensors.system, "sensors": sensors.sources()})
 

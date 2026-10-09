@@ -13,7 +13,7 @@ def usage():
     rate = bill_params()["rate"]
     by_host = []
     if data_source() == "device":
-        with closing(storage.connect(current_app.config["DB_PATH"])) as conn:
+        with closing(storage.connect(current_app.config["DATABASE"])) as conn:
             by_host = [{**h, "cost": round(h["kwh"] * rate, 4)} for h in storage.host_usage(conn)]
     return jsonify({
         "data_source": data_source(),

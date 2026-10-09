@@ -15,7 +15,7 @@ def models():
     logs, next to the device energy measured while each model was the app's active one."""
     data = model_usage()
     rate = bill_params()["rate"]
-    with closing(storage.connect(current_app.config["DB_PATH"])) as conn:
+    with closing(storage.connect(current_app.config["DATABASE"])) as conn:
         device = {m["model"]: m for m in summarize_by_model(storage.daily_usage(conn), rate)}
     for m in data["models"]:
         measured = device.get(f"{m['app']} · {m['model']}")

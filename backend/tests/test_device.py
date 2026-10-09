@@ -155,7 +155,7 @@ def client(tmp_path, monkeypatch):
     from app.routes import device
     monkeypatch.setattr(device, "reader", device_reader.reader)
     app = create_app()
-    app.config.update(TESTING=True, USE_SAMPLE_DATA=True, DB_PATH=str(tmp_path / "test.db"))
+    app.config.update(TESTING=True, USE_SAMPLE_DATA=True, DATABASE=str(tmp_path / "test.db"))
     return app.test_client()
 
 

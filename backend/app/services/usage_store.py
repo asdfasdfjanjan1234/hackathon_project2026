@@ -18,7 +18,7 @@ def data_source():
 def get_daily_usage():
     if data_source() == "sample":
         return generate_daily_usage()
-    with closing(storage.connect(current_app.config["DB_PATH"])) as conn:
+    with closing(storage.connect(current_app.config["DATABASE"])) as conn:
         return storage.daily_usage(conn)
 
 
