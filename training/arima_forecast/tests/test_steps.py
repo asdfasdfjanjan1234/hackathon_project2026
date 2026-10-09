@@ -99,6 +99,20 @@ def test_pretraining_skips_a_seasonal_structure_the_series_is_too_short_for():
         pipeline.pretrain(y, [ARMA], folds=2, log=log.append)  # the luzon settings: a day ahead, after two days
 
 
+def test_a_device_read_for_two_hours_is_fine_tuned_with_the_default_settings():
+    agents = work_day(hours=2, start="2026-10-09 13:00")
+    log = []
+    saved = pipeline.finetune(agents, 1, [(ARMA, None)], top=1, log=log.append)  # windows from config.json
+    assert "the last 2 windows of 0.5 hours, fitted on the 1 hours before" in log[0]
+    assert saved["coverage"] == {"known_hours": 2, "days": 1, "hours_of_day": 2}
+    assert all(len(a["tried"]) == 2 for a in saved["agents"].values())  # the routine alone, and the ARIMA
+    energy = pd.DataFrame({"measured_h": 0.25, "ai_wh": agents.sum(axis=1), "scale": 1.0, "wh": agents.sum(axis=1)})
+    cfg = SimpleNamespace(ELECTRICITY_RATE=12.0, POP_PEAK_RATE=0, POP_OFFPEAK_RATE=0, TARIFF="flat",
+                          BILLING_CYCLE_START_DAY=1, BASELINE_BILL=1500.0)
+    table, summary = pipeline.forecast(saved, agents, energy, cfg, paths=20, now=agents.index[-1] + QUARTER)
+    assert table.index[-1] == pd.Timestamp("2026-10-31 23:45") and summary["bill"]["projected_bill"] > 1500
+
+
 def test_a_device_read_for_ten_hours_is_fine_tuned_and_its_bill_forecast():
     agents = work_day(hours=10)
     total = agents.sum(axis=1, min_count=1)
@@ -106,7 +120,7 @@ def test_a_device_read_for_ten_hours_is_fine_tuned_and_its_bill_forecast():
         pipeline.check_enough(total.iloc[:steps.count(pipeline.MIN_HOURS, total.index) - 1])
     luzon = [(DAY_SEASON, None), (ARMA, {"ar.L1": 0.5, "ma.L1": 0.1, "sigma2": 0.5})]
     log = []
-    saved = pipeline.finetune(agents, 1, luzon, top=2, log=log.append)  # the windows come from config.json
+    saved = pipeline.finetune(agents, 1, luzon, top=2, log=log.append, horizon_hours=2, min_train_hours=4)
 
     assert "the last 3 windows of 2 hours, fitted on the 4 hours before" in log[0]
     assert (saved["step_minutes"], saved["folds"], saved["horizon_hours"]) == (15, 3, 2)

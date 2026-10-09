@@ -121,14 +121,14 @@ export default function TariffSettingsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-[2px] animate-fade-in"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="tariff-settings-title"
-        className="relative w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl bg-surface border border-line shadow-pop p-6 space-y-5"
+        className="relative w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl bg-surface border border-line shadow-pop p-6 space-y-5 animate-pop-in"
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-3">

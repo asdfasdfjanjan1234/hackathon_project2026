@@ -39,6 +39,7 @@ function CustomTooltip({ active, payload, label }) {
 
 // Cumulative bill over the billing cycle, from the backend's day-by-day forecast:
 // measured days, then the projection on the current path and with the recommendations.
+// The projection is the device's fine-tuned ARIMA when the backend uses it (forecast.method), else the trend.
 export default function ForecastChart({ forecast, recs, className = "" }) {
   const daily = forecast?.daily || [];
   const baselineBill = forecast?.baseline_bill ?? 0;
@@ -49,6 +50,8 @@ export default function ForecastChart({ forecast, recs, className = "" }) {
   const coverage = forecast?.coverage;
   const projections = forecast?.projections || [];
   const weekly = (forecast?.by_model || []).some((m) => m.weekly_pattern);
+  const method = forecast?.method;
+  const range = forecast?.forecast_range;
   const overBudget = budget != null && forecastBill > budget;
   const pathColor = color(overBudget ? "viz-red" : "viz-blue");
 
@@ -82,8 +85,11 @@ export default function ForecastChart({ forecast, recs, className = "" }) {
               </span>
             )}
           </div>
-          <div className="card-sub mt-0.5 truncate">
-            Least-squares trend{weekly ? " · weekday/weekend pattern" : ""} · {forecast?.days_left} days to meter read
+          <div className="card-sub mt-0.5 truncate" title={method?.reason}>
+            {method?.name === "arima"
+              ? "ARIMA fine-tuned on this device"
+              : `Least-squares trend${weekly ? " · weekday/weekend pattern" : ""}`}{" "}
+            · {forecast?.days_left} days to meter read
           </div>
         </div>
 
@@ -91,7 +97,8 @@ export default function ForecastChart({ forecast, recs, className = "" }) {
       </div>
 
       <div className="pt-4 pb-1 flex-1 min-h-[260px] sm:min-h-[280px] w-full min-w-0 overflow-hidden">
-        <ResponsiveContainer width="100%" height="100%">
+        {/* minHeight keeps the chart visible when the card isn't stretched to a fixed height (Billing Projection view). */}
+        <ResponsiveContainer width="100%" height="100%" minHeight={260}>
           <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -6, bottom: 0 }}>
             <CartesianGrid stroke={color("line")} vertical={false} />
 
@@ -166,6 +173,11 @@ export default function ForecastChart({ forecast, recs, className = "" }) {
             <span className="w-3 h-0.5 rounded-full" style={{ backgroundColor: pathColor }} />
             <span className="text-ink-muted">Current path:</span>
             <span className="text-ink font-bold tabular-nums">{peso(forecastBill)}</span>
+            {range && (
+              <span className="text-ink-muted tabular-nums" title={`${Math.round((method?.interval ?? 0.8) * 100)}% range`}>
+                ({peso(range.low)} – {peso(range.high)})
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-0.5 rounded-full bg-viz-green" />

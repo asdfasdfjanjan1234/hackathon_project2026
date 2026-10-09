@@ -3,61 +3,66 @@
 @tailwind utilities;
 
 @layer base {
-  /* Light theme: warm neutral surfaces, one blue accent. Values are "R G B" for Tailwind's alpha modifiers. */
+  /* Light theme: cool blueprint white, electric blue accent, volt yellow for current and energy.
+     Values are "R G B" for Tailwind's alpha modifiers. */
   :root {
     color-scheme: light;
-    --canvas: 247 246 243;
+    --canvas: 244 246 250;
     --surface: 255 255 255;
-    --sunken: 243 242 238;
-    --line: 230 228 222;
-    --line-strong: 212 209 201;
-    --ink: 29 28 26;
-    --ink-soft: 79 75 69;
-    --ink-muted: 111 106 98;
-    --accent: 43 91 215;
+    --sunken: 238 241 247;
+    --line: 223 228 237;
+    --line-strong: 199 206 219;
+    --ink: 15 20 33;
+    --ink-soft: 61 70 89;
+    --ink-muted: 96 106 128;
+    --accent: 0 98 230;
     --on-accent: 255 255 255;
-    --pos: 30 122 77;
-    --warn: 161 92 7;
-    --neg: 194 54 47;
-    --viz-blue: 43 91 215;
-    --viz-violet: 124 77 204;
-    --viz-amber: 196 125 18;
-    --viz-green: 31 138 87;
-    --viz-red: 205 62 52;
-    --viz-grey: 160 155 146;
+    /* Volt: the colour of energy itself (live current, kWh). Fills and icons; text only in dark */
+    --volt: 202 138 4;
+    --pos: 0 135 90;
+    --warn: 194 86 12;
+    --neg: 205 38 59;
+    --viz-blue: 0 98 230;
+    --viz-violet: 112 64 230;
+    --viz-amber: 202 138 4;
+    --viz-green: 0 150 100;
+    --viz-red: 205 38 59;
+    --viz-grey: 150 160 178;
     /* Brand yellow and the ink that sits on it: the logo only, and the same in both themes */
     --brand: 255 225 73;
     --on-brand: 29 28 26;
     /* Elevation, lowest to highest: controls, cards and the header, then anything floating over content */
-    --shadow-control: 0 1px 2px rgb(28 25 20 / 0.1);
-    --shadow-card: 0 1px 2px rgb(28 25 20 / 0.05), 0 4px 14px -2px rgb(28 25 20 / 0.08);
-    --shadow-pop: 0 4px 10px -2px rgb(28 25 20 / 0.1), 0 16px 36px -6px rgb(28 25 20 / 0.2);
+    --shadow-control: 0 1px 2px rgb(15 23 42 / 0.1);
+    --shadow-card: 0 1px 2px rgb(15 23 42 / 0.05), 0 4px 14px -2px rgb(15 23 42 / 0.08);
+    --shadow-pop: 0 4px 10px -2px rgb(15 23 42 / 0.1), 0 16px 36px -6px rgb(15 23 42 / 0.2);
   }
 
+  /* Dark theme: a grid at night. Deep navy surfaces, arc-blue accent, neon volt */
   .dark {
     color-scheme: dark;
-    --canvas: 18 19 20;
-    --surface: 27 28 30;
-    --sunken: 22 23 25;
-    --line: 44 46 49;
-    --line-strong: 60 63 67;
-    --ink: 236 236 234;
-    --ink-soft: 189 188 183;
-    --ink-muted: 145 144 139;
-    --accent: 127 166 245;
-    --on-accent: 14 22 40;
-    --pos: 98 199 143;
-    --warn: 229 169 59;
-    --neg: 240 122 112;
-    --viz-blue: 127 166 245;
-    --viz-violet: 177 140 240;
-    --viz-amber: 229 169 59;
-    --viz-green: 98 199 143;
-    --viz-red: 240 122 112;
-    --viz-grey: 112 112 108;
+    --canvas: 9 13 22;
+    --surface: 15 21 34;
+    --sunken: 11 16 27;
+    --line: 30 39 58;
+    --line-strong: 46 58 84;
+    --ink: 232 237 245;
+    --ink-soft: 178 188 205;
+    --ink-muted: 132 145 168;
+    --accent: 56 182 255;
+    --on-accent: 4 16 32;
+    --volt: 255 214 51;
+    --pos: 52 211 153;
+    --warn: 251 146 60;
+    --neg: 248 113 113;
+    --viz-blue: 56 182 255;
+    --viz-violet: 167 139 250;
+    --viz-amber: 255 214 51;
+    --viz-green: 52 211 153;
+    --viz-red: 248 113 113;
+    --viz-grey: 100 112 135;
     /* Shadows need more weight to read against a dark canvas */
     --shadow-control: 0 1px 2px rgb(0 0 0 / 0.45);
-    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.35), 0 8px 20px -6px rgb(0 0 0 / 0.55);
+    --shadow-card: 0 1px 2px rgb(0 4 12 / 0.4), 0 8px 20px -6px rgb(0 4 12 / 0.6);
     --shadow-pop: 0 4px 10px -2px rgb(0 0 0 / 0.5), 0 20px 44px -8px rgb(0 0 0 / 0.7);
   }
 
@@ -96,12 +101,18 @@
 @layer components {
   /* Section card */
   .dash-card {
-    @apply relative min-w-0 rounded-xl border border-line bg-surface shadow-card;
+    @apply relative min-w-0 rounded-xl border border-line bg-surface shadow-card transition-colors duration-200 hover:border-line-strong;
   }
 
-  /* Metric KPI block */
+  /* Metric KPI block: lifts slightly under the pointer */
   .stat-card {
     @apply min-w-0 rounded-xl border border-line bg-surface p-5 shadow-card;
+    transition: transform 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out), border-color 0.2s;
+  }
+  .stat-card:hover {
+    @apply border-line-strong;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-pop);
   }
 
   /* Recessed area inside a card: lists, sub-panels, readouts */
@@ -127,24 +138,41 @@
     @apply text-xs font-medium text-ink-muted;
   }
 
-  /* Status pills */
+  /* Status pills: neutral pill, status shown by a coloured dot (or a leading icon).
+     Never tint the background in the same hue as the text. */
   .tech-tag {
-    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-4;
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] font-semibold leading-4 text-ink-soft;
   }
-  .tech-tag-live {
-    @apply border-accent/25 bg-accent/10 text-accent;
+  .tech-tag-live,
+  .tech-tag-sim,
+  .tech-tag-alert,
+  .tech-tag-pos {
+    --tag-dot: var(--accent);
   }
   .tech-tag-sim {
-    @apply border-warn/25 bg-warn/10 text-warn;
+    --tag-dot: var(--warn);
   }
   .tech-tag-alert {
-    @apply border-neg/25 bg-neg/10 text-neg;
+    --tag-dot: var(--neg);
   }
   .tech-tag-pos {
-    @apply border-pos/25 bg-pos/10 text-pos;
+    --tag-dot: var(--pos);
+  }
+  :is(.tech-tag-live, .tech-tag-sim, .tech-tag-alert, .tech-tag-pos):not(:has(> svg))::before {
+    content: "";
+    @apply h-1.5 w-1.5 shrink-0 rounded-full;
+    background-color: rgb(var(--tag-dot));
+  }
+  :is(.tech-tag-live, .tech-tag-sim, .tech-tag-alert, .tech-tag-pos) > svg {
+    color: rgb(var(--tag-dot));
   }
   .tech-tag-neutral {
-    @apply border-line bg-sunken text-ink-soft;
+    @apply bg-sunken;
+  }
+
+  /* Small count badge (sidebar etc.) */
+  .count-badge {
+    @apply min-w-[1.25rem] rounded-full border border-line bg-surface px-1.5 text-center text-[11px] font-semibold leading-5 text-ink tabular-nums;
   }
 
   /* Buttons */
@@ -210,17 +238,97 @@
   padding: 0.125rem 0 !important;
 }
 
-/* Soft fade when switching sidebar views */
+/* ---------- Motion ----------
+   Short and purposeful: things arrive, values move to their new reading, current flows at
+   a speed set by the load. Everything stops under prefers-reduced-motion. */
+:root {
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
 @keyframes view-in {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
 
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* A bar charging up from the left */
+@keyframes bar-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Current flowing along a wire: the dash pattern repeats every 14 units */
+@keyframes current-flow {
+  to { stroke-dashoffset: -14; }
+}
+
+/* A one-shot flash when a fresh reading lands */
+@keyframes reading-flash {
+  0% { transform: scale(1); opacity: 1; }
+  30% { transform: scale(1.8); opacity: 0.35; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* The active nav marker sliding in */
+@keyframes marker-in {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
 .animate-view-in {
-  animation: view-in 0.18s ease-out;
+  animation: view-in 0.35s var(--ease-out) both;
+}
+
+.animate-pop-in {
+  animation: pop-in 0.22s var(--ease-out) both;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.18s ease-out both;
+}
+
+/* Children arrive one after another */
+.stagger > * {
+  animation: view-in 0.45s var(--ease-out) both;
+}
+.stagger > :nth-child(2) { animation-delay: 60ms; }
+.stagger > :nth-child(3) { animation-delay: 120ms; }
+.stagger > :nth-child(4) { animation-delay: 180ms; }
+.stagger > :nth-child(5) { animation-delay: 240ms; }
+.stagger > :nth-child(n + 6) { animation-delay: 300ms; }
+
+/* Bars inside a meter charge up on first paint and glide between values after */
+.meter > * {
+  transform-origin: left;
+  animation: bar-grow 0.7s var(--ease-out) both;
+  transition: width 0.5s var(--ease-out);
+}
+
+.current-flow {
+  animation: current-flow linear infinite;
+}
+
+.reading-flash {
+  animation: reading-flash 0.6s var(--ease-out);
+}
+
+.nav-marker {
+  transform-origin: center;
+  animation: marker-in 0.25s var(--ease-out) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-view-in { animation: none; }
-  * { transition-duration: 0s !important; }
+  *, *::before, *::after {
+    animation: none !important;
+    transition-duration: 0s !important;
+  }
 }

@@ -145,7 +145,7 @@ export default function UsageBreakdown({ usage }) {
                     <div className="font-semibold text-ink tabular-nums">{formatKwh(m.kwh, 2)}</div>
                     {m.partKwh ? (
                       <>
-                        <div className="w-full bg-line rounded-full h-1.5 overflow-hidden">
+                        <div className="meter w-full bg-line rounded-full h-1.5 overflow-hidden">
                           <div className="h-full flex" style={{ width: `${m.percentage}%` }}>
                             {PARTS.map((p, i) => (
                               <div key={p.key} className={p.bar} style={{ width: `${(m.partKwh[i] / m.splitKwh) * 100}%` }} />
@@ -162,7 +162,7 @@ export default function UsageBreakdown({ usage }) {
                         </div>
                       </>
                     ) : (
-                      <div className="w-full bg-line rounded-full h-1.5 overflow-hidden">
+                      <div className="meter w-full bg-line rounded-full h-1.5 overflow-hidden">
                         <div
                           className={`h-full rounded-full ${m.kind === "cloud" ? "bg-viz-grey" : "bg-accent"}`}
                           style={{ width: `${m.percentage}%` }}

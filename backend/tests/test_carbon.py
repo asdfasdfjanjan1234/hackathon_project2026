@@ -86,3 +86,22 @@ def test_recommendations_carry_co2(client):
     d = client.get("/api/recommendations").json
     assert all("co2_saved_kg" in r for r in d["recommendations"])
     assert d["monthly_co2_saved_kg"] > 0
+
+
+def test_insights_read_the_daily_figures():
+    # 0.7 kg on Oct 2 (early half), 1.4 + 0.4 kg on Oct 6 (late half): rising, Oct 6 the heaviest day
+    device = [{"date": "2026-10-02", "model": "a", "kind": "local", "kwh": 1.0, "active_hours": 1.0},
+              {"date": "2026-10-06", "model": "a", "kind": "local", "kwh": 2.0, "active_hours": 1.0}]
+    cloud = [{"date": "2026-10-06", "app": "Claude Code", "model": "x", "datacenter_wh": 1000}]
+    r = carbon_report(device, cloud, _forecast(), [], WINDOW, rate=12, grid=0.7, datacenter=0.4, budget_kg=0)
+    ins = r["insights"]
+    assert ins["peak_day"] == {"date": "2026-10-06", "kg": 1.8, "share": 0.72}
+    assert ins["active_days"] == 2 and ins["avg_per_day_kg"] == pytest.approx(2.5 / 7, abs=1e-4)
+    assert ins["trend"]["direction"] == "up" and ins["trend"]["split_date"] == "2026-10-04"
+    assert ins["cloud_share"] == 0.16
+    assert ins["equivalents"]["car_km"] == pytest.approx(2.5 / 0.244, abs=0.1)
+
+
+def test_insights_with_no_use():
+    ins = carbon_report([], [], _forecast(), [], WINDOW, rate=12, grid=0.7, datacenter=0.4, budget_kg=0)["insights"]
+    assert ins["peak_day"] is None and ins["trend"]["direction"] == "none" and ins["cloud_share"] == 0

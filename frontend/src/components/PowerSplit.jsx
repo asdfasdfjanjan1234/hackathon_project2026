@@ -56,7 +56,7 @@ function Breakdown({ title, rows }) {
   return (
     <div className="space-y-2 min-w-0">
       <div className="text-xs font-medium text-ink-muted">{title}</div>
-      <div className="w-full flex h-2 bg-line rounded-full overflow-hidden gap-px">
+      <div className="meter w-full flex h-2 bg-line rounded-full overflow-hidden gap-px">
         {total > 0 &&
           rows.map((r) => (
             <div key={r.key} className={r.bar} style={{ width: `${(r.watts / total) * 100}%` }} title={`${r.label}: ${formatAppWatts(r.watts)}`} />

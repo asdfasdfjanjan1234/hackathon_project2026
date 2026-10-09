@@ -30,6 +30,8 @@ backend/                  Flask API (port 5001)
       readings.py         GET /api/devices, GET /api/readings   stored devices and readings
       models.py           GET /api/models           models found in app logs: tokens, estimated data-center Wh
       actions.py          POST /api/actions/apply, GET /api/actions/state   apply a recommendation to Ollama
+      alerts.py           GET /api/alerts           budget overruns, savings and notes, most urgent first
+      assistant.py        GET /api/assistant/status, POST /api/assistant/chat|warm|pull   the local assistant
       validation.py       GET /api/validation, POST /api/validation/watts|start|finish   wall-meter checks
       health.py           GET /api/health
     services/             Logic, separate from routes
@@ -52,7 +54,9 @@ backend/                  Flask API (port 5001)
       carbon.py           CO₂ per model and day, two grid factors, carbon budget, CO₂ avoided by recommendations
       clean_hours.py      Hourly grid CO₂ (Electricity Maps) → cleanest window to run batch AI jobs
       cheap_hours.py      Flat or Meralco Peak/Off-Peak tariff → cheapest hours, and the best of price and CO₂
-      outlook.py          Forecast + recommendations together ("with recommendations" path)
+      outlook.py          Forecast + recommendations together ("with recommendations" path); snapshot of every view
+      alerts.py           Rule-based alerts from the snapshot (works without the assistant)
+      assistant.py        Kilo: dashboard figures as text, prompt, streaming replies from Ollama
       actions.py          Unloads / switches Ollama models when a recommendation is applied
       validation.py       Compares our whole-machine readings with a plug-in wall meter
   tests/                  API, measurement, sensors, storage, forecast, recommendations, platforms (Linux/Windows/NVIDIA/Ollama)
@@ -165,6 +169,20 @@ The app can't change which model your other tools ask for. For the demo, `demo_l
 ```bash
 cd backend && .venv/bin/python demo_load.py --model llama3:70b
 ```
+
+### Ask Kilo (on-device assistant)
+
+Kilo explains the dashboard in plain words (English, Filipino or Taglish) and speaks up when something needs attention. It runs on a small model in [Ollama](https://ollama.com) on the same computer, so no question or reading leaves it.
+
+```bash
+brew install ollama && brew services start ollama   # Windows/Linux: installer from ollama.com
+ollama pull qwen3.5:4b-q4_K_M                       # 3.3 GB; or use "Download" in the Kilo panel
+```
+
+- **Ask:** the **Ask Kilo** button (bottom right), the suggested questions, or the mic (Chrome and Safari; Chrome sends the audio to Google for recognition). Spoken questions get spoken answers; the speaker icon reads every reply aloud.
+- **Speaks up by itself:** when a new alert appears (over budget, over the carbon budget, a saving), Kilo explains it in a bubble over the button, aloud if voice is on, and as a desktop notification if you turned those on. The bell lists all alerts, each with **Ask Kilo**.
+- **Numbers come from the backend, not the model:** `services/assistant.py` turns every view's figures into text with their units, and the prompt tells the model to copy them. A 4B model still slips sometimes, so the panel says to check figures on the dashboard.
+- **Model:** `qwen3.5:4b-q4_K_M` by default (about 21 tokens/s on an M2 with 16 GB). In our tests it was more accurate than `gemma4:e2b-it-qat`, which is about 1.7× faster but misread the figures more often. Change `ASSISTANT_MODEL` in `.env`. Kilo's own energy is measured like any local model's (`Ollama · qwen3.5:4b-q4_K_M` in Model Runtimes).
 
 ## Notes
 

@@ -11,7 +11,7 @@ export const PARTS = [
 export function PartsBar({ values, className = "h-1.5" }) {
   const total = values.reduce((s, v) => s + (v || 0), 0);
   return (
-    <div className={`w-full flex bg-line rounded-full overflow-hidden ${className}`}>
+    <div className={`meter w-full flex bg-line rounded-full overflow-hidden ${className}`}>
       {total > 0 &&
         PARTS.map((p, i) => (
           <div key={p.key} className={p.bar} style={{ width: `${((values[i] || 0) / total) * 100}%` }} />

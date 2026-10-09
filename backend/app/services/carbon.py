@@ -16,6 +16,10 @@ from datetime import date, timedelta
 TREE_KG_PER_YEAR = 21.77  # CO2 one mature tree absorbs in a year (1.81 kg a month, as in usage_store)
 SHIFTED_RULES = {"cloud"}
 TIME_SHIFT_RULES = {"cheap hours"}  # same kWh at a lower price: no CO2 avoided
+# Everyday comparisons for a CO2 figure, so "4.8 kg" means something.
+CAR_KG_PER_KM = 0.244     # average passenger car (US EPA: about 393 g CO2 per mile)
+PHONE_CHARGE_KWH = 0.019  # one full smartphone charge, battery plus charger losses (US EPA)
+TREND_RATIO = 1.25        # the later half of the window this many times the earlier half (or 1/x) is a trend
 
 
 def _kg(x):
@@ -44,6 +48,36 @@ def with_carbon(recs, rate, grid, datacenter):
 def _window_days(start, end):
     s, e = date.fromisoformat(start), date.fromisoformat(end)
     return [(s + timedelta(days=i)).isoformat() for i in range((e - s).days + 1)]
+
+
+def _insights(per_day, device_kg, dc_kg, grid):
+    """What the daily figures add up to, in terms a person reads at a glance: the average day,
+    the heaviest day, whether the later half of the window ran higher than the earlier half,
+    and everyday equivalents. Worked out here so the page and the assistant quote the same numbers."""
+    rows = list(per_day.values())
+    totals = [d["device_kg"] + d["datacenter_kg"] for d in rows]
+    total, n = device_kg + dc_kg, len(rows)
+    peak = max(range(n), key=totals.__getitem__) if n else None
+    trend = None
+    if n >= 2:
+        half = n // 2
+        early, late = sum(totals[:half]) / half, sum(totals[half:]) / (n - half)
+        direction = ("none" if not early and not late else
+                     "up" if late > early * TREND_RATIO else
+                     "down" if late * TREND_RATIO < early else "flat")
+        trend = {"direction": direction, "split_date": rows[half]["date"],
+                 "earlier_avg_kg": _kg(early), "later_avg_kg": _kg(late),
+                 "change": round(late / early - 1, 2) if early else None}
+    return {
+        "avg_per_day_kg": _kg(total / n) if n else 0.0,
+        "active_days": sum(1 for t in totals if t > 0),
+        "peak_day": ({"date": rows[peak]["date"], "kg": _kg(totals[peak]), "share": round(totals[peak] / total, 3)}
+                     if total else None),
+        "trend": trend,
+        "cloud_share": round(dc_kg / total, 3) if total else 0.0,
+        "equivalents": {"car_km": round(total / CAR_KG_PER_KM, 1),
+                        "phone_charges": round(total / (PHONE_CHARGE_KWH * grid)) if grid else 0},
+    }
 
 
 def carbon_report(device_daily, cloud_daily, forecast, recs, window, rate, grid, datacenter, budget_kg):
@@ -132,6 +166,7 @@ def carbon_report(device_daily, cloud_daily, forecast, recs, window, rate, grid,
         "daily": [{**d, "device_kg": _kg(d["device_kg"]), "datacenter_kg": _kg(d["datacenter_kg"])}
                   for d in per_day.values()],
         "by_model": by_model,
+        "insights": _insights(per_day, device_kg, dc_kg, grid),
         "cycle": {"start": forecast["cycle"]["start"], "end": forecast["cycle"]["end"],
                   "projected_kg": _kg(projected), "projected_kg_with_recommendations": _kg(projected_recs),
                   "device_kg": _kg(cycle_device), "datacenter_kg": _kg(cycle_dc)},

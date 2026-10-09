@@ -162,11 +162,11 @@ export default function Recommendations({ recs, liveReading, onApplied }) {
                     <button
                       onClick={() => !result?.done && toggleDone(rec)}
                       aria-pressed={isApplied}
-                      className={`btn shrink-0 ${isApplied ? "border-pos/30 bg-pos/10 text-pos hover:bg-pos/15 hover:text-pos" : ""}`}
+                      className={`btn shrink-0 ${isApplied ? "text-ink" : ""}`}
                     >
                       {isApplied ? (
                         <>
-                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-pos" />
                           <span>{result?.done ? "Applied" : "Done"}</span>
                         </>
                       ) : (
