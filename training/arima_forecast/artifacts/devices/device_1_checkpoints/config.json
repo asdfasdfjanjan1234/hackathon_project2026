@@ -1,0 +1,152 @@
+{
+  "config": {
+    "timezone": "Asia/Manila",
+    "step_minutes": 15,
+    "checkpoints": true,
+    "luzon": {
+      "days": 30,
+      "folds": 7,
+      "horizon_hours": 24,
+      "min_train_hours": 48,
+      "candidates": [
+        [
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          [
+            2,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          [
+            2,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            1,
+            0,
+            1,
+            "day"
+          ]
+        ],
+        [
+          [
+            2,
+            0,
+            0
+          ],
+          [
+            1,
+            0,
+            0,
+            "day"
+          ]
+        ],
+        [
+          [
+            0,
+            1,
+            1
+          ],
+          [
+            0,
+            1,
+            1,
+            "day"
+          ]
+        ]
+      ]
+    },
+    "device": {
+      "gaps": "day",
+      "min_coverage": 0.5,
+      "min_day_hours": 1.0,
+      "folds": 6,
+      "horizon_hours": 2,
+      "min_train_hours": 4,
+      "top_structures": 2,
+      "allow_routine_only": true,
+      "min_hours": 6,
+      "min_days": 1
+    },
+    "agents": {
+      "used_wh": 0.05,
+      "min_used_hours": 2,
+      "min_share": 0.02,
+      "max_agents": 6
+    },
+    "levels": {
+      "active_w": 1.0
+    },
+    "model": {
+      "maxiter": 200,
+      "show_iterations": false,
+      "interval": 0.8,
+      "routine_prior_weight": 1.0
+    },
+    "forecast": {
+      "paths": 500,
+      "max_hours": 840
+    }
+  },
+  "versions": {
+    "python": "3.11.17",
+    "numpy": "2.2.1",
+    "pandas": "2.2.3",
+    "scipy": "1.14.1",
+    "statsmodels": "0.14.4",
+    "holidays": "0.62"
+  },
+  "step": "finetune",
+  "device_id": 1,
+  "data": {
+    "start": "2026-10-09 18:45:00",
+    "end": "2026-10-10 02:30:00",
+    "step_minutes": 15,
+    "hours": 8.0,
+    "known_hours": 8.0
+  },
+  "agents": [
+    "Other AI apps"
+  ],
+  "bill_settings": {
+    "electricity_rate": 12.0,
+    "tariff": "flat",
+    "pop_peak_rate": 0.0,
+    "pop_offpeak_rate": 0.0,
+    "baseline_bill": 1500.0,
+    "billing_cycle_start_day": 1
+  }
+}

@@ -1,0 +1,396 @@
+{
+  "coverage": {
+    "first": "2026-10-09 18:45:00",
+    "last": "2026-10-10 02:30:00",
+    "step_minutes": 15,
+    "measured_hours": 8.0,
+    "days_with_readings": 2,
+    "reader_hours": 5.58
+  },
+  "thresholds_w": {
+    "active_w": 1.0,
+    "light_max_w": null,
+    "moderate_max_w": null
+  },
+  "levels": [
+    {
+      "level": "idle",
+      "hours": 8.0,
+      "share_of_hours": 1.0,
+      "avg_w": 0.013,
+      "kwh": 0.00011,
+      "share_of_energy": 1.0,
+      "top_agents": [
+        {
+          "name": "Devin Desktop",
+          "kwh": 0.0001
+        },
+        {
+          "name": "GitHub Copilot",
+          "kwh": 0.0
+        },
+        {
+          "name": "Devin",
+          "kwh": 0.0
+        }
+      ]
+    },
+    {
+      "level": "light",
+      "hours": 0.0,
+      "share_of_hours": 0.0,
+      "avg_w": null,
+      "kwh": 0.0,
+      "share_of_energy": 0.0,
+      "top_agents": []
+    },
+    {
+      "level": "moderate",
+      "hours": 0.0,
+      "share_of_hours": 0.0,
+      "avg_w": null,
+      "kwh": 0.0,
+      "share_of_energy": 0.0,
+      "top_agents": []
+    },
+    {
+      "level": "heavy",
+      "hours": 0.0,
+      "share_of_hours": 0.0,
+      "avg_w": null,
+      "kwh": 0.0,
+      "share_of_energy": 0.0,
+      "top_agents": []
+    }
+  ],
+  "busiest_hours": [
+    {
+      "hour": 0,
+      "avg_w": 0.045
+    },
+    {
+      "hour": 23,
+      "avg_w": 0.037
+    },
+    {
+      "hour": 2,
+      "avg_w": 0.011
+    }
+  ],
+  "energy_in_meralco_peak_hours": 0.1,
+  "seasonality": {
+    "daily": null,
+    "weekly": null
+  },
+  "profile": [
+    {
+      "hour": 0,
+      "weekday": null,
+      "weekend": 0.045,
+      "active_share": 0.0,
+      "usual_level": "idle"
+    },
+    {
+      "hour": 1,
+      "weekday": null,
+      "weekend": 0.005,
+      "active_share": 0.0,
+      "usual_level": "idle"
+    },
+    {
+      "hour": 2,
+      "weekday": null,
+      "weekend": 0.011,
+      "active_share": 0.0,
+      "usual_level": "idle"
+    },
+    {
+      "hour": 3,
+      "weekday": null,
+      "weekend": null,
+      "active_share": null,
+      "usual_level": null
+    },
+    {
+      "hour": 4,
+      "weekday": null,
+      "weekend": null,
+      "active_share": null,
+      "usual_level": null
+    },
+    {
+      "hour": 5,
+      "weekday": null,
+      "weekend": null,
+      "active_share": null,
+      "usual_level": null
+    },
+    {
+      "hour": 6,
+      "weekday": null,
+      "weekend": null,
+      "active_share": null,
+      "usual_level": null
+    },
+    {
+      "hour": 7,
+      "weekday": null,
+      "weekend": null,
+      "active_share": null,
+      "usual_level": null
+    },
+    {
+      "hour": 8,
+      "weekday": null,
+      "weekend": null,
+      "active_share": null,
+      "usual_level": null
+    },
+    {
+      "hour": 9,
+      "weekday": null,
+      "weekend": null,
+      "active_share": null,
+      "usual_level": null
+    },
+    {
+      "hour": 10,
+      "weekday": null,
+      "weekend": null,
+      "active_share": null,
+      "usual_level": null
+    },
+    {
+      "hour": 11,
+      "weekday": null,
+      "weekend": null,
+      "active_share": null,
+      "usual_level": null
+    },
+    {
+      "hour": 12,
+      "weekday": null,
+      "weekend": null,
+      "active_share": null,
+      "usual_level": null
+    },
+    {
+      "hour": 13,
+      "weekday": null,
+      "weekend": null,
+      "active_share": null,
+      "usual_level": null
+    },
+    {
+      "hour": 14,
+      "weekday": null,
+      "weekend": null,
+      "active_share": null,
+      "usual_level": null
+    },
+    {
+      "hour": 15,
+      "weekday": null,
+      "weekend": null,
+      "active_share": null,
+      "usual_level": null
+    },
+    {
+      "hour": 16,
+      "weekday": null,
+      "weekend": null,
+      "active_share": null,
+      "usual_level": null
+    },
+    {
+      "hour": 17,
+      "weekday": null,
+      "weekend": null,
+      "active_share": null,
+      "usual_level": null
+    },
+    {
+      "hour": 18,
+      "weekday": 0.002,
+      "weekend": null,
+      "active_share": 0.0,
+      "usual_level": "idle"
+    },
+    {
+      "hour": 19,
+      "weekday": 0.002,
+      "weekend": null,
+      "active_share": 0.0,
+      "usual_level": "idle"
+    },
+    {
+      "hour": 20,
+      "weekday": 0.008,
+      "weekend": null,
+      "active_share": 0.0,
+      "usual_level": "idle"
+    },
+    {
+      "hour": 21,
+      "weekday": 0.0,
+      "weekend": null,
+      "active_share": 0.0,
+      "usual_level": "idle"
+    },
+    {
+      "hour": 22,
+      "weekday": 0.0,
+      "weekend": null,
+      "active_share": 0.0,
+      "usual_level": "idle"
+    },
+    {
+      "hour": 23,
+      "weekday": 0.037,
+      "weekend": null,
+      "active_share": 0.0,
+      "usual_level": "idle"
+    }
+  ],
+  "total_kwh": 0.00011,
+  "agents": [
+    {
+      "agent": "Other AI apps",
+      "kwh": 0.00011,
+      "share_of_energy": 1.0,
+      "hours_used": 0.5,
+      "share_of_hours_used": 0.062,
+      "avg_w_when_used": 0.165,
+      "weekday_avg_w": 0.009,
+      "weekend_avg_w": 0.021,
+      "busiest_hours": [
+        0,
+        23,
+        2
+      ],
+      "energy_in_meralco_peak_hours": 0.1,
+      "profile": [
+        {
+          "hour": 0,
+          "weekday": null,
+          "weekend": 0.045
+        },
+        {
+          "hour": 1,
+          "weekday": null,
+          "weekend": 0.005
+        },
+        {
+          "hour": 2,
+          "weekday": null,
+          "weekend": 0.011
+        },
+        {
+          "hour": 3,
+          "weekday": null,
+          "weekend": null
+        },
+        {
+          "hour": 4,
+          "weekday": null,
+          "weekend": null
+        },
+        {
+          "hour": 5,
+          "weekday": null,
+          "weekend": null
+        },
+        {
+          "hour": 6,
+          "weekday": null,
+          "weekend": null
+        },
+        {
+          "hour": 7,
+          "weekday": null,
+          "weekend": null
+        },
+        {
+          "hour": 8,
+          "weekday": null,
+          "weekend": null
+        },
+        {
+          "hour": 9,
+          "weekday": null,
+          "weekend": null
+        },
+        {
+          "hour": 10,
+          "weekday": null,
+          "weekend": null
+        },
+        {
+          "hour": 11,
+          "weekday": null,
+          "weekend": null
+        },
+        {
+          "hour": 12,
+          "weekday": null,
+          "weekend": null
+        },
+        {
+          "hour": 13,
+          "weekday": null,
+          "weekend": null
+        },
+        {
+          "hour": 14,
+          "weekday": null,
+          "weekend": null
+        },
+        {
+          "hour": 15,
+          "weekday": null,
+          "weekend": null
+        },
+        {
+          "hour": 16,
+          "weekday": null,
+          "weekend": null
+        },
+        {
+          "hour": 17,
+          "weekday": null,
+          "weekend": null
+        },
+        {
+          "hour": 18,
+          "weekday": 0.002,
+          "weekend": null
+        },
+        {
+          "hour": 19,
+          "weekday": 0.002,
+          "weekend": null
+        },
+        {
+          "hour": 20,
+          "weekday": 0.008,
+          "weekend": null
+        },
+        {
+          "hour": 21,
+          "weekday": 0.0,
+          "weekend": null
+        },
+        {
+          "hour": 22,
+          "weekday": 0.0,
+          "weekend": null
+        },
+        {
+          "hour": 23,
+          "weekday": 0.037,
+          "weekend": null
+        }
+      ]
+    }
+  ]
+}

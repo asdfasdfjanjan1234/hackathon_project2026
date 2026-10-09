@@ -1,0 +1,85 @@
+{
+  "created": "2026-10-10T02:41:37",
+  "device_id": 1,
+  "step_minutes": 15,
+  "from": "2026-10-10 02:45:00",
+  "to": "2026-10-31 23:45:00",
+  "tariff": {
+    "tariff": "flat",
+    "rate": 12.0,
+    "peak_rate": 13.59,
+    "offpeak_rate": 9.86,
+    "cycle_start_day": 1
+  },
+  "totals": {
+    "next_24_hours": {
+      "hours": 24.0,
+      "kwh": 0.0005,
+      "cost": 0.01,
+      "cost_low": 0.0,
+      "cost_high": 0.01
+    },
+    "next_7_days": {
+      "hours": 168.0,
+      "kwh": 0.0036,
+      "cost": 0.04,
+      "cost_low": 0.0,
+      "cost_high": 0.1
+    },
+    "rest_of_cycle (to 2026-10-31)": {
+      "hours": 525.25,
+      "kwh": 0.0112,
+      "cost": 0.13,
+      "cost_low": 0.0,
+      "cost_high": 0.32
+    }
+  },
+  "cost_by_agent_rest_of_cycle": {
+    "Other AI apps": 0.08
+  },
+  "bill": {
+    "cycle": {
+      "start": "2026-10-01",
+      "end": "2026-10-31"
+    },
+    "baseline_bill": 1500.0,
+    "ai_cost_so_far": 0.0,
+    "ai_cost_remaining": 0.13,
+    "ai_cost_remaining_low": 0.0,
+    "ai_cost_remaining_high": 0.32,
+    "ai_cost_cycle": 0.13,
+    "projected_bill": 1500.13,
+    "projected_bill_low": 1500.0,
+    "projected_bill_high": 1500.32,
+    "ai_share_of_bill": 0.0001,
+    "hours_measured_so_far": 5.6,
+    "hours_elapsed": 218,
+    "forecast_reaches_cycle_end": true
+  },
+  "backtest_total_error": 1.4019,
+  "backtest_horizon_hours": 2.0,
+  "coverage": {
+    "known_hours": 8.0,
+    "days": 2,
+    "hours_of_day": 9
+  },
+  "hours_by_level": {
+    "idle": 525.25
+  },
+  "models": {
+    "Other AI apps": {
+      "spec": "ARIMA(1,0,1)",
+      "start": "warm"
+    }
+  },
+  "beats_baselines": false,
+  "model_trained": "2026-10-10T02:41:09",
+  "bill_settings": {
+    "electricity_rate": 12.0,
+    "tariff": "flat",
+    "pop_peak_rate": 0.0,
+    "pop_offpeak_rate": 0.0,
+    "baseline_bill": 1500.0,
+    "billing_cycle_start_day": 1
+  }
+}
