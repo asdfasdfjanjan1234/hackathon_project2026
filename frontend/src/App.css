@@ -1,57 +1,149 @@
-:root {
-  --bg: #f5f7fb;
-  --card: #ffffff;
-  --text: #1c2333;
-  --muted: #667085;
-  --border: #e4e7ec;
-  --good: #12a150;
-  --bad: #d92d20;
-  --warn: #dc6803;
-  --accent: #4f7cff;
-  font-family: system-ui, -apple-system, sans-serif;
-  color: var(--text);
-  background: var(--bg);
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  
+  body {
+    background-color: #090C12;
+    color: #F1F5F9;
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow-x: hidden;
+    letter-spacing: -0.01em;
+  }
+
+  /* Monospace figures always use tabular numbers for aligned financial and metric readouts */
+  .font-mono, td, .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Precision scrollbar */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #090C12;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1E293B;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #334155;
+  }
 }
-@media (prefers-color-scheme: dark) {
-  :root { --bg: #0f1420; --card: #171e2e; --text: #e6e9f0; --muted: #98a2b3; --border: #2a3347; }
+
+@layer components {
+  /* Industrial Telemetry Card */
+  .dash-card {
+    background-color: #101624;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.6);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    position: relative;
+    min-width: 0; /* Prevents flexbox/grid overflow */
+  }
+
+  .dash-card:hover {
+    border-color: rgba(56, 189, 248, 0.25);
+    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.75), 0 0 16px -4px rgba(56, 189, 248, 0.1);
+  }
+
+  /* Metric KPI Block */
+  .stat-card {
+    background-color: #101624;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.75rem;
+    padding: 1.15rem;
+    transition: border-color 0.15s ease;
+    min-width: 0;
+  }
+
+  .stat-card:hover {
+    border-color: rgba(56, 189, 248, 0.3);
+  }
+
+  /* Technical section header */
+  .card-header-technical {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 0.85rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    margin-bottom: 1rem;
+  }
+
+  /* Industrial Hardware Status Tags (Cyan & Monochrome - NO GREEN) */
+  .tech-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.375rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  /* LIVE SENSOR: Precision Instrument Cyan (Replaces Green) */
+  .tech-tag-live {
+    background: rgba(56, 189, 248, 0.1);
+    color: #38BDF8;
+    border: 1px solid rgba(56, 189, 248, 0.28);
+  }
+
+  /* SIMULATED SENSOR: Instrument Amber */
+  .tech-tag-sim {
+    background: rgba(245, 158, 11, 0.1);
+    color: #FBBF24;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+  }
+
+  /* ALERT / CRITICAL: Instrument Crimson */
+  .tech-tag-alert {
+    background: rgba(244, 63, 94, 0.1);
+    color: #FB7185;
+    border: 1px solid rgba(244, 63, 94, 0.25);
+  }
+
+  /* NEUTRAL: Slate Gray */
+  .tech-tag-neutral {
+    background: rgba(255, 255, 255, 0.05);
+    color: #94A3B8;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
 }
-body { margin: 0; background: var(--bg); }
-.container { max-width: 960px; margin: 0 auto; padding: 24px 16px; display: flex; flex-direction: column; gap: 16px; }
-h1 { margin: 0; }
-h2 { margin: 0 0 12px; font-size: 1rem; color: var(--muted); font-weight: 600; }
-.subtitle { color: var(--muted); margin: 4px 0 0; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; overflow-x: auto; }
-.big { font-size: 2.5rem; font-weight: 700; margin: 0 0 8px; }
-.bill { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin: 0; }
-.bill dd { margin: 0; font-weight: 700; text-align: right; }
-.good { color: var(--good); }
-.bad { color: var(--bad); }
-.error { color: var(--bad); }
-table { width: 100%; border-collapse: collapse; }
-th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
-th { color: var(--muted); font-weight: 500; }
-.tag { font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
-.tag.measured { color: var(--good); }
-.tag.estimated { color: var(--warn); }
-.recs { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
-.recs li { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
-.action { font-weight: 700; font-size: 0.8rem; min-width: 64px; }
-.action.stop { color: var(--bad); }
-.action.switch { color: var(--accent); }
-.action.reduce { color: var(--warn); }
-.msg { flex: 1; min-width: 200px; }
-.save { color: var(--good); font-weight: 600; }
-.muted { color: var(--muted); font-size: 0.85rem; }
-.verdict { font-size: 1.25rem; font-weight: 700; margin: 0 0 8px; }
-.verdict.major { color: var(--bad); }
-.verdict.contributing { color: var(--warn); }
-.verdict.minor, .verdict.none, .verdict.no_increase { color: var(--good); }
-.stack { display: flex; height: 18px; border-radius: 6px; overflow: hidden; gap: 2px; margin: 12px 0 8px; }
-.seg.ai, .dot.ai { background: var(--bad); }
-.seg.rate, .dot.rate { background: var(--muted); }
-.seg.other, .dot.other { background: var(--accent); }
-.legend { list-style: none; padding: 0; margin: 0 0 8px; display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.9rem; }
-.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
-.apps { list-style: none; padding: 0; margin: 0 0 8px; }
-.apps li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+
+/* Precision Recharts dark tooltip */
+.recharts-default-tooltip {
+  background-color: #0D131F !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 0.5rem !important;
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.85) !important;
+  padding: 0.5rem 0.75rem !important;
+}
+
+.recharts-tooltip-label {
+  color: #94A3B8 !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 0.7rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  margin-bottom: 0.25rem !important;
+}
+
+.recharts-tooltip-item {
+  color: #F1F5F9 !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 0.8125rem !important;
+  font-weight: 600 !important;
+  padding: 0.125rem 0 !important;
+}
