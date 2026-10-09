@@ -77,3 +77,15 @@ def test_usage_shorter_window_uses_less_energy(client):
     week = sum(m["kwh"] for m in client.get("/api/usage?range=7d").json["by_model"])
     month = sum(m["kwh"] for m in client.get("/api/usage?range=30d").json["by_model"])
     assert 0 < week < month
+
+
+def test_best_time_follows_the_tariff_setting(client):
+    client.application.config["ELECTRICITYMAPS_TOKEN"] = ""  # no network in tests
+    flat = client.get("/api/best-time?rate=12&current_bill=2500").json
+    assert flat["tariff"] == "flat" and flat["shift"] is None and flat["what_if_pop"]["household_kwh_month"] == 208
+    assert len(flat["schedule"]) == 24 and len(flat["use"]) == 24
+    pop = client.get("/api/best-time?tariff=pop&rate=12&peak_rate=14&offpeak_rate=10").json
+    assert pop["tariff"] == "pop" and pop["what_if_pop"] is None
+    assert {s["rate"] for s in pop["schedule"]} <= {14.0, 10.0}
+    # The seeded readings are at 6 AM, off-peak, so there's nothing to shift.
+    assert pop["ai"]["peak_share"] == 0 and pop["shift"] is None and pop["best"]["label"] == "9 PM – 8 AM"

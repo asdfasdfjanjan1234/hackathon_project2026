@@ -15,6 +15,7 @@ from datetime import date, timedelta
 
 TREE_KG_PER_YEAR = 21.77  # CO2 one mature tree absorbs in a year (1.81 kg a month, as in usage_store)
 SHIFTED_RULES = {"cloud"}
+TIME_SHIFT_RULES = {"cheap hours"}  # same kWh at a lower price: no CO2 avoided
 
 
 def _kg(x):
@@ -26,6 +27,8 @@ def rec_co2(rec, rate, grid, datacenter):
     {co2_shifted_kg} (the CO2 leaves this grid but is emitted on the data center's)."""
     if rec["scope"] == "carbon":  # computed in CO2 already (clean hours)
         return {"co2_saved_kg": rec["co2_saved_kg"]}
+    if rec["rule"] in TIME_SHIFT_RULES:
+        return {"co2_saved_kg": 0.0}
     if rec["scope"] == "datacenter":
         return {"co2_saved_kg": _kg((rec.get("wh_saved") or 0) / 1000 * datacenter)}
     kwh = rec["monthly_savings"] / rate if rate else 0.0

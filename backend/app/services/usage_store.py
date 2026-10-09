@@ -65,20 +65,21 @@ def get_hourly_usage(days=30):
     return {h: kwh / measured for h, kwh in totals.items()} if measured else {}
 
 
-def get_clean_hours():
-    return clean_hours(get_hourly_usage(), current_app.config)
+def get_clean_hours(use_by_hour=None):
+    return clean_hours(get_hourly_usage() if use_by_hour is None else use_by_hour, current_app.config)
 
 
 def get_signals():
     """What recommendations and the forecast need besides daily kWh: which days were measured,
-    loaded-but-idle models, installed local models, the cloud-model switch hint, and the
-    grid's cleanest hours."""
+    loaded-but-idle models, installed local models, the cloud-model switch hint, AI use by hour
+    of day, and the grid's cleanest hours."""
     with connect() as conn:
         device = this_device_id(conn)
         measured = storage.measured_days(conn, device_id=device)
         idle = storage.idle_loaded(conn, device_id=device)
+    hourly = get_hourly_usage()
     return {"measured_days": measured, "idle_loaded": idle, "installed": installed_local_models(),
-            "cloud": model_usage()["switch_hint"], "clean_hours": get_clean_hours()}
+            "cloud": model_usage()["switch_hint"], "hourly_use": hourly, "clean_hours": get_clean_hours(hourly)}
 
 
 def summarize_by_model(daily, rate):

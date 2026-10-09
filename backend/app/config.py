@@ -30,6 +30,11 @@ class Config:
     CARBON_BUDGET_KG = float(os.getenv("CARBON_BUDGET_KG", 10))
     # Hourly grid carbon intensity from Electricity Maps (free personal token from
     # app.electricitymaps.com), for "run heavy jobs in the cleanest hours". Unset: no hourly data.
-    ELECTRICITYMAPS_TOKEN = os.getenv("ELECTRICITYMAPS_TOKEN", "")
+    ELECTRICITYMAPS_TOKEN = os.getenv("ELECTRICITYMAPS_TOKEN", "em_h8WKpUzpCh3syYQtenHFvYp2RyRDmHeC")
     ELECTRICITYMAPS_ZONE = os.getenv("ELECTRICITYMAPS_ZONE", "PH-LU")  # Luzon; PH-VI Visayas, PH-MI Mindanao
     CLEAN_WINDOW_HOURS = int(os.getenv("CLEAN_WINDOW_HOURS", 3))
+    # "flat": one rate at every hour (most households). "pop": Meralco's Peak/Off-Peak program, whose
+    # rates are POP_PEAK_RATE / POP_OFFPEAK_RATE (0: estimated from ELECTRICITY_RATE, see cheap_hours.py).
+    TARIFF = os.getenv("TARIFF", "flat")
+    POP_PEAK_RATE = float(os.getenv("POP_PEAK_RATE", 0))
+    POP_OFFPEAK_RATE = float(os.getenv("POP_OFFPEAK_RATE", 0))

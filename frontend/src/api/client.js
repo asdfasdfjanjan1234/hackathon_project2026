@@ -29,6 +29,12 @@ function billQuery(params) {
   });
   if (params.cycleStartDay) q.set("cycle_start_day", params.cycleStartDay);
   if (params.carbonBudget != null) q.set("carbon_budget", params.carbonBudget);
+  if (params.tariff) q.set("tariff", params.tariff);
+  // On a flat rate the backend estimates POP's rates from the regular rate, so they follow it.
+  if (params.tariff === "pop") {
+    q.set("peak_rate", params.peakRate);
+    q.set("offpeak_rate", params.offpeakRate);
+  }
   return `?${q}`;
 }
 
@@ -47,6 +53,8 @@ export const api = {
     return get(`/carbon${q ? `${q}&` : "?"}range=${range}`);
   },
   models: (params) => get(`/models${billQuery(params)}`),
+  // Cheapest hours on the tariff, cleanest on the grid, and the best window for batch AI jobs.
+  bestTime: (params) => get(`/best-time${billQuery(params)}`),
 
   live: () => get("/live"),
   system: () => get("/system"),

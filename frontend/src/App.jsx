@@ -13,6 +13,7 @@ import DeviceReader from "./components/DeviceReader";
 import MeterCheck from "./components/MeterCheck";
 import ScaleUp from "./components/ScaleUp";
 import CarbonFootprint from "./components/CarbonFootprint";
+import BestTime from "./components/BestTime";
 import { VIEWS } from "./navigation";
 import { AlertTriangle, RefreshCw, Zap } from "lucide-react";
 
@@ -69,14 +70,15 @@ export default function App() {
     setError(null);
 
     try {
-      const [usage, forecast, recs, impact, carbon] = await Promise.all([
+      const [usage, forecast, recs, impact, carbon, bestTime] = await Promise.all([
         api.usage(params, dateRangeRef.current),
         api.forecast(params),
         api.recommendations(params),
         api.impact(params),
         api.carbon(params, dateRangeRef.current),
+        api.bestTime(params),
       ]);
-      setRawData({ usage, forecast, recs, impact, carbon });
+      setRawData({ usage, forecast, recs, impact, carbon, bestTime });
       if (!params) {
         const fromServer = {
           rate: usage.rate_per_kwh,
@@ -85,6 +87,9 @@ export default function App() {
           budget: forecast.budget,
           cycleStartDay: forecast.cycle?.start_day ?? 1,
           carbonBudget: carbon.budget?.kg ?? 0,
+          tariff: bestTime.tariff,
+          peakRate: bestTime.peak_rate,
+          offpeakRate: bestTime.offpeak_rate,
         };
         setCustomParams(fromServer);
         setDefaultParams(fromServer);
@@ -297,6 +302,7 @@ export default function App() {
                 <ForecastChart forecast={rawData.forecast} recs={rawData.recs} />
               </div>
             </div>
+            <BestTime info={rawData.bestTime} onOpenSettings={() => setSettingsOpen(true)} />
             <ScaleUp
               liveReading={liveReading}
               forecast={rawData.forecast}
@@ -370,6 +376,9 @@ export default function App() {
         currentBill={customParams?.currentBill}
         currentCycleStartDay={customParams?.cycleStartDay}
         currentCarbonBudget={customParams?.carbonBudget}
+        currentTariff={customParams?.tariff}
+        currentPeakRate={customParams?.peakRate}
+        currentOffpeakRate={customParams?.offpeakRate}
         defaults={defaultParams}
         onSave={(newParams) => {
           setCustomParams(newParams);

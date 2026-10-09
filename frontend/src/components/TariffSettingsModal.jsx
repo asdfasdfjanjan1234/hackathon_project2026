@@ -46,6 +46,9 @@ export default function TariffSettingsModal({
   currentBill,
   currentCycleStartDay,
   currentCarbonBudget,
+  currentTariff,
+  currentPeakRate,
+  currentOffpeakRate,
   defaults,
   onSave,
 }) {
@@ -55,6 +58,9 @@ export default function TariffSettingsModal({
   const [bill, setBill] = useState(currentBill ?? 2500);
   const [cycleDay, setCycleDay] = useState(currentCycleStartDay ?? 1);
   const [carbonBudget, setCarbonBudget] = useState(currentCarbonBudget ?? 10);
+  const [tariff, setTariff] = useState(currentTariff ?? "flat");
+  const [peakRate, setPeakRate] = useState(currentPeakRate ?? 13.59);
+  const [offpeakRate, setOffpeakRate] = useState(currentOffpeakRate ?? 9.86);
 
   // Start from the values in use each time the modal opens.
   useEffect(() => {
@@ -65,7 +71,11 @@ export default function TariffSettingsModal({
     setBill(currentBill ?? 2500);
     setCycleDay(currentCycleStartDay ?? 1);
     setCarbonBudget(currentCarbonBudget ?? 10);
-  }, [isOpen, currentRate, currentBudget, currentBaseline, currentBill, currentCycleStartDay, currentCarbonBudget]);
+    setTariff(currentTariff ?? "flat");
+    setPeakRate(currentPeakRate ?? 13.59);
+    setOffpeakRate(currentOffpeakRate ?? 9.86);
+  }, [isOpen, currentRate, currentBudget, currentBaseline, currentBill, currentCycleStartDay, currentCarbonBudget,
+      currentTariff, currentPeakRate, currentOffpeakRate]);
 
   if (!isOpen) return null;
 
@@ -78,6 +88,9 @@ export default function TariffSettingsModal({
     setBill(defaults.currentBill);
     setCycleDay(defaults.cycleStartDay);
     setCarbonBudget(defaults.carbonBudget);
+    setTariff(defaults.tariff);
+    setPeakRate(defaults.peakRate);
+    setOffpeakRate(defaults.offpeakRate);
   };
 
   const handleApply = () => {
@@ -89,6 +102,9 @@ export default function TariffSettingsModal({
         currentBill: Number(bill) || 0,
         cycleStartDay: Math.min(Math.max(Math.round(Number(cycleDay)) || 1, 1), 31),
         carbonBudget: Number(carbonBudget) || 0,
+        tariff,
+        peakRate: Number(peakRate) || 0,
+        offpeakRate: Number(offpeakRate) || 0,
       });
     }
     onClose();
@@ -127,6 +143,53 @@ export default function TariffSettingsModal({
             accent="text-sky-300"
             hint="The total ₱/kWh on your bill (generation, transmission, distribution and taxes)."
           />
+          <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-2">
+            <div className="text-slate-300 font-bold uppercase text-[11px]">Tariff</div>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tariff">
+              {[
+                ["flat", "Same rate all day", "Regular Meralco residential rate"],
+                ["pop", "Peak / Off-Peak", "Meralco POP: cheaper 9 PM – 8 AM Mon–Sat and most of Sunday"],
+              ].map(([id, title, hint]) => (
+                <button
+                  key={id}
+                  role="radio"
+                  aria-checked={tariff === id}
+                  onClick={() => setTariff(id)}
+                  className={`p-2 rounded border text-left transition-colors ${
+                    tariff === id
+                      ? "border-sky-500 bg-sky-500/10 text-white"
+                      : "border-white/10 bg-slate-950 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <div className="font-bold text-[11px] uppercase">{title}</div>
+                  <div className="text-[10px] font-sans text-slate-400">{hint}</div>
+                </button>
+              ))}
+            </div>
+            {tariff === "pop" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                {[
+                  ["Peak ₱/kWh", peakRate, setPeakRate],
+                  ["Off-peak ₱/kWh", offpeakRate, setOffpeakRate],
+                ].map(([label, value, set]) => (
+                  <label key={label} className="flex items-center justify-between gap-2 text-[11px] text-slate-300">
+                    <span>{label}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={value}
+                      onChange={(e) => set(e.target.value === "" ? 0 : parseFloat(e.target.value))}
+                      className="w-24 px-2 py-1 rounded bg-slate-950 border border-white/10 text-right text-slate-100 tabular-nums"
+                    />
+                  </label>
+                ))}
+                <div className="sm:col-span-2 text-[10px] text-slate-400 font-sans">
+                  The all-in peak and off-peak rates on your POP bill. They change monthly with the generation charge.
+                </div>
+              </div>
+            )}
+          </div>
           <Field
             label="Monthly budget"
             value={budget}

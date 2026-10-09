@@ -19,8 +19,11 @@ def bill_params():
         "budget": arg("budget", "MONTHLY_BUDGET"),
         "cycle_start_day": min(max(request.args.get("cycle_start_day", type=int,
                                                     default=cfg["BILLING_CYCLE_START_DAY"]), 1), 31),
+        "tariff": "pop" if request.args.get("tariff", cfg["TARIFF"]) == "pop" else "flat",
+        "peak_rate": arg("peak_rate", "POP_PEAK_RATE"),
+        "offpeak_rate": arg("offpeak_rate", "POP_OFFPEAK_RATE"),
     }
 
 
-from . import (actions, carbon, device, forecast, health, impact, live, models, readings, recommendations,  # noqa: E402,F401
+from . import (actions, best_time, carbon, device, forecast, health, impact, live, models, readings, recommendations,  # noqa: E402,F401
                system, usage, validation)

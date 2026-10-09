@@ -23,6 +23,7 @@ backend/                  Flask API (port 5001)
       forecast.py         GET /api/forecast         projected monthly bill
       recommendations.py  GET /api/recommendations  STOP / SWITCH / REDUCE tips, with CO₂ saved each
       carbon.py           GET /api/carbon           CO₂ on device + data center, cycle/year, carbon budget
+      best_time.py        GET /api/best-time        cheapest hours on the tariff, cleanest on the grid, best window
       system.py           GET /api/system           detected OS and devices, sensor per component, kWh per component
       device.py           POST /api/device/start|stop, GET /api/device/status, POST /api/device/source
       readings.py         GET /api/devices, GET /api/readings   stored devices and readings
@@ -49,6 +50,7 @@ backend/                  Flask API (port 5001)
       recommendations.py  Rule-based recommendations with savings (budget, smaller model, quantization, idle, …)
       carbon.py           CO₂ per model and day, two grid factors, carbon budget, CO₂ avoided by recommendations
       clean_hours.py      Hourly grid CO₂ (Electricity Maps) → cleanest window to run batch AI jobs
+      cheap_hours.py      Flat or Meralco Peak/Off-Peak tariff → cheapest hours, and the best of price and CO₂
       outlook.py          Forecast + recommendations together ("with recommendations" path)
       actions.py          Unloads / switches Ollama models when a recommendation is applied
       validation.py       Compares our whole-machine readings with a plug-in wall meter
