@@ -4,6 +4,7 @@ import { Leaf, Cloud, Laptop, Target, TreePine, ArrowRight, AlertTriangle, Check
 import { formatCo2, formatKwh, shortDate, peso } from "../format";
 import { color } from "../theme";
 import CleanHours from "./CleanHours";
+import Figures from "./Figures";
 
 // Device vs data center: a green/violet pair that stays distinct in both themes.
 const DEVICE = color("viz-green");
@@ -25,7 +26,7 @@ function Tile({ title, icon: Icon, value, subtext, footer, tag, tagClass = "tech
           <span className="eyebrow truncate">{title}</span>
           <Icon className="w-4 h-4 text-ink-muted shrink-0" />
         </div>
-        <div className="text-[28px] leading-none font-semibold tracking-tight text-ink tabular-nums truncate">{value}</div>
+        <div className="stat-value truncate text-ink">{value}</div>
         <div className="text-xs text-ink-muted mt-2 leading-snug">{subtext}</div>
       </div>
       <div className="mt-4 pt-3 border-t border-line flex items-center justify-between gap-2">
@@ -215,7 +216,7 @@ export default function CarbonFootprint({ carbon, onOpenDirectives }) {
                 )}
                 {shown.map((m) => (
                   <tr key={`${m.scope}|${m.model}`} className="hover:bg-sunken">
-                    <td className="py-2.5 px-2 text-ink truncate max-w-[240px]" title={m.model}>
+                    <td className="py-2.5 px-2 font-medium text-ink truncate max-w-[240px]" title={m.model}>
                       {m.model.replace(/^Claude Code · claude-/, "Claude Code · ")}
                     </td>
                     <td className="py-2.5 px-2">
@@ -258,12 +259,14 @@ export default function CarbonFootprint({ carbon, onOpenDirectives }) {
               actions.map((a) => (
                 <div key={`${a.rule}|${a.model}`} className="p-3 inset-panel">
                   <div className="flex items-start justify-between gap-2 text-sm">
-                    <span className="text-ink font-medium min-w-0">
+                    <span className="text-ink font-semibold min-w-0">
                       {a.action}: {a.model}
                     </span>
-                    <span className="text-pos font-semibold tabular-nums shrink-0">-{formatCo2(a.co2_saved_kg)} / mo</span>
+                    <span className="text-pos font-bold tabular-nums shrink-0">-{formatCo2(a.co2_saved_kg)} / mo</span>
                   </div>
-                  <p className="text-xs text-ink-soft mt-1 leading-relaxed">{a.message}</p>
+                  <p className="text-xs text-ink-soft mt-1 leading-relaxed">
+                    <Figures text={a.message} />
+                  </p>
                   <p className="text-xs text-ink-muted mt-1">
                     {a.scope === "datacenter"
                       ? "Data-center CO₂ · not on your bill"

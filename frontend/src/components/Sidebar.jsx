@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { NAV_GROUPS } from "../navigation";
+import Logo, { LogoMark } from "./Logo";
 import ThemeToggle from "./ThemeToggle";
 
 export default function Sidebar({
@@ -46,30 +47,10 @@ export default function Sidebar({
         >
           <div className="flex items-center min-w-0 w-full">
             {expanded ? (
-              <div className="flex items-center min-w-0">
-                <img
-                  src="/logo.png"
-                  alt="Kilo What?"
-                  className="h-8 sm:h-9 w-auto max-w-full object-contain object-left dark:hidden"
-                />
-                <img
-                  src="/logo-dark.png"
-                  alt="Kilo What?"
-                  className="h-8 sm:h-9 w-auto max-w-full object-contain object-left hidden dark:block"
-                />
-              </div>
+              <Logo />
             ) : (
               <div className="w-10 h-10 flex items-center justify-center">
-                <img
-                  src="/logo-collapse.png"
-                  alt="Kilo What?"
-                  className="h-9 w-9 object-contain dark:hidden"
-                />
-                <img
-                  src="/logo-collapse-dark.png"
-                  alt="Kilo What?"
-                  className="h-9 w-9 object-contain hidden dark:block"
-                />
+                <LogoMark title="Kilo What?" className="h-9 w-9" />
               </div>
             )}
           </div>
@@ -106,7 +87,7 @@ export default function Sidebar({
                     aria-current={isActive ? "page" : undefined}
                     aria-label={!expanded ? item.label : undefined}
                     className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-colors group relative ${
-                      isActive ? "bg-accent/10 text-accent font-medium" : "text-ink-soft hover:text-ink hover:bg-sunken"
+                      isActive ? "bg-accent/10 text-accent font-semibold" : "text-ink-soft hover:text-ink hover:bg-sunken"
                     } ${!expanded ? "justify-center" : ""}`}
                   >
                     <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-accent" : "text-ink-muted group-hover:text-ink-soft"}`} />
@@ -149,7 +130,7 @@ export default function Sidebar({
             />
             {expanded && (
               <div className="flex-1 min-w-0 text-xs">
-                <div className="flex items-center justify-between font-medium text-ink">
+                <div className="flex items-center justify-between font-semibold text-ink">
                   <span>Power source</span>
                   <span className={liveReading?.estimated ? "text-warn" : "text-pos"}>
                     {liveReading?.estimated ? "Estimated" : liveReading ? "Measured" : "—"}

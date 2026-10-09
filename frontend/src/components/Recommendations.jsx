@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { api } from "../api/client";
 import { peso, formatWh, formatWatts, formatCo2 } from "../format";
+import Figures from "./Figures";
 
 const keyOf = (rec) => `${rec.rule}|${rec.model}`;
 
@@ -60,7 +61,7 @@ export default function Recommendations({ recs, liveReading, onApplied }) {
 
         <div className="text-right shrink-0">
           <div className="text-xs text-ink-muted">Recoverable tariff</div>
-          <div className="text-lg font-semibold text-pos tabular-nums leading-tight">
+          <div className="text-lg font-bold text-pos tabular-nums leading-tight">
             {peso(totalPotentialSavings)} / mo
           </div>
           {recs?.monthly_co2_saved_kg > 0 && (
@@ -96,9 +97,11 @@ export default function Recommendations({ recs, liveReading, onApplied }) {
                       <Icon className="w-3 h-3" />
                       {config.code}
                     </span>
-                    <span className="text-sm font-semibold text-ink truncate">{rec.model}</span>
+                    <span className="text-sm font-bold text-ink truncate">{rec.model}</span>
                   </div>
-                  <p className="text-sm text-ink-soft leading-relaxed">{rec.message}</p>
+                  <p className="text-sm text-ink-soft leading-relaxed">
+                    <Figures text={rec.message} />
+                  </p>
                   {result?.done && (
                     <p className="text-xs text-pos flex items-center gap-1.5">
                       <Zap className="w-3.5 h-3.5 shrink-0" />
@@ -126,7 +129,7 @@ export default function Recommendations({ recs, liveReading, onApplied }) {
                         ? "Budget alert"
                         : "Recoverable"}
                     </span>
-                    <span className="text-sm font-semibold text-ink tabular-nums">
+                    <span className="text-sm font-bold text-ink tabular-nums">
                       {rec.scope === "datacenter"
                         ? `-${formatWh(rec.wh_saved)} / mo`
                         : rec.scope === "carbon"
@@ -184,7 +187,11 @@ export default function Recommendations({ recs, liveReading, onApplied }) {
           Rules: budget · smaller model · quantization · idle loaded · cost per hour · tool runs · cloud · growth · clean hours
         </span>
         <span className="tabular-nums">
-          {recs?.bill_with_recommendations != null && `This cycle with recs: ${peso(recs.bill_with_recommendations)}`}
+          {recs?.bill_with_recommendations != null && (
+            <>
+              This cycle with recs: <span className="font-semibold text-ink">{peso(recs.bill_with_recommendations)}</span>
+            </>
+          )}
         </span>
       </div>
     </section>

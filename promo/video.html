@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WattTrace promo (60 s)</title>
+<!--
+  The promo video, drawn as a 1920x1080 page whose look depends only on a time in seconds.
+  build.py calls window.seek(t) for every frame and encodes the screenshots.
+  Opened in a browser, it plays with out/audio.m4a: click or Space to play, arrow keys to step.
+
+  When something appears is tied to the narration, not to fixed seconds:
+    data-in="sensors"        when the line "sensors" starts (ids are in narration.json)
+    data-in="sensors#1"      when its 2nd spoken segment starts (after the first pause)
+    data-in="nos@0.24"       24% of the way through the line
+    data-in="bill.end+0.4"   0.4 s after the line ends
+    data-in="$how+0.2"       0.2 s after the scene "how" starts
+  data-fx picks the entrance (rise, fade, pop, left, right, growx, draw); data-out fades it away.
+-->
+<script src="out/timeline.js"></script>
+<script src="assets/shots/shots.js"></script>
+<style>
+  @font-face {
+    font-family: "DM Sans"; font-style: normal; font-weight: 400 700;
+    src: url(assets/fonts/dmsans-latin-ext.woff2) format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F;
+  }
+  @font-face {
+    font-family: "DM Sans"; font-style: normal; font-weight: 400 700;
+    src: url(assets/fonts/dmsans-latin.woff2) format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+
+  /* The app's dark theme (frontend/src/App.css), so the video matches the product. */
+  :root {
+    --canvas: 18 19 20; --surface: 27 28 30; --sunken: 22 23 25;
+    --line: 44 46 49; --line-strong: 60 63 67;
+    --ink: 236 236 234; --ink-soft: 189 188 183; --ink-muted: 145 144 139;
+    --accent: 127 166 245; --on-accent: 14 22 40;
+    --pos: 98 199 143; --warn: 229 169 59; --neg: 240 122 112; --violet: 177 140 240;
+  }
+  html, body { margin: 0; height: 100%; background: rgb(8 8 9); overflow: hidden; }
+  #stage {
+    position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden;
+    transform-origin: 0 0; background: rgb(var(--canvas)); color: rgb(var(--ink));
+    font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif; font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased; line-height: 1.2;
+  }
+  /* Faint measuring grid behind everything */
+  #stage::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: linear-gradient(rgb(var(--ink) / 0.028) 1px, transparent 1px),
+                      linear-gradient(90deg, rgb(var(--ink) / 0.028) 1px, transparent 1px);
+    background-size: 64px 64px; background-position: 0 28px;
+  }
+  .scene { position: absolute; inset: 0; opacity: 0; visibility: hidden; }
+  .abs { position: absolute; }
+  .center { left: 0; right: 0; text-align: center; }
+  [data-in] { opacity: 0; will-change: opacity, transform; }
+  .ic { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
+
+  .h1 { font-size: 76px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.12; }
+  .h2 { font-size: 52px; font-weight: 600; letter-spacing: -0.015em; }
+  .soft { color: rgb(var(--ink-soft)); }
+  .muted { color: rgb(var(--ink-muted)); }
+  .blue { color: rgb(var(--accent)); }
+  .amber { color: rgb(var(--warn)); }
+  .green { color: rgb(var(--pos)); }
+
+  .tag {
+    display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; border-radius: 999px;
+    border: 1.5px solid rgb(var(--line-strong)); background: rgb(var(--sunken)); color: rgb(var(--ink-soft));
+    padding: 6px 18px; font-size: 24px; font-weight: 500; line-height: 1.3;
+  }
+  .tag-blue { border-color: rgb(var(--accent) / 0.35); background: rgb(var(--accent) / 0.12); color: rgb(var(--accent)); }
+  .tag-amber { border-color: rgb(var(--warn) / 0.35); background: rgb(var(--warn) / 0.12); color: rgb(var(--warn)); }
+  .tag-green { border-color: rgb(var(--pos) / 0.35); background: rgb(var(--pos) / 0.12); color: rgb(var(--pos)); }
+  .tag-violet { border-color: rgb(var(--violet) / 0.35); background: rgb(var(--violet) / 0.12); color: rgb(var(--violet)); }
+  .card { background: rgb(var(--surface)); border: 1.5px solid rgb(var(--line)); border-radius: 26px; box-sizing: border-box; }
+
+  .mark { display: flex; align-items: center; justify-content: center; background: rgb(var(--accent)); color: rgb(var(--on-accent)); border-radius: 24%; }
+  .mark .ic { width: 52%; height: 52%; }
+
+  /* A cut-out of a real screenshot (data-shot, data-rect: see assets/shots/shots.js). The script
+     below fills in --x --y --w --h, in the image's own pixels, and --iw, the image's width. */
+  .crop {
+    --dw: 485;
+    width: calc(var(--dw) * 1px); height: calc(var(--dw) * var(--h) / var(--w) * 1px);
+    background-image: var(--src); background-repeat: no-repeat;
+    background-size: calc(var(--iw) * var(--dw) / var(--w) * 1px) auto;
+    background-position: calc(var(--x) * var(--dw) / var(--w) * -1px) calc(var(--y) * var(--dw) / var(--w) * -1px);
+    border-radius: 14px; border: 1.5px solid rgb(var(--line)); box-sizing: content-box;
+  }
+
+  /* Persistent brand and captions */
+  #brand { left: 96px; top: 54px; display: flex; align-items: center; gap: 16px; font-size: 32px; font-weight: 600; letter-spacing: -0.01em; }
+  #brand .mark { width: 50px; height: 50px; }
+  #local { right: 96px; top: 60px; }
+  #local .ic { width: 24px; height: 24px; }
+  #cap { left: 0; right: 0; bottom: 58px; display: flex; justify-content: center; opacity: 0; }
+  #cap span.box {
+    max-width: 1560px; padding: 14px 32px 16px; border-radius: 18px; text-align: center;
+    background: rgb(10 10 11 / 0.88); border: 1.5px solid rgb(var(--line));
+    font-size: 38px; font-weight: 500; line-height: 1.25; color: rgb(var(--ink));
+  }
+
+  /* ---- hook ---- */
+  #cloud { left: 400px; top: 200px; width: 240px; height: 240px; color: rgb(var(--ink-muted)); }
+  #laptop { left: 1250px; top: 180px; width: 280px; height: 280px; color: rgb(var(--ink)); }
+  #cloud .ic, #laptop .ic { width: 100%; height: 100%; stroke-width: 1.1; }
+  #wire { left: 668px; top: 318px; width: 560px; height: 24px; }
+  .packet { top: 319px; left: 0; width: 22px; height: 22px; border-radius: 6px; background: rgb(var(--accent)); opacity: 0; }
+  #aichip { left: 1348px; top: 277px; width: 84px; height: 50px; border-radius: 12px; background: rgb(var(--accent)); color: rgb(var(--on-accent));
+            display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: 700; }
+  .chips { top: 742px; display: flex; justify-content: center; gap: 28px; }
+  .chip { display: inline-flex; align-items: center; gap: 14px; padding: 14px 34px 14px 26px; border-radius: 999px; font-size: 42px; font-weight: 600;
+          color: rgb(var(--pos)); background: rgb(var(--pos) / 0.12); border: 2px solid rgb(var(--pos) / 0.4); }
+  .chip .ic { width: 38px; height: 38px; stroke-width: 2.6; }
+  .cmp { left: 260px; width: 1400px; }
+  .cmp .top { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+  .cmp .label { display: flex; align-items: center; gap: 18px; font-size: 36px; font-weight: 500; }
+  .cmp .value { font-size: 60px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
+  .track { height: 48px; border-radius: 12px; background: rgb(var(--sunken)); border: 1.5px solid rgb(var(--line)); overflow: hidden; }
+  .fill { height: 100%; border-radius: 10px; transform-origin: 0 50%; }
+
+  /* ---- problem ---- */
+  #calc { left: 440px; top: 440px; width: 1040px; height: 270px; padding: 38px 48px; }
+  #calc .row { display: flex; align-items: center; justify-content: space-between; margin-top: 26px; }
+  #calc .formula { font-size: 42px; font-weight: 500; color: rgb(var(--ink-soft)); }
+  #calc .guessnum { font-size: 116px; font-weight: 600; letter-spacing: -0.03em; line-height: 1; color: rgb(var(--ink-muted)); }
+  #stamp { left: 1260px; top: 404px; transform: rotate(-5deg); }
+  #stamp .tag { font-size: 40px; font-weight: 600; padding: 10px 30px; border-width: 2.5px; background: rgb(46 38 22); }
+
+  /* ---- meet ---- */
+  #biglogo { top: 360px; display: flex; align-items: center; justify-content: center; gap: 40px; font-size: 156px; font-weight: 600; letter-spacing: -0.035em; }
+  #biglogo .mark { width: 168px; height: 168px; }
+  .badge { left: 96px; display: flex; align-items: center; gap: 22px; font-size: 44px; font-weight: 600; }
+  .badge .tick { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+                 background: rgb(var(--pos) / 0.14); border: 2px solid rgb(var(--pos) / 0.4); color: rgb(var(--pos)); }
+  .badge .tick .ic { width: 30px; height: 30px; stroke-width: 2.8; }
+  #browser { left: 716px; top: 178px; width: 1108px; border-radius: 18px; overflow: hidden; border: 1.5px solid rgb(var(--line-strong));
+             background: rgb(var(--surface)); box-shadow: 0 30px 80px rgb(0 0 0 / 0.55); }
+  #browser .bar { height: 46px; display: flex; align-items: center; gap: 9px; padding: 0 18px; border-bottom: 1.5px solid rgb(var(--line)); }
+  #browser .bar i { width: 13px; height: 13px; border-radius: 50%; background: rgb(var(--line-strong)); }
+  #browser .bar span { margin-left: 18px; padding: 4px 18px; border-radius: 8px; background: rgb(var(--sunken)); font-size: 19px; color: rgb(var(--ink-muted)); }
+  #browser .view { height: 623px; overflow: hidden; }
+  #browser img { display: block; width: 1108px; transform-origin: 0 0; }
+  #ring { border-radius: 14px; border: 3px solid rgb(var(--accent)); box-sizing: border-box; }
+
+  /* ---- how ---- */
+  .hwrap { top: 228px; width: 560px; height: 612px; }
+  .hcard { width: 100%; height: 100%; padding: 34px 36px; position: relative; }
+  .step { font-weight: 600; font-size: 25px; padding: 6px 20px 6px 8px; }
+  .step b { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; font-size: 22px;
+            background: currentColor; }
+  .step b span { color: rgb(var(--surface)); }
+  .ctitle { margin-top: 18px; font-size: 38px; font-weight: 600; letter-spacing: -0.012em; line-height: 1.15; }
+  .every { margin-top: 20px; display: flex; align-items: center; gap: 12px; font-size: 27px; font-weight: 500; color: rgb(var(--accent)); }
+  .every .ic { width: 28px; height: 28px; }
+  .srow { margin-top: 13px; display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 11px; border-bottom: 1.5px solid rgb(var(--line)); font-size: 26px; }
+  .srow b { font-weight: 500; }
+  .srow span { font-size: 23px; color: rgb(var(--ink-muted)); }
+  .readout { left: 36px; right: 36px; bottom: 30px; display: flex; align-items: flex-end; justify-content: space-between; }
+  .readout .n { font-size: 100px; font-weight: 600; letter-spacing: -0.035em; line-height: 0.95; }
+  .readout .n small { font-size: 46px; font-weight: 500; color: rgb(var(--ink-muted)); margin-left: 8px; letter-spacing: 0; }
+  .readout .side { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; padding-bottom: 6px; }
+  .readout .side .what { font-size: 23px; color: rgb(var(--ink-muted)); }
+  .struck { text-decoration: line-through; text-decoration-thickness: 2px; }
+  .from { margin-top: 22px; margin-bottom: 10px; font-size: 21px; line-height: 25px; color: rgb(var(--ink-muted)); }
+  .fbox { margin-top: 16px; padding: 14px 0; text-align: center; border-radius: 14px; background: rgb(var(--sunken)); border: 1.5px solid rgb(var(--line));
+             font-size: 28px; font-weight: 600; white-space: nowrap; }
+  .fbox i { font-style: normal; color: rgb(var(--violet)); }
+  .note { margin-top: 12px; font-size: 23px; line-height: 1.35; color: rgb(var(--ink-muted)); }
+  #meterline { top: 858px; display: flex; justify-content: center; }
+  #meterline .tag { font-size: 27px; padding: 9px 26px; gap: 14px; color: rgb(var(--ink)); }
+  #meterline .ic { width: 28px; height: 28px; color: rgb(var(--pos)); }
+
+  /* ---- value ---- */
+  .tile { height: 180px; padding: 26px 32px; }
+  .tile .eyebrow { font-size: 25px; font-weight: 500; color: rgb(var(--ink-muted)); }
+  .tile .big { margin-top: 10px; font-size: 68px; font-weight: 600; letter-spacing: -0.025em; line-height: 1; }
+  .tile .sub { margin-top: 12px; font-size: 23px; color: rgb(var(--ink-muted)); }
+  .mini { height: 82px; padding: 0 30px; display: flex; align-items: center; justify-content: space-between; }
+  .mini .big { font-size: 44px; font-weight: 600; letter-spacing: -0.02em; }
+  .mini .sub { font-size: 24px; color: rgb(var(--ink-muted)); }
+  .op { font-size: 24px; font-weight: 500; color: rgb(var(--ink-soft)); text-align: center; width: 124px; }
+  .arrows { stroke: rgb(var(--line-strong)); stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .panel { top: 478px; width: 852px; height: 384px; padding: 34px 36px; }
+  .ptitle { margin-top: 16px; font-size: 36px; font-weight: 600; letter-spacing: -0.012em; line-height: 1.15; }
+  .psub { margin-top: 12px; font-size: 24px; line-height: 1.35; color: rgb(var(--ink-muted)); }
+  .model { display: inline-flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 14px; font-size: 25px; font-weight: 500; white-space: nowrap;
+           background: rgb(var(--sunken)); border: 1.5px solid rgb(var(--line-strong)); }
+  .model .ic { width: 26px; height: 26px; }
+  #switchbtn { left: 612px; top: 168px; width: 204px; height: 64px; border-radius: 14px; background: rgb(var(--accent)); color: rgb(var(--on-accent));
+               display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 600; }
+  #cursor { left: 0; top: 0; width: 44px; height: 44px; color: rgb(var(--ink)); opacity: 0; filter: drop-shadow(0 3px 6px rgb(0 0 0 / 0.6)); }
+  #cursor .ic { width: 100%; height: 100%; fill: rgb(var(--canvas)); stroke-width: 1.8; }
+
+  /* ---- close ---- */
+  #endlogo { top: 250px; display: flex; align-items: center; justify-content: center; gap: 34px; font-size: 132px; font-weight: 600; letter-spacing: -0.035em; }
+  #endlogo .mark { width: 140px; height: 140px; }
+  .endline { font-size: 70px; font-weight: 600; letter-spacing: -0.02em; }
+
+  /* Preview only (not in the rendered video) */
+  #hint { position: fixed; left: 16px; bottom: 12px; font: 13px -apple-system, sans-serif; color: rgb(150 150 150); }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></symbol>
+  <symbol id="i-laptop" viewBox="0 0 24 24"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></symbol>
+  <symbol id="i-pointer" viewBox="0 0 24 24"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></symbol>
+</svg>
+
+<div id="stage">
+
+  <!-- ============ 1. Hook: AI is moving onto your computer, and so is the bill ============ -->
+  <section class="scene" data-scene="hook">
+    <div data-in="0.1" data-out="bill-0.3" data-fx="fade" class="abs" style="inset:0">
+      <div id="cloud" class="abs"><svg class="ic"><use href="#i-cloud"/></svg></div>
+      <svg id="wire" class="abs" viewBox="0 0 560 24"><line x1="6" y1="12" x2="554" y2="12" stroke="rgb(60 63 67)" stroke-width="5" stroke-linecap="round" stroke-dasharray="0.1 20"/></svg>
+      <div class="packet abs"></div><div class="packet abs"></div><div class="packet abs"></div><div class="packet abs"></div>
+      <div id="laptop" class="abs"><svg class="ic"><use href="#i-laptop"/></svg></div>
+      <div id="aichip" class="abs" data-in="moving#1+0.35" data-fx="pop" data-dur="0.45">AI</div>
+
+      <div class="abs center h1" style="top:520px" data-in="moving-0.2">AI is moving out of the cloud</div>
+      <div class="abs center h1" style="top:606px" data-in="moving#1-0.15">and onto <span class="blue">your own computer.</span></div>
+
+      <div class="abs center chips">
+        <div class="chip" data-in="private-0.05" data-fx="pop" data-dur="0.4"><svg class="ic"><use href="#i-check"/></svg>Private</div>
+        <div class="chip" data-in="offline-0.05" data-fx="pop" data-dur="0.4"><svg class="ic"><use href="#i-check"/></svg>Offline</div>
+        <div class="chip" data-in="yours-0.05" data-fx="pop" data-dur="0.4"><svg class="ic"><use href="#i-check"/></svg>Yours</div>
+      </div>
+    </div>
+
+    <div class="abs center h1" style="top:128px; font-size:84px" data-in="bill-0.1">But the <span class="amber">electric bill</span> is yours too.</div>
+    <div class="abs cmp" style="top:330px" data-in="bill+0.35">
+      <div class="top">
+        <div class="label">Cloud AI app, on this laptop <span class="tag tag-blue">measured</span></div>
+        <div class="value">under 1 W</div>
+      </div>
+      <div class="track"><div class="fill" style="width:10px; background:rgb(var(--accent))"></div></div>
+    </div>
+    <div class="abs cmp" style="top:548px" data-in="bill+0.75">
+      <div class="top">
+        <div class="label">Local model, on a desktop GPU <span class="tag">typical</span></div>
+        <div class="value amber" data-in="bill+1.5" data-fx="fade" data-dur="0.5">200–600 W</div>
+      </div>
+      <div class="track"><div class="fill" style="width:100%; background:rgb(var(--warn))" data-in="bill+0.95" data-fx="growx" data-dur="1.0"></div></div>
+    </div>
+    <div class="abs center soft" style="top:770px; font-size:34px" data-in="bill.end" data-fx="fade">The model runs on your machine, so the watts land on your meter.</div>
+  </section>
+
+  <!-- ============ 2. Problem: nobody measures it ============ -->
+  <section class="scene" data-scene="problem">
+    <div class="abs center h1" style="top:140px; font-size:88px" data-in="ask-0.45">How much power does<br>your AI <span class="blue">really</span> use?</div>
+    <div id="calc" class="abs card" data-in="ask+0.5">
+      <div class="muted" style="font-size:27px; font-weight:500">A typical AI energy calculator</div>
+      <div class="row">
+        <div class="formula">tokens × an average =</div>
+        <div class="guessnum"><span id="guessnum">347</span> W</div>
+      </div>
+    </div>
+    <div id="stamp" class="abs"><div data-in="guess+0.2" data-fx="pop" data-dur="0.4"><span class="tag tag-amber">A guess</span></div></div>
+    <div class="abs center soft" style="top:770px; font-size:40px; font-weight:500" data-in="guess+0.75">It never reads your hardware.</div>
+  </section>
+
+  <!-- ============ 3. Meet WattTrace: runs on your machine ============ -->
+  <section class="scene" data-scene="meet">
+    <div data-out="runs-0.3" class="abs" style="inset:0">
+      <div id="biglogo" class="abs center" data-in="meet-0.25" data-fx="pop" data-dur="0.55">
+        <div class="mark"><svg class="ic"><use href="#i-zap"/></svg></div><span>WattTrace</span>
+      </div>
+      <div class="abs center soft" style="top:590px; font-size:44px; font-weight:500" data-in="meet+0.45">The power meter for AI, on your own machine.</div>
+    </div>
+
+    <div class="abs h1" style="left:96px; top:236px; font-size:70px" data-in="runs-0.05">Runs entirely<br>on <span class="blue">your machine.</span></div>
+    <div class="abs badge" style="top:470px" data-in="nos-0.05" data-fx="right" data-dur="0.45"><span class="tick"><svg class="ic"><use href="#i-check"/></svg></span>No cloud</div>
+    <div class="abs badge" style="top:556px" data-in="nos@0.25" data-fx="right" data-dur="0.45"><span class="tick"><svg class="ic"><use href="#i-check"/></svg></span>No account</div>
+    <div class="abs badge" style="top:642px" data-in="nos#1-0.05" data-fx="right" data-dur="0.45"><span class="tick"><svg class="ic"><use href="#i-check"/></svg></span>No extra hardware</div>
+    <div class="abs muted" style="left:96px; top:744px; width:560px; font-size:27px; line-height:1.35" data-in="nos.end" data-fx="fade">Your readings stay in a database on your own computer.</div>
+
+    <div id="browser" class="abs" data-in="runs" data-fx="rise" data-dur="0.8">
+      <div class="bar"><i></i><i></i><i></i><span>localhost:5173</span></div>
+      <div class="view"><img id="consoleshot" src="assets/shots/console.png" alt=""></div>
+    </div>
+    <div id="ring" class="abs" data-in="nos+0.5" data-fx="fade" data-dur="0.35"></div>
+    <div id="ringlabel" class="abs" data-in="nos+0.7" data-fx="right" data-dur="0.4"><span class="tag tag-blue" style="background:rgb(28 36 54); padding:13px 22px">Live, from this laptop's sensors</span></div>
+  </section>
+
+  <!-- ============ 4. How the watts are computed ============ -->
+  <section class="scene" data-scene="how">
+    <div class="abs h2" style="left:96px; top:134px" data-in="$how+0.1">How the watts are computed</div>
+
+    <div class="abs hwrap" style="left:96px" data-in="$how+0.25"><div class="card hcard" id="hc1">
+      <span class="tag tag-blue step"><b><span>1</span></b>Measured</span>
+      <div class="ctitle">Reads the computer's own power sensors</div>
+      <div class="every" data-in="sensors" data-fx="fade"><svg class="ic"><use href="#i-clock"/></svg>Every 2 seconds</div>
+      <div class="srow" data-in="sensors#1" data-dur="0.45"><b>Battery controller</b><span>whole laptop</span></div>
+      <div class="srow" data-in="sensors#1+0.35" data-dur="0.45"><b>RAPL energy counters</b><span>CPU</span></div>
+      <div class="srow" data-in="sensors#1+0.7" data-dur="0.45"><b>nvidia-smi, IOReport</b><span>GPU</span></div>
+      <div class="abs readout" data-in="measured-0.3">
+        <div class="n"><span id="bigw"></span><small>W</small></div>
+        <div class="side">
+          <span class="what">whole machine, live</span>
+          <span class="tag tag-blue" data-in="measured@0.3" data-fx="pop" data-dur="0.35">measured</span>
+          <span class="tag struck" data-in="measured#1+0.1" data-fx="fade" data-dur="0.35">guessed</span>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="abs hwrap" style="left:680px" data-in="split-0.35"><div class="card hcard" id="hc2">
+      <span class="tag tag-violet step"><b><span>2</span></b>Calculated</span>
+      <div class="ctitle">Splits it between your AI apps</div>
+      <div class="from">From the app, on this laptop</div>
+      <div class="crop" data-shot="device" data-rect="machine_rows"></div>
+      <div class="crop" data-shot="device" data-rect="top_app" style="margin-top:10px" data-in="split@0.2" data-fx="fade"></div>
+      <div class="fbox" data-in="split#1-0.1" data-dur="0.5">watts ≈ idle + <i>a</i> × CPU% + <i>b</i> × GPU%</div>
+      <div class="note" data-in="split#1+0.5" data-fx="fade">Idle power is never blamed on AI.</div>
+    </div></div>
+
+    <div class="abs hwrap" style="left:1264px" data-in="labeled-0.35"><div class="card hcard" id="hc3">
+      <span class="tag tag-amber step"><b><span>3</span></b>Estimated</span>
+      <div class="ctitle">No sensor? It says so.</div>
+      <div class="from">From the app, on this laptop</div>
+      <div class="crop" data-shot="device" data-rect="power_readings"></div>
+      <div class="note" data-in="labeled#1" data-fx="fade">Every reading shows its source.</div>
+      <div class="note" style="margin-top:8px" data-in="labeled#1+0.5" data-fx="fade">Cloud AI energy is an estimate too, and it isn't on your bill.</div>
+    </div></div>
+
+    <div id="meterline" class="abs center" data-in="meter-0.1" data-dur="0.5">
+      <span class="tag"><svg class="ic"><use href="#i-plug"/></svg>Built-in check: compare the readings with a plug-in wall meter</span>
+    </div>
+  </section>
+
+  <!-- ============ 5. What you get ============ -->
+  <section class="scene" data-scene="value">
+    <div class="abs h2" style="left:96px; top:134px" data-in="$value+0.1">From watts to what it costs you</div>
+
+    <div class="abs card tile" style="left:96px; top:250px; width:400px" data-in="units-0.1" data-dur="0.45">
+      <div class="eyebrow">Measured</div><div class="big blue">Watts</div><div class="sub">every 2 seconds</div>
+    </div>
+    <div class="abs op" style="left:496px; top:292px" data-in="units@0.2" data-fx="fade">× hours</div>
+    <svg class="abs arrows" style="left:496px; top:250px" width="124" height="180" data-in="units@0.2" data-fx="fade"><path d="M32 96h58M78 84l12 12-12 12"/></svg>
+    <div class="abs card tile" style="left:620px; top:250px; width:400px" data-in="units@0.24" data-dur="0.45">
+      <div class="eyebrow">Energy</div><div class="big">kWh</div><div class="sub">kilowatt-hours used</div>
+    </div>
+    <svg class="abs arrows" style="left:1020px; top:250px" width="104" height="180" data-in="units#1-0.1" data-fx="fade"><path d="M22 90h26M48 90V41h34M70 29l12 12-12 12"/></svg>
+    <svg class="abs arrows" style="left:1020px; top:250px" width="104" height="180" data-in="units#1+0.5" data-fx="fade"><path d="M48 90v49h34M70 127l12 12-12 12"/></svg>
+    <div class="abs card mini" style="left:1124px; top:250px; width:700px" data-in="units#1-0.1" data-dur="0.45">
+      <div class="big amber">₱ Pesos</div><div class="sub">kWh × your electricity rate</div>
+    </div>
+    <div class="abs card mini" style="left:1124px; top:348px; width:700px" data-in="units#1+0.5" data-dur="0.45">
+      <div class="big green">CO<sub style="font-size:0.6em">2</sub></div><div class="sub">kWh × 0.7122 kg, the DOE grid factor</div>
+    </div>
+
+    <div class="abs card panel" style="left:96px" data-in="features-0.15" data-dur="0.5">
+      <span class="tag tag-blue">Forecast</span>
+      <div class="ptitle" style="width:300px">Your bill, before it arrives</div>
+      <div class="psub" style="width:300px">Learned from your own readings, on your device.</div>
+      <svg class="abs" style="left:366px; top:40px" width="450" height="310" viewBox="0 0 450 310">
+        <line x1="20" y1="270" x2="436" y2="270" stroke="rgb(60 63 67)" stroke-width="2"/>
+        <line x1="20" y1="76" x2="436" y2="76" stroke="rgb(229 169 59)" stroke-width="2.5" stroke-dasharray="9 8"/>
+        <text x="24" y="62" fill="rgb(229 169 59)" font-size="21" font-weight="500">Your budget</text>
+        <line x1="190" y1="30" x2="190" y2="270" stroke="rgb(145 144 139)" stroke-width="2" stroke-dasharray="2 8" stroke-linecap="round"/>
+        <text x="190" y="298" fill="rgb(145 144 139)" font-size="21" text-anchor="middle">Today</text>
+        <path d="M22 262 L190 196" stroke="rgb(127 166 245)" stroke-width="5" fill="none" stroke-linecap="round" pathLength="1" style="stroke-dasharray:1; stroke-dashoffset:1" data-in="features+0.2" data-fx="draw" data-dur="0.6"/>
+        <path d="M190 196 L430 102" stroke="rgb(98 199 143)" stroke-width="5" fill="none" stroke-linecap="round" pathLength="1" style="stroke-dasharray:1; stroke-dashoffset:1" data-in="features+0.75" data-fx="draw" data-dur="0.8"/>
+        <circle cx="190" cy="196" r="8" fill="rgb(127 166 245)" data-in="features+0.7" data-fx="fade" data-dur="0.2"/>
+        <text x="432" y="176" fill="rgb(98 199 143)" font-size="21" font-weight="500" text-anchor="end" data-in="features+1.4" data-fx="fade">Projected</text>
+      </svg>
+    </div>
+
+    <div class="abs card panel" style="left:972px" data-in="features#1-0.15" data-dur="0.5">
+      <span class="tag tag-amber">Load directive</span>
+      <div class="ptitle">One click, lighter model</div>
+      <div class="abs" style="left:36px; top:172px; display:flex; align-items:center; gap:12px">
+        <span class="model" id="heavy"><svg class="ic"><use href="#i-cpu"/></svg>Heavy model</span>
+        <svg class="arrows" width="44" height="30"><path d="M4 15h34M26 5l12 10-12 10"/></svg>
+        <span class="model" id="light"><svg class="ic"><use href="#i-cpu"/></svg>Lighter model</span>
+      </div>
+      <div id="switchbtn" class="abs">Switch now</div>
+      <div class="abs" style="left:36px; right:36px; top:268px">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; height:40px">
+          <span class="muted" style="font-size:24px">AI power draw</span>
+          <span class="tag tag-green" id="applied" style="opacity:0">Lower, right away</span>
+        </div>
+        <div class="track" style="height:34px"><div class="fill" id="drawbar" style="width:100%; background:rgb(var(--warn))"></div></div>
+      </div>
+    </div>
+    <div id="cursor" class="abs"><svg class="ic"><use href="#i-pointer"/></svg></div>
+  </section>
+
+  <!-- ============ 6. Close ============ -->
+  <section class="scene" data-scene="close">
+    <div id="endlogo" class="abs center" data-in="close-0.3" data-fx="pop" data-dur="0.55">
+      <div class="mark"><svg class="ic"><use href="#i-zap"/></svg></div><span>WattTrace</span>
+    </div>
+    <div class="abs center endline" style="top:470px" data-in="close#1-0.1"><span class="blue">Measured,</span> not guessed.</div>
+    <div class="abs center endline" style="top:566px" data-in="close#2-0.1"><span class="green">Local,</span> not cloud.</div>
+    <div class="abs center soft" style="top:716px; font-size:40px; font-weight:500" data-in="close.end+0.15" data-fx="fade" data-dur="0.7">Know what your AI really costs.</div>
+    <svg class="abs" style="left:0; top:820px" width="1920" height="160" viewBox="0 0 1920 160">
+      <path d="M0 110 H520 L560 110 L590 84 L620 120 L660 30 L700 138 L730 96 L770 110 H1150 L1190 92 L1225 118 L1260 110 H1920" fill="none" stroke="rgb(127 166 245)" stroke-width="4"
+            stroke-linecap="round" stroke-linejoin="round" pathLength="1" style="stroke-dasharray:1; stroke-dashoffset:1" data-in="close-0.2" data-fx="draw" data-dur="3.6"/>
+    </svg>
+  </section>
+
+  <!-- Brand and "on your device" tag, from the product reveal until the end card -->
+  <div id="brand" class="abs" data-in="runs-0.1" data-out="$close-0.3" data-fx="fade">
+    <div class="mark"><svg class="ic"><use href="#i-zap"/></svg></div>WattTrace
+  </div>
+  <div id="local" class="abs" data-in="runs+0.2" data-out="$close-0.3" data-fx="fade">
+    <span class="tag"><svg class="ic"><use href="#i-laptop"/></svg>Runs on your device · no cloud</span>
+  </div>
+
+  <div id="cap" class="abs"><span class="box"></span></div>
+</div>
+<div id="hint"></div>
+
+<script>
+(function () {
+  const T = window.TIMELINE;
+  const cues = Object.fromEntries(T.cues.map((c) => [c.id, c]));
+  const scenes = Object.fromEntries(T.scenes.map((s) => [s.id, s]));
+  const $ = (id) => document.getElementById(id);
+
+  const clamp = (x) => Math.min(Math.max(x, 0), 1);
+  const lerp = (a, b, p) => a + (b - a) * p;
+  const outCubic = (p) => 1 - Math.pow(1 - p, 3);
+  const inOut = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+  const outBack = (p) => 1 + 2.4 * Math.pow(p - 1, 3) + 1.4 * Math.pow(p - 1, 2);
+  const ramp = (t, from, dur) => clamp((t - from) / dur);
+
+  // "sensors#1+0.3" and the other forms described at the top of this file → seconds.
+  function at(spec) {
+    spec = String(spec).trim();
+    if (/^-?[\d.]+$/.test(spec)) return parseFloat(spec);
+    let m = spec.match(/^\$(\w+?)(\.end)?([+-][\d.]+)?$/);
+    if (m) {
+      if (!scenes[m[1]]) throw new Error("No scene " + m[1]);
+      return (m[2] ? scenes[m[1]].end : scenes[m[1]].start) + parseFloat(m[3] || 0);
+    }
+    m = spec.match(/^(\w+?)(?:#(\d+)|@([\d.]+)|(\.end))?([+-][\d.]+)?$/);
+    const cue = m && cues[m[1]];
+    if (!cue) throw new Error("No narration line for " + spec);
+    let t = cue.start;
+    if (m[2] != null) {
+      const seg = cue.segments[+m[2]];
+      t = seg ? seg[0] : lerp(cue.start, cue.end, +m[2] / (cue.segments.length + 1));
+    } else if (m[3] != null) t = lerp(cue.start, cue.end, parseFloat(m[3]));
+    else if (m[4]) t = cue.end;
+    return t + parseFloat(m[5] || 0);
+  }
+
+  // Cut-outs of the real dashboard, and the ring around its live reading.
+  const SHOTS = window.SHOTS;
+  for (const el of document.querySelectorAll(".crop")) {
+    const shot = SHOTS[el.dataset.shot], r = shot.rects[el.dataset.rect];
+    el.style.setProperty("--src", `url(${shot.src})`);
+    el.style.setProperty("--iw", shot.width);
+    for (const k of ["x", "y", "w", "h"]) el.style.setProperty("--" + k, r[k]);
+  }
+  function placeRing(zoom) {
+    const r = SHOTS.console.rects.active_power_card, k = (1108 / SHOTS.console.width) * zoom;
+    const left = 716 + 1.5 + r.x * k, top = 178 + 1.5 + 47.5 + r.y * k;   // #browser, its border and bar
+    Object.assign($("ring").style, { left: left + "px", top: top + "px", width: r.w * k + "px", height: r.h * k + "px" });
+    Object.assign($("ringlabel").style, { left: left + r.w * k + 14 + "px", top: top + 10 + "px" });
+  }
+
+  const animated = [...document.querySelectorAll("[data-in], [data-out]")].map((el) => ({
+    el,
+    tin: el.dataset.in != null ? at(el.dataset.in) : -1,
+    tout: el.dataset.out != null ? at(el.dataset.out) : null,
+    dur: parseFloat(el.dataset.dur || 0.6),
+    fx: el.dataset.fx || "rise",
+  }));
+  const sceneEls = [...document.querySelectorAll(".scene")].map((el) => ({ el, ...scenes[el.dataset.scene] }));
+  const FADE = 0.3;
+
+  function enter(o, t) {
+    const p = o.tin < 0 ? 1 : clamp((t - o.tin) / o.dur);
+    const e = outCubic(p);
+    let opacity = e, transform = "";
+    if (o.fx === "rise") transform = `translateY(${(1 - e) * 32}px)`;
+    else if (o.fx === "left") transform = `translateX(${(1 - e) * 44}px)`;
+    else if (o.fx === "right") transform = `translateX(${-(1 - e) * 44}px)`;
+    else if (o.fx === "pop") { transform = `scale(${0.72 + 0.28 * outBack(p)})`; opacity = clamp(p * 3); }
+    else if (o.fx === "growx") { transform = `scaleX(${e})`; opacity = p > 0 ? 1 : 0; }
+    else if (o.fx === "draw") { o.el.style.strokeDashoffset = 1 - inOut(p); opacity = p > 0 ? 1 : 0; }
+    if (o.tout != null) opacity *= 1 - ramp(t, o.tout, FADE);
+    o.el.style.opacity = opacity.toFixed(3);
+    o.el.style.transform = transform;
+  }
+
+  // ---------- things that move on their own ----------
+  const packets = [...document.querySelectorAll(".packet")];
+  const GUESSES = [347, 85, 512, 129, 268, 44, 731, 196, 403, 58];
+  const t = {
+    moving: at("moving"), yoursEnd: at("yours.end"), ask: at("ask"), stamp: at("guess+0.2"),
+    runs: at("runs"), meetEnd: at("$meet.end"),
+    readout: at("measured-0.3"), split: at("split-0.35"), labeled: at("labeled-0.35"), meter: at("meter-0.1"),
+    cursor: at("features#1+0.05"), click: at("features#1+0.8"),
+  };
+
+  function extras(now) {
+    // Hook: AI "packets" travel from the cloud to the laptop, and the cloud empties.
+    packets.forEach((el, i) => {
+      const p = (((now - t.moving) * 0.42 + i / packets.length) % 1 + 1) % 1;
+      const on = ramp(now, t.moving + 0.2, 0.4) * (1 - ramp(now, t.yoursEnd - 0.2, 0.5));
+      el.style.transform = `translateX(${lerp(672, 1212, p)}px)`;
+      el.style.opacity = (Math.sin(Math.PI * p) * on).toFixed(3);
+    });
+    $("cloud").style.opacity = lerp(1, 0.35, ramp(now, t.moving + 1.0, 2.5)).toFixed(3);
+
+    // Problem: the calculator's number keeps changing, because it's a guess.
+    $("guessnum").textContent = now >= t.stamp ? "???" : GUESSES[Math.max(Math.floor((now - t.ask) * 8), 0) % GUESSES.length];
+
+    // Meet: slow push-in on the dashboard.
+    const zoom = lerp(1, 1.06, inOut(ramp(now, t.runs, t.meetEnd - t.runs)));
+    $("consoleshot").style.transform = `scale(${zoom})`;
+    placeRing(zoom);
+
+    // How: the reading counts up; each card steps back when the next one is explained.
+    $("bigw").textContent = (SHOTS.device.machine_watts * outCubic(ramp(now, t.readout, 0.8))).toFixed(1);
+    const all = ramp(now, t.meter, 0.4);
+    const dim = (after) => (1 - 0.6 * ramp(now, after, 0.4) * (1 - all)).toFixed(3);
+    $("hc1").style.opacity = dim(t.split);
+    $("hc2").style.opacity = dim(t.labeled);
+
+    // Value: the cursor clicks "Switch now", the lighter model takes over and the draw drops.
+    const move = inOut(ramp(now, t.cursor, t.click - t.cursor));
+    const cursor = $("cursor");
+    cursor.style.opacity = (ramp(now, t.cursor - 0.1, 0.25) * (1 - ramp(now, t.click + 0.9, 0.3))).toFixed(3);
+    cursor.style.transform = `translate(${lerp(1520, 1690, move)}px, ${lerp(905, 684, move)}px)`;
+    const press = ramp(now, t.click, 0.12) * (1 - ramp(now, t.click + 0.12, 0.18));
+    $("switchbtn").style.transform = `scale(${1 - 0.07 * press})`;
+    const done = inOut(ramp(now, t.click + 0.15, 0.75));
+    $("drawbar").style.width = lerp(100, 36, done) + "%";
+    $("drawbar").style.background = done > 0.5 ? "rgb(var(--pos))" : "rgb(var(--warn))";
+    $("heavy").style.opacity = lerp(1, 0.4, done).toFixed(3);
+    $("light").style.borderColor = done > 0.5 ? "rgb(var(--pos))" : "";
+    $("light").style.color = done > 0.5 ? "rgb(var(--pos))" : "";
+    $("applied").style.opacity = ramp(now, t.click + 0.6, 0.3).toFixed(3);
+  }
+
+  // ---------- captions ----------
+  const cap = $("cap"), capBox = cap.querySelector(".box");
+  const captions = T.cues.flatMap((c) => c.captions.map((k) => ({ ...k, scene: c.scene })));
+  let shown = null;
+  function caption(now) {
+    let cur = null;
+    captions.forEach((k, i) => {
+      const next = captions[i + 1];
+      const until = next && next.start - k.end < 0.7 ? next.start : k.end + 0.35;  // hold through short pauses
+      if (now >= k.start - 0.08 && now < until) cur = { k, until };
+    });
+    if (!cur || cur.k.scene === "close") { cap.style.opacity = 0; return; }  // the end card is its own caption
+    if (shown !== cur.k) { capBox.textContent = cur.k.text; shown = cur.k; }
+    cap.style.opacity = Math.min(ramp(now, cur.k.start - 0.08, 0.12), 1 - ramp(now, cur.until - 0.15, 0.15)).toFixed(3);
+  }
+
+  window.seek = function (now) {
+    for (const s of sceneEls) {
+      const first = s.start === 0, last = s.end >= T.duration;
+      const op = Math.min(first ? ramp(now, 0, 0.4) : ramp(now, s.start, FADE), last ? 1 : clamp((s.end - now) / FADE));
+      s.el.style.opacity = op.toFixed(3);
+      s.el.style.visibility = op > 0 ? "visible" : "hidden";
+    }
+    for (const o of animated) enter(o, now);
+    extras(now);
+    caption(now);
+  };
+
+  // ---------- ready, and the in-browser preview ----------
+  const rendering = new URLSearchParams(location.search).has("render");
+  const images = [...document.images].map((img) => img.decode().catch(() => {}));
+  const shots = [SHOTS.device.src].map((src) => { const i = new Image(); i.src = src; return i.decode().catch(() => {}); });
+  const fonts = [400, 500, 600, 700].map((w) => document.fonts.load(`${w} 40px "DM Sans"`, "A₱"));
+  Promise.all([...images, ...shots, ...fonts, document.fonts.ready]).then(() => {
+    window.seek(0);
+    window.READY = true;
+    if (rendering) return;
+
+    const stage = $("stage"), hint = $("hint");
+    const fit = () => {
+      const k = Math.min(innerWidth / 1920, innerHeight / 1080);
+      stage.style.transform = `scale(${k})`;
+      stage.style.left = (innerWidth - 1920 * k) / 2 + "px";
+      stage.style.top = (innerHeight - 1080 * k) / 2 + "px";
+    };
+    addEventListener("resize", fit);
+    fit();
+    const audio = new Audio("out/audio.m4a");
+    const toggle = () => (audio.paused ? audio.play() : audio.pause());
+    stage.addEventListener("click", toggle);
+    addEventListener("keydown", (e) => {
+      if (e.code === "Space") { e.preventDefault(); toggle(); }
+      if (e.code === "ArrowRight") audio.currentTime = Math.min(audio.currentTime + (e.shiftKey ? 5 : 1 / T.fps), T.duration);
+      if (e.code === "ArrowLeft") audio.currentTime = Math.max(audio.currentTime - (e.shiftKey ? 5 : 1 / T.fps), 0);
+    });
+    (function frame() {
+      window.seek(audio.currentTime);
+      hint.textContent = `${audio.currentTime.toFixed(2)} s · click or Space to play · arrows step a frame (Shift: 5 s)`;
+      requestAnimationFrame(frame);
+    })();
+  });
+})();
+</script>
+</body>
+</html>

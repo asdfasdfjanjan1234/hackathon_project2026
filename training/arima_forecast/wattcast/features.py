@@ -1,13 +1,17 @@
-"""Inputs known ahead of time, used for every hour the model fits or forecasts.
+"""Inputs known ahead of time, used for every step the model fits or forecasts.
 
     routine   the series' own weekly routine: its typical level in each of the 168 hours of the
-              week (Monday 9 AM, Saturday 11 PM, ...), learned from the training hours. This is
+              week (Monday 9 AM, Saturday 11 PM, ...), learned from the training steps. This is
               "when the user uses this AI agent, and how heavily"; ARIMA then models how each day
-              departs from the routine.
+              departs from the routine. Every step in an hour gets that hour's level, and an hour
+              counts as one reading (the average of its steps) however short the steps are: four
+              15-minute steps of one afternoon are one look at that hour of the week, not four.
     holiday   a Philippine public holiday (the `holidays` package's PH calendar)
 
 With little data an hour of the week has only one or two readings, so each one is pulled toward the
 average for that hour on that kind of day (weekday or weekend), and that toward the hour of day.
+An hour of the day that hasn't been read at all gets the series' overall level: a device read only
+for an evening is forecast at that evening's average at every other time of day, until it's seen.
 How hard it's pulled is estimated from the series itself: the noise among readings of the same
 hour of the week, over the spread between hours. A regular agent (Tuesday and Thursday afternoons,
 every week) keeps its day-specific hours; an irregular one is smoothed toward the average.
@@ -54,8 +58,10 @@ def _shrunk(stats, fallback):
 
 
 def routine_profile(z):
-    """7 x 24 typical values of `z` (rows Monday..Sunday, columns hour 0..23), from its observed hours."""
+    """7 x 24 typical values of `z` (rows Monday..Sunday, columns hour 0..23), from its observed steps."""
     obs = z.dropna()
+    if len(obs):
+        obs = obs.groupby(obs.index.floor("h")).mean()  # one reading per clock hour, whatever the step
     frame = pd.DataFrame({"z": obs.to_numpy(), "day": obs.index.dayofweek, "hour": obs.index.hour})
     overall = float(frame["z"].mean()) if len(frame) else 0.0
     hours = pd.Index(range(24), name="hour")
@@ -74,7 +80,7 @@ def routine_profile(z):
 
 
 def calendar(index, routine):
-    """The inputs above for each hour in `index`, given a routine from routine_profile()."""
+    """The inputs above for each step in `index`, given a routine from routine_profile()."""
     table = np.asarray(routine, dtype=float)
     ph = holidays.country_holidays("PH", years=range(index.min().year, index.max().year + 1))
     return pd.DataFrame({

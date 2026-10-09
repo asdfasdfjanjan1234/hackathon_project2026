@@ -126,7 +126,7 @@ export default function UsageBreakdown({ usage }) {
                       <Cloud className="w-4 h-4 text-ink-muted shrink-0" />
                     )}
                     <div>
-                      <span className="font-medium text-ink block">{m.model}</span>
+                      <span className="font-semibold text-ink block">{m.model}</span>
                       <span className="text-xs text-ink-muted">
                         {m.kind === "local" ? "Local model" : m.kind === "client" ? "AI app · this device" : "Cloud API"}
                       </span>
@@ -142,7 +142,7 @@ export default function UsageBreakdown({ usage }) {
                 {/* Energy with Progress Bar */}
                 <td className="py-3 px-2 min-w-[140px]">
                   <div className="space-y-1.5">
-                    <div className="font-medium text-ink tabular-nums">{formatKwh(m.kwh, 2)}</div>
+                    <div className="font-semibold text-ink tabular-nums">{formatKwh(m.kwh, 2)}</div>
                     {m.partKwh ? (
                       <>
                         <div className="w-full bg-line rounded-full h-1.5 overflow-hidden">
@@ -174,7 +174,7 @@ export default function UsageBreakdown({ usage }) {
 
                 {/* Tariff */}
                 <td className="py-3 px-2">
-                  <div className="font-medium text-ink tabular-nums">{peso(m.cost)}</div>
+                  <div className="font-bold text-ink tabular-nums">{peso(m.cost)}</div>
                   <div className="text-xs text-ink-muted">{m.kind === "cloud" ? "Estimated" : "Direct bill"}</div>
                 </td>
 
@@ -215,11 +215,11 @@ export default function UsageBreakdown({ usage }) {
                 key={`${h.app}-${h.host}`}
                 className="flex items-center justify-between gap-2 px-3 py-2 inset-panel text-sm"
               >
-                <span className="text-ink truncate">
-                  {h.app} <span className="text-ink-muted">in {h.host}</span>
+                <span className="font-medium text-ink truncate">
+                  {h.app} <span className="font-normal text-ink-muted">in {h.host}</span>
                 </span>
                 <span className="text-ink-soft tabular-nums shrink-0 text-xs">
-                  {formatKwh(h.kwh)} · {peso(h.cost)}
+                  {formatKwh(h.kwh)} · <span className="font-semibold text-ink">{peso(h.cost)}</span>
                 </span>
               </div>
             ))}

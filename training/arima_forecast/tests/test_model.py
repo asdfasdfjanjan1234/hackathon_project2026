@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from conftest import DAILY
 from wattcast import backtest, bill, features, model, patterns, pipeline
 
 SMALL = model.Spec((1, 0, 0), (1, 0, 0, 24))
@@ -60,7 +61,7 @@ def test_held_out_days_are_forecast_about_as_well_as_the_hour_of_week_average(ag
     base = {k: backtest.score(total, f, scale) for k, f in backtest.baselines(total, origins).items()}
     assert ours["mae"] < 0.5 * base["seasonal_naive"]["mae"]
     assert ours["mae"] < 1.5 * base["profile"]["mae"]
-    assert ours["day_total_error"] < 0.25
+    assert ours["window_total_error"] < 0.25
 
 
 def test_fit_forecast_and_round_trip(agents):
@@ -97,16 +98,17 @@ def test_backtest_scores_model_and_baselines(wh):
 
 
 def test_finetune_fits_one_model_per_agent_and_scores_the_total(agents, wh):
-    with pytest.raises(ValueError, match="needs 72 hours"):
-        pipeline.check_enough(wh.iloc[:48])
+    with pytest.raises(ValueError, match=f"needs {pipeline.MIN_HOURS:g} hours"):
+        pipeline.check_enough(wh.iloc[:pipeline.MIN_HOURS - 1])
     luzon = [(SMALL, model.fit(wh, SMALL).params)]
-    saved = pipeline.finetune(agents, 1, luzon, folds=3, top=1, **QUIET)
+    saved = pipeline.finetune(agents, 1, luzon, folds=3, top=1, **DAILY, **QUIET)
+    assert saved["step_minutes"] == 60 and saved["horizon_hours"] == 24 and saved["coverage"]["hours_of_day"] == 24
     assert list(saved["agents"]) == ["Ollama", "Claude Code"]
     for a in saved["agents"].values():
         assert {(t["spec"], t["start"]) for t in a["tried"]} == {
             ("Routine only", "cold"), (SMALL.label, "warm"), (SMALL.label, "cold")}
         assert a["chosen"]["spec"] == a["tried"][0]["spec"]
-    assert set(saved["total"]) == {"arima_by_agent", "seasonal_naive", "profile"}
+    assert set(saved["total"]) == {"arima_by_agent", "seasonal_naive", "profile", "last_value"}
     # On data with a day-of-week routine the per-agent models beat "same hour yesterday".
     assert saved["total"]["arima_by_agent"]["mae"] < saved["total"]["seasonal_naive"]["mae"]
     json.dumps(saved)  # everything saved is plain JSON
@@ -186,7 +188,7 @@ def test_totals_pricing_flat_and_peak_offpeak():
     assert t["next_24_hours"]["cost"] == pytest.approx(28.8)
 
     pop = {**flat, "tariff": "pop"}
-    rates = bill.hourly_rates(index, pop)
+    rates = bill.rates(index, pop)
     assert rates[pd.Timestamp("2026-10-12 10:00")] == 13.59   # Monday 10 AM: peak
     assert rates[pd.Timestamp("2026-10-12 22:00")] == 9.86    # Monday 10 PM: off-peak
     assert bill.totals(constant, index, pop, today=index[0].date())["next_24_hours"]["cost"] == pytest.approx(
@@ -205,7 +207,7 @@ def test_total_ranges_are_at_least_as_wide_as_the_backtest_error():
 
 def test_forecast_projects_the_cycle_bill(agents, wh):
     luzon = [(SMALL, None)]
-    saved = pipeline.finetune(agents, 1, luzon, folds=2, top=1, **QUIET)
+    saved = pipeline.finetune(agents, 1, luzon, folds=2, top=1, **DAILY, **QUIET)
     hourly = pd.DataFrame({"measured_h": 1.0, "ai_wh": wh.fillna(0), "scale": 1.0, "wh": wh})
     cfg = SimpleNamespace(ELECTRICITY_RATE=12.0, POP_PEAK_RATE=0, POP_OFFPEAK_RATE=0, TARIFF="flat",
                           BILLING_CYCLE_START_DAY=1, BASELINE_BILL=1500.0)
@@ -218,8 +220,8 @@ def test_forecast_projects_the_cycle_bill(agents, wh):
     assert b["ai_cost_so_far"] == pytest.approx(wh.fillna(0).sum() / 1000 * 12.0, abs=0.01)
     assert b["projected_bill"] == pytest.approx(1500 + b["ai_cost_so_far"] + b["ai_cost_remaining"], abs=0.02)
     assert b["projected_bill_low"] <= b["projected_bill"] <= b["projected_bill_high"]
-    error = saved["total"]["arima_by_agent"]["day_total_error"]
-    assert summary["backtest_day_total_error"] == error
+    error = saved["total"]["arima_by_agent"]["window_total_error"]
+    assert summary["backtest_total_error"] == error and summary["step_minutes"] == 60
     assert b["ai_cost_remaining_high"] >= round(b["ai_cost_remaining"] * (1 + error), 2) - 0.01
     assert b["forecast_reaches_cycle_end"] and b["hours_elapsed"] == 20 * 24
     costs = summary["cost_by_agent_rest_of_cycle"]
@@ -233,7 +235,7 @@ def test_usage_levels_and_agent_study(agents, wh):
     levels = patterns.level_of(pd.Series([0.2, th["light_max_w"], th["moderate_max_w"] + 1, np.nan]), th)
     assert list(levels) == ["idle", "light", "heavy", None]
     hourly = pd.DataFrame({"measured_h": 1.0, "ai_wh": wh.fillna(0), "scale": 1.0, "wh": wh})
-    long = agents.fillna(0).rename_axis("hour").reset_index().melt("hour", var_name="app", value_name="wh")
+    long = agents.fillna(0).rename_axis("time").reset_index().melt("time", var_name="app", value_name="wh")
     by_app = long.assign(name=long["app"], kind="cloud")
     report = patterns.study_device(hourly, by_app, agents)
     assert sum(lv["hours"] for lv in report["levels"]) == wh.notna().sum()

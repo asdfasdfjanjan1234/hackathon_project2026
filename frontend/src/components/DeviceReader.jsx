@@ -18,7 +18,7 @@ function Row({ label, children }) {
   return (
     <div className="flex items-start justify-between gap-3 py-1.5 border-b border-line last:border-0">
       <span className="text-xs text-ink-muted shrink-0">{label}</span>
-      <span className="text-xs text-ink text-right min-w-0 break-words">{children}</span>
+      <span className="text-xs font-medium text-ink text-right min-w-0 break-words">{children}</span>
     </div>
   );
 }
@@ -77,18 +77,19 @@ function AppsPanel({ status }) {
       {latest ? (
         <>
           <Row label="Machine">
-            <span className="tabular-nums">{formatWatts(latest.measured_watts ?? latest.est_watts)}</span>{" "}
-            <span className="text-ink-muted">{latest.measured_watts != null ? "measured" : "estimated"}</span>
+            <span className="font-bold tabular-nums">{formatWatts(latest.measured_watts ?? latest.est_watts)}</span>{" "}
+            <span className="font-normal text-ink-muted">{latest.measured_watts != null ? "measured" : "estimated"}</span>
           </Row>
           <Row label="AI apps">
-            <span className="tabular-nums">{formatWatts(aiWatts)}</span> <span className="text-ink-muted">calculated share</span>
+            <span className="font-bold tabular-nums">{formatWatts(aiWatts)}</span>{" "}
+            <span className="font-normal text-ink-muted">calculated share</span>
           </Row>
           <div className="mt-3 space-y-2.5">
             {apps.length === 0 && <div className="text-xs text-ink-muted">No AI apps running.</div>}
             {apps.map((a, i) => (
               <div key={`${a.model || a.app}-${a.host}-${i}`} className="flex items-start justify-between gap-2 text-xs">
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm text-ink truncate">{a.model || a.app}</div>
+                  <div className="text-sm font-medium text-ink truncate">{a.model || a.app}</div>
                   <div className="text-xs text-ink-muted tabular-nums">
                     {a.kind === "local" ? "local model" : "cloud client"}
                     {a.host ? ` · in ${a.host}` : ""}{a.effort ? ` · ${a.effort} effort` : ""} · {(a.cpu_percent || 0).toFixed(1)}% CPU
@@ -129,8 +130,8 @@ function ModelsPanel({ models }) {
         {models.models.map((m) => (
           <div key={`${m.app}-${m.model}`} className="flex items-start justify-between gap-2 text-xs">
             <div className="min-w-0">
-              <div className="text-sm text-ink truncate">
-                {m.name} <span className="text-ink-muted">· {m.app}</span>
+              <div className="text-sm font-medium text-ink truncate">
+                {m.name} <span className="font-normal text-ink-muted">· {m.app}</span>
               </div>
               <div className="text-xs text-ink-muted tabular-nums">
                 {m.requests} requests

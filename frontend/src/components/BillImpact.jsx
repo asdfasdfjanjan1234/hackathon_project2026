@@ -39,7 +39,7 @@ function EqTile({ icon: Icon, label, value, sub }) {
         <Icon className="w-3.5 h-3.5" />
         <span>{label}</span>
       </div>
-      <div className="text-base font-semibold text-ink tabular-nums">{value}</div>
+      <div className="text-base font-bold text-ink tabular-nums">{value}</div>
       <div className="text-[11px] text-ink-muted">{sub}</div>
     </div>
   );
@@ -120,7 +120,7 @@ export default function BillImpact({ impact }) {
 
           {/* Center Callout */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-2xl font-semibold text-ink tabular-nums tracking-tight">{aiSharePct}%</span>
+            <span className="text-2xl font-bold text-ink tabular-nums tracking-tight">{aiSharePct}%</span>
             <span className="text-xs text-ink-muted">AI attributed</span>
           </div>
         </div>
@@ -128,12 +128,13 @@ export default function BillImpact({ impact }) {
         {/* Right: Analysis */}
         <div className="md:col-span-7 space-y-3 min-w-0">
           <div className="p-3 inset-panel space-y-1">
-            <div className="text-sm font-semibold text-ink">
+            <div className="text-sm font-bold text-ink">
               {verdict.status}: {aiSharePct}% of surge
             </div>
             <p className="text-xs text-ink-soft leading-relaxed">
-              {verdict.desc} AI apps and local models used {formatKwh(safeImpact.local_ai_kwh)} on this device
-              ({peso(safeImpact.ai_effect)} of the increase)
+              {verdict.desc} AI apps and local models used{" "}
+              <strong className="font-semibold text-ink tabular-nums">{formatKwh(safeImpact.local_ai_kwh)}</strong> on this device
+              (<strong className="font-semibold text-ink tabular-nums">{peso(safeImpact.ai_effect)}</strong> of the increase)
               {eq && ` ≈ ${formatCo2(eq.co2_kg)}, or ${formatDuration(eq.aircon_hours)} of running a ${safeImpact.factors?.aircon_watts ?? "—"} W aircon`}.
             </p>
           </div>

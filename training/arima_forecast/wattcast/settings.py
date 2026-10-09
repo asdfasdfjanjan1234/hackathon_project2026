@@ -13,7 +13,7 @@ if BACKEND_DIR not in sys.path:
 
 RAW_IEMOP = os.path.join(ROOT, "data", "raw", "iemop")
 PROCESSED = os.path.join(ROOT, "data", "processed")
-LUZON_HOURLY = os.path.join(PROCESSED, "luzon_hourly.csv")
+LUZON_DEMAND = os.path.join(PROCESSED, "luzon_demand.csv")
 
 ARTIFACTS = os.path.join(ROOT, "artifacts")
 LUZON_DIR = os.path.join(ARTIFACTS, "luzon")      # public grid data: fine to commit
@@ -21,12 +21,12 @@ LUZON_MODEL = os.path.join(LUZON_DIR, "luzon_pretrained.json")
 LUZON_CHECKPOINTS = os.path.join(LUZON_DIR, "checkpoints")
 DEVICE_DIR = os.path.join(ARTIFACTS, "devices")   # one person's usage: never committed
 
-# Readings are grouped into these clock hours, the same hours the tariff schedule uses.
+# Readings are grouped into steps of this clock time, the same clock the tariff schedule uses.
 TZ = CONFIG["timezone"]
 
 
 def device_data(device_id, name):
-    """Path of one device's processed readings, e.g. device_data(3, "hourly.csv")."""
+    """Path of one device's processed readings, e.g. device_data(3, "energy.csv")."""
     os.makedirs(PROCESSED, exist_ok=True)
     return os.path.join(PROCESSED, f"device_{device_id}_{name}")
 

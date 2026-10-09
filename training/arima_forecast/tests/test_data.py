@@ -9,6 +9,7 @@ import pytest
 from app.services import storage
 from wattcast import iemop, readings
 
+HOURLY = pd.Timedelta(hours=1)
 HEADER = ("RUN_TIME,MKT_TYPE,TIME_INTERVAL,REGION_NAME,COMMODITY_TYPE,MKT_REQT,LOAD_BID,LOAD_CURTAILED,"
           "LOSSES,GENERATION,MKT_IMPORT,MKT_EXPORT,\n")
 
@@ -22,7 +23,7 @@ def _row(end, region, commodity, mw):
     return f"{t},RTD,{t},{region},{commodity},{mw},0,0,0,{mw},0,0,\n"
 
 
-def test_hourly_demand_averages_intervals_into_the_hour_they_end_in(tmp_path):
+def test_demand_averages_intervals_into_the_step_they_end_in(tmp_path):
     lines = [HEADER]
     start = pd.Timestamp("2026-09-14 23:00")
     for i in range(1, 37):  # intervals ending 11:05 PM ... 2:00 AM: three full hours
@@ -35,11 +36,19 @@ def test_hourly_demand_averages_intervals_into_the_hour_they_end_in(tmp_path):
     lines.append("EOF\n")
     (tmp_path / "RTDREG_20260915.csv").write_text("".join(lines))
 
-    hourly = iemop.hourly_demand(str(tmp_path))
+    hourly = iemop.demand(str(tmp_path), step=HOURLY)
     assert hourly[pd.Timestamp("2026-09-14 23:00")] == 8000  # includes the interval ending at midnight
     assert hourly[pd.Timestamp("2026-09-15 00:00")] == 9000
     assert hourly[pd.Timestamp("2026-09-15 01:00")] == 10000
     assert pd.isna(hourly[pd.Timestamp("2026-09-15 02:00")])
+
+    quarters = iemop.demand(str(tmp_path))  # the configured step: 15 minutes, three intervals each
+    assert quarters.name == "mw" and quarters.index.freq == pd.Timedelta(minutes=15)
+    assert quarters[pd.Timestamp("2026-09-14 23:45")] == 8000  # the intervals ending 11:50, 11:55 and midnight
+    assert quarters[pd.Timestamp("2026-09-15 00:00")] == 9000
+    assert quarters[pd.Timestamp("2026-09-15 02:00")] == 11000  # all three intervals of this step are there
+    assert pd.isna(quarters[pd.Timestamp("2026-09-15 02:15")])  # only two of this one's
+    assert quarters.resample("h").mean()[pd.Timestamp("2026-09-15 01:00")] == hourly[pd.Timestamp("2026-09-15 01:00")]
 
 
 def test_save_files_keeps_only_daily_files_by_name(tmp_path):
@@ -79,9 +88,9 @@ TEN, ELEVEN = pd.Timestamp("2026-09-15 10:00"), pd.Timestamp("2026-09-15 11:00")
 NOON, NEXT_DAY, LAST = pd.Timestamp("2026-09-15 12:00"), pd.Timestamp("2026-09-16 12:00"), pd.Timestamp("2026-09-17 09:00")
 
 
-def test_hourly_ai_energy_counts_gaps_as_no_use_only_on_days_the_reader_ran(tmp_path):
+def test_ai_energy_counts_gaps_as_no_use_only_on_days_the_reader_ran(tmp_path):
     conn, device = _readings(tmp_path)
-    hourly, by_app = readings.hourly_ai_energy(conn, device)  # gaps="day"
+    hourly, by_app = readings.ai_energy(conn, device, step=HOURLY)  # gaps="day"
     conn.close()
     assert hourly.loc[TEN, "measured_h"] == pytest.approx(0.5)
     assert hourly.loc[TEN, "wh"] == pytest.approx(15)          # 30 W for half an hour, as measured
@@ -90,30 +99,47 @@ def test_hourly_ai_energy_counts_gaps_as_no_use_only_on_days_the_reader_ran(tmp_
     assert pd.isna(hourly.loc[NEXT_DAY, "wh"])                  # no readings that day: unknown
     assert hourly.loc[LAST, "wh"] == pytest.approx(3)           # the agent and its tool runs
     assert set(by_app["app"]) == {"Ollama", "Claude Code"}
-    assert by_app[by_app["hour"] == LAST]["wh"].sum() == pytest.approx(3)
+    assert by_app[by_app["time"] == LAST]["wh"].sum() == pytest.approx(3)
+
+
+def test_ai_energy_in_15_minute_steps_adds_up_to_the_same_energy(tmp_path):
+    conn, device = _readings(tmp_path)
+    hourly, _ = readings.ai_energy(conn, device, step=HOURLY)
+    energy, by_app = readings.ai_energy(conn, device)  # the configured step
+    conn.close()
+    assert energy.index.freq == pd.Timedelta(minutes=15) and energy.index.name == "time"
+    # Ollama at 30 W in readings 10 minutes long, at 10:00, 10:10 and 10:20: two fall in the first step.
+    assert energy.loc["2026-09-15 10:00", "wh"] == pytest.approx(10)
+    assert energy.loc["2026-09-15 10:15", "wh"] == pytest.approx(5)
+    assert energy.loc["2026-09-15 10:30", "wh"] == 0             # the reader ran that day: no AI use
+    assert pd.isna(energy.loc["2026-09-16 12:15", "wh"])         # no readings that day: unknown
+    assert energy["measured_h"].max() == 0.25                    # never more than the step
+    assert energy["ai_wh"].sum() == pytest.approx(hourly["ai_wh"].sum())  # the same energy, in smaller steps
+    assert by_app["wh"].sum() == pytest.approx(hourly["ai_wh"].sum())
+    assert by_app["time"].dt.minute.isin([0, 15, 30, 45]).all()
 
 
 def test_other_gap_rules(tmp_path):
     conn, device = _readings(tmp_path)
-    missing, _ = readings.hourly_ai_energy(conn, device, gaps="missing")
-    zero, _ = readings.hourly_ai_energy(conn, device, gaps="zero")
+    missing, _ = readings.ai_energy(conn, device, gaps="missing", step=HOURLY)
+    zero, _ = readings.ai_energy(conn, device, gaps="zero", step=HOURLY)
     conn.close()
     assert missing.loc[TEN, "wh"] == pytest.approx(30)  # half the hour measured, scaled to the full hour
     assert pd.isna(missing.loc[ELEVEN, "wh"]) and pd.isna(missing.loc[NOON, "wh"])  # under half measured
     assert zero.loc[NEXT_DAY, "wh"] == 0
     with pytest.raises(ValueError):
-        readings.hourly_ai_energy(None, device, gaps="guess")
+        readings.ai_energy(None, device, gaps="guess")
 
 
 def test_agent_series_one_column_per_agent_small_ones_together():
     index = pd.date_range("2026-09-14", periods=72, freq="h")
     hourly = pd.DataFrame({"measured_h": 1.0, "ai_wh": 0.0, "scale": 1.0}, index=index)
     hourly.loc[index[-24:], "scale"] = float("nan")  # the last day is unknown
-    rows = ([{"hour": h, "app": "Ollama", "name": "Ollama · llama3:8b", "kind": "local", "wh": 20.0} for h in index[:30]]
-            + [{"hour": h, "app": "Claude Code", "name": "Claude Code · tool runs", "kind": "client", "wh": 1.0} for h in index]
-            + [{"hour": h, "app": "Claude Code", "name": "Claude Code · opus", "kind": "client", "wh": 2.0} for h in index]
-            + [{"hour": h, "app": "GitHub Copilot", "name": "GitHub Copilot", "kind": "client", "wh": 0.001} for h in index]
-            + [{"hour": index[0], "app": "Codex", "name": "Codex", "kind": "client", "wh": 5.0}])
+    rows = ([{"time": h, "app": "Ollama", "name": "Ollama · llama3:8b", "kind": "local", "wh": 20.0} for h in index[:30]]
+            + [{"time": h, "app": "Claude Code", "name": "Claude Code · tool runs", "kind": "client", "wh": 1.0} for h in index]
+            + [{"time": h, "app": "Claude Code", "name": "Claude Code · opus", "kind": "client", "wh": 2.0} for h in index]
+            + [{"time": h, "app": "GitHub Copilot", "name": "GitHub Copilot", "kind": "client", "wh": 0.001} for h in index]
+            + [{"time": index[0], "app": "Codex", "name": "Codex", "kind": "client", "wh": 5.0}])
     agents = readings.agent_series(hourly, pd.DataFrame(rows))
     assert list(agents.columns) == ["Ollama", "Claude Code", readings.OTHER]  # biggest first
     assert agents["Claude Code"].iloc[0] == 3                     # its models and tool runs together

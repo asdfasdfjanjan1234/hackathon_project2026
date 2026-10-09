@@ -34,7 +34,7 @@ function Tile({ title, value, sub, accent = "text-ink", highlight }) {
   return (
     <div className={`p-3 rounded-lg border ${highlight ? "border-pos/30 bg-pos/[0.06]" : "border-line bg-sunken"}`}>
       <div className={`text-xs font-medium ${highlight ? "text-pos" : "text-ink-muted"}`}>{title}</div>
-      <div className={`text-base font-semibold mt-0.5 tabular-nums ${accent}`}>{value}</div>
+      <div className={`text-base font-bold mt-0.5 tabular-nums ${accent}`}>{value}</div>
       <div className="text-xs text-ink-muted leading-snug mt-0.5">{sub}</div>
     </div>
   );

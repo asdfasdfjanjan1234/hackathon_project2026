@@ -17,6 +17,7 @@ def bill_params():
         "current_bill": arg("current_bill", "CURRENT_BILL"),
         "baseline_rate": request.args.get("baseline_rate", type=float, default=cfg["BASELINE_RATE"]),
         "budget": arg("budget", "MONTHLY_BUDGET"),
+        "carbon_budget": arg("carbon_budget", "CARBON_BUDGET_KG"),
         "cycle_start_day": min(max(request.args.get("cycle_start_day", type=int,
                                                     default=cfg["BILLING_CYCLE_START_DAY"]), 1), 31),
         "tariff": "pop" if request.args.get("tariff", cfg["TARIFF"]) == "pop" else "flat",
@@ -25,5 +26,5 @@ def bill_params():
     }
 
 
-from . import (actions, best_time, carbon, device, forecast, health, impact, live, models, readings, recommendations,  # noqa: E402,F401
-               system, usage, validation)
+from . import (actions, alerts, assistant, best_time, carbon, device, forecast, health, impact, live, models,  # noqa: E402,F401
+               readings, recommendations, system, usage, validation)

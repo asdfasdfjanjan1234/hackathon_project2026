@@ -13,6 +13,10 @@ from app.services.attribution import PowerModel, activity, attribute, fit_power_
     ("Claude", "/Applications/Claude.app/Contents/MacOS/Claude", "", "Claude Desktop"),
     ("Claude Helper (GPU)", "/Applications/Claude.app/Contents/Frameworks/x/Claude Helper (GPU)", "", "Claude Desktop"),
     ("ollama_llama_server", "/usr/local/bin/ollama_llama_server", "", "Ollama"),
+    # Ollama 0.40+ runs models in the llama-server it ships with; a llama-server of your own is llama.cpp.
+    ("llama-server", "/opt/homebrew/Cellar/ollama/0.40.2/libexec/lib/ollama/llama-server", "", "Ollama"),
+    ("llama-server.exe", r"C:\Users\x\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe", "", "Ollama"),
+    ("llama-server", "/opt/homebrew/bin/llama-server", "", "llama.cpp"),
     ("co", "/Applications/Visual Studio Code.app/.../@github/copilot-sdk-darwin-arm64/co", "", "GitHub Copilot"),
     # Antigravity bundles VS Code's Copilot runtime; it must not be read as Copilot.
     ("co", "/Applications/Antigravity.app/.../@github/copilot-sdk-darwin-arm64/co", "", "Antigravity"),

@@ -29,13 +29,13 @@ export function TrajectoryBanner({ forecast, recs }) {
   return (
     <div className="dash-card p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 min-w-0">
       <p className="text-sm text-ink-soft leading-relaxed min-w-0">
-        <span className="font-medium text-ink">Trajectory: </span>
-        This cycle projects to <strong className={`font-semibold tabular-nums ${forecastTone}`}>{peso(forecastBill)}</strong> vs{" "}
-        <span className="tabular-nums">{peso(baselineBill)}</span> base
+        <span className="font-bold text-ink">Trajectory: </span>
+        This cycle projects to <strong className={`font-bold tabular-nums ${forecastTone}`}>{peso(forecastBill)}</strong> vs{" "}
+        <span className="font-medium text-ink tabular-nums">{peso(baselineBill)}</span> base
         {nextMonth && (
           <>
-            {" "}· next month <strong className="font-semibold text-ink tabular-nums">{peso(nextMonth.bill)}</strong>, or{" "}
-            <strong className="font-semibold text-pos tabular-nums">{peso(nextMonth.bill_with_recommendations)}</strong> with
+            {" "}· next month <strong className="font-bold text-ink tabular-nums">{peso(nextMonth.bill)}</strong>, or{" "}
+            <strong className="font-bold text-pos tabular-nums">{peso(nextMonth.bill_with_recommendations)}</strong> with
             recommendations
           </>
         )}
@@ -139,7 +139,7 @@ export function BillMetricsGrid({ forecast, recs, liveReading, usage, rate }) {
                 <span className="eyebrow">{card.title}</span>
                 <Icon className="w-4 h-4 text-ink-muted shrink-0" />
               </div>
-              <div className={`text-[28px] leading-none font-semibold tracking-tight tabular-nums truncate ${card.valueClass || "text-ink"}`}>
+              <div className={`stat-value truncate ${card.valueClass || "text-ink"}`}>
                 {card.value}
               </div>
               <div className="text-xs text-ink-muted mt-2 leading-snug">{card.subtext}</div>
@@ -171,7 +171,7 @@ function Step({ label, value, valueClass = "text-ink" }) {
   return (
     <div className="inset-panel px-3 py-1.5 min-w-0">
       <span className="block text-[11px] text-ink-muted truncate">{label}</span>
-      <span className={`block text-sm font-semibold tabular-nums truncate ${valueClass}`}>{value}</span>
+      <span className={`block text-sm font-bold tabular-nums truncate ${valueClass}`}>{value}</span>
     </div>
   );
 }

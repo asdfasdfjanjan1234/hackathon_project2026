@@ -1,19 +1,23 @@
-"""Seasonal ARIMA on the log of hourly energy, built on the series' weekly routine (features.py).
+"""ARIMA on the log of energy per time step, built on the series' weekly routine (features.py).
 
-    z = (log1p(y) - mean) / std      y: one AI agent's hourly Wh on a device, or Luzon's hourly MWh
-    z = routine + c * holiday + SARIMA(p,d,q)(P,D,Q,24) errors
+    z = (log1p(y) - mean) / std      y: one AI agent's Wh per step on a device, or Luzon's MW
+    z = routine + c * holiday + ARIMA(p,d,q) errors, with a seasonal part (P,D,Q) of one day when
+                                the series is long enough to show one
+
+A step is `step_minutes` long (config.json; 15 minutes): short enough that a device read for a few
+hours has enough steps to fit, where hourly values would need days.
 
 `routine` is when the series is usually high or low across the week (when the user uses the agent,
 and how heavily). ARIMA is fitted to the departures from it, z - routine: how a day runs above or
-below the usual, and how that carries into the next hours. The routine enters as it is, with no
+below the usual, and how that carries into the next steps. The routine enters as it is, with no
 fitted multiplier, so it means the same thing in training and in a forecast made after it has been
 re-learned from more readings.
-The log makes a heavy hour and a light hour differ by a ratio, as usage levels do, and keeps
+The log makes a heavy step and a light step differ by a ratio, as usage levels do, and keeps
 forecasts at or above zero. Standardizing puts the Luzon grid and one laptop on the same scale, so
 the coefficients fitted on the grid are a starting point for a device: fine-tuning re-estimates
 them on the device's own hours, starting from the grid's values (warm start).
 
-Missing hours (NaN) are handled by the Kalman filter: they're neither zeros nor dropped.
+Missing steps (NaN) are handled by the Kalman filter: they're neither zeros nor dropped.
 Point forecasts are medians (expm1 of the forecast log); ranges cover INTERVAL of outcomes.
 
 There are no epochs. A fit is one optimization: statsmodels adjusts the coefficients by maximum
@@ -31,8 +35,8 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 from .config import CONFIG
 from .features import calendar, routine_profile
+from .steps import PER_DAY, hours, minutes, step_of
 
-DAY = 24
 INTERVAL = CONFIG["model"]["interval"]  # forecast ranges: 0.8 is the 10th to the 90th percentile
 MAXITER = CONFIG["model"]["maxiter"]
 
@@ -43,15 +47,28 @@ class Spec:
     seasonal_order: tuple
 
     @property
+    def season(self):
+        """Steps in the structure's season, 0 without a seasonal part."""
+        return self.seasonal_order[3] if any(self.seasonal_order[:3]) else 0
+
+    @property
     def label(self):
         (p, d, q), (P, D, Q, s) = self.order, self.seasonal_order
         if not any((p, d, q, P, D, Q)):
             return "Routine only"
+        if not self.season:
+            return f"ARIMA({p},{d},{q})"
         return f"SARIMA({p},{d},{q})({P},{D},{Q},{s})"
 
 
+def _candidate(order, seasonal):
+    """A structure as config.json writes it: a season of "day" is one day of the configured steps."""
+    *orders, season = seasonal
+    return Spec(tuple(order), (*orders, PER_DAY if season == "day" else season))
+
+
 # Tried on the Luzon grid by 04_pretrain_luzon.py; the best ones carry over to devices.
-CANDIDATES = [Spec(tuple(order), tuple(seasonal)) for order, seasonal in CONFIG["luzon"]["candidates"]]
+CANDIDATES = [_candidate(order, seasonal) for order, seasonal in CONFIG["luzon"]["candidates"]]
 # The routine (and holiday) with no ARIMA terms: what the ARIMA part has to improve on.
 ROUTINE_ONLY = Spec((0, 0, 0), (0, 0, 0, 0))
 
@@ -99,11 +116,12 @@ class Model:
         return mod.filter(np.array([self.params[n] for n in mod.param_names]))
 
     def _future(self, y, steps):
-        index = pd.date_range(y.index[-1] + pd.Timedelta(hours=1), periods=steps, freq="h")
+        step = step_of(y.index)
+        index = pd.date_range(y.index[-1] + step, periods=steps, freq=step)
         return index, self._inputs(index)
 
     def forecast(self, y, steps):
-        """Hourly median, low and high for the `steps` hours after `y` ends, in y's units."""
+        """Median, low and high for each of the `steps` steps after `y` ends, in y's units."""
         index, exog = self._future(y, steps)
         f = self.filter(y).get_forecast(steps, exog=exog).summary_frame(alpha=1 - INTERVAL)
         departure = pd.DataFrame({"median": f["mean"].to_numpy(), "low": f["mean_ci_lower"].to_numpy(),
@@ -111,19 +129,19 @@ class Model:
         return self.from_z(departure.add(self._routine(index), axis=0))
 
     def simulate(self, y, steps, paths=500, seed=0):
-        """`paths` possible futures of the `steps` hours after `y`, as an array (steps, paths) in y's units.
-        Totals over many hours (a day, the billing cycle) take their range from these, since adding up
-        each hour's range would overstate it."""
+        """`paths` possible futures of the `steps` steps after `y`, as an array (steps, paths) in y's units.
+        Totals over many steps (a day, the billing cycle) take their range from these, since adding up
+        each step's range would overstate it."""
         index, exog = self._future(y, steps)
         sims = self.filter(y).simulate(steps, anchor="end", repetitions=paths, exog=exog, random_state=seed)
         departures = np.asarray(sims, dtype=float).reshape(steps, paths)
         return self.from_z(departures + self._routine(index).to_numpy()[:, None])
 
     def backtest_forecasts(self, y, origins, horizon):
-        """{origin position: forecast of y[origin : origin + horizon]} from only the hours before
+        """{origin position: forecast of y[origin : origin + horizon]} from only the steps before
         each origin. The coefficients stay as fitted (before the first origin); the routine is
-        re-learned from the hours before each origin, as it is whenever the model is refreshed
-        with new readings, and as the baselines are (they see every hour before the origin too)."""
+        re-learned from the steps before each origin, as it is whenever the model is refreshed
+        with new readings, and as the baselines are (they see every step before the origin too)."""
         out = {}
         for pos in origins:
             past = y.iloc[:pos]
@@ -133,11 +151,11 @@ class Model:
 
 
 def fit(y, spec, start=None, maxiter=MAXITER, source="", on_iteration=None):
-    """Fit `spec` to the hourly series `y` (regular hourly index, NaN = not measured).
+    """Fit `spec` to the series `y` (regular time index, one value per step, NaN = not measured).
 
     start: parameters of the same structure fitted elsewhere (the Luzon model) to start the optimizer
     from; names it doesn't have start from statsmodels' defaults. The holiday input is left out when
-    no observed hour falls on a holiday, since nothing could be learned about it.
+    no observed step falls on a holiday, since nothing could be learned about it.
     on_iteration: called as on_iteration(number, log_likelihood) after each optimizer iteration, to
     watch a fit improve. Computing the log-likelihood for it costs one more pass per iteration.
     """
@@ -167,7 +185,8 @@ def fit(y, spec, start=None, maxiter=MAXITER, source="", on_iteration=None):
     optimizer = getattr(res, "mle_retvals", None) or {}
     model.params = {n: float(v) for n, v in zip(mod.param_names, res.params)}
     model.trained = {"source": source, "start": str(y.index[0]), "end": str(y.index[-1]),
-                     "hours": int(len(y)), "observed_hours": int(observed.sum()),
+                     "step_minutes": minutes(y.index), "hours": hours(len(y), y.index),
+                     "observed_hours": hours(int(observed.sum()), y.index),
                      "aic": round(float(res.aic), 2), "loglike": round(float(res.llf), 3),
                      "iterations": int(optimizer.get("iterations", iterations[0])), "max_iterations": int(maxiter),
                      "converged": bool(optimizer.get("converged", True)), "warm_start": bool(start)}

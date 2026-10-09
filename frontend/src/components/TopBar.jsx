@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { peso } from "../format";
 import ThemeToggle from "./ThemeToggle";
+import Figures from "./Figures";
 
 const OS_NAMES = { macos: "macOS", windows: "Windows", linux: "Linux" };
 
@@ -38,7 +39,7 @@ export default function TopBar({
   const status = sensorStatus(liveReading);
 
   return (
-    <header className="h-16 bg-surface/80 backdrop-blur border-b border-line px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-3 sticky top-0 z-20">
+    <header className="h-16 bg-surface/80 backdrop-blur border-b border-line shadow-card px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-3 sticky top-0 z-20">
       {/* Left: Mobile hamburger menu & Title */}
       <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
         {/* Hamburger Menu on Mobile */}
@@ -48,7 +49,7 @@ export default function TopBar({
 
         <div className="min-w-0">
           <div className="flex items-center gap-2.5">
-            <h1 className="text-base font-semibold tracking-tight text-ink truncate md:sr-only">Kilo What?</h1>
+            <h1 className="text-base font-bold tracking-tight text-ink truncate md:sr-only">Kilo What?</h1>
             <span className="hidden xs:inline-flex items-center gap-1.5 text-xs font-medium text-ink-soft shrink-0">
               <span className={`w-2 h-2 rounded-full ${status.live ? "bg-pos" : "bg-warn"}`} />
               {status.text}
@@ -63,7 +64,7 @@ export default function TopBar({
               className="hover:text-accent transition-colors tabular-nums"
               title="Click to configure tariff"
             >
-              Tariff: {peso(electricityRate)} / kWh
+              Tariff: <span className="font-semibold text-ink-soft">{peso(electricityRate)}</span> / kWh
             </button>
             <span aria-hidden>·</span>
             <button
@@ -71,7 +72,7 @@ export default function TopBar({
               className="hover:text-accent transition-colors tabular-nums"
               title="Click to configure budget cap"
             >
-              Cap: {peso(monthlyBudget)} / mo
+              Cap: <span className="font-semibold text-ink-soft">{peso(monthlyBudget)}</span> / mo
             </button>
           </div>
         </div>
@@ -125,8 +126,8 @@ export default function TopBar({
           {showNotifications && (
             <div className="absolute right-0 mt-2 w-72 sm:w-80 rounded-xl bg-surface border border-line shadow-pop p-3 z-50 text-sm">
               <div className="flex items-center justify-between pb-2 border-b border-line mb-2.5">
-                <span className="font-semibold text-ink">Telemetry directives</span>
-                <span className="text-xs text-warn tabular-nums">{alerts.length} pending</span>
+                <span className="font-bold text-ink">Telemetry directives</span>
+                <span className="text-xs font-semibold text-warn tabular-nums">{alerts.length} pending</span>
               </div>
               <div className="space-y-2 text-xs">
                 {alerts.length === 0 && (
@@ -142,7 +143,7 @@ export default function TopBar({
                     <div className={`font-semibold mb-0.5 ${a.level === "warn" ? "text-neg" : "text-warn"}`}>
                       {a.level === "warn" ? "Warn" : "Opt"} · {a.title}
                     </div>
-                    {a.text}
+                    <Figures text={a.text} />
                   </div>
                 ))}
               </div>

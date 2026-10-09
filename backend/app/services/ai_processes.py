@@ -37,6 +37,13 @@ def _is_kiro(name, exe):
     return _is_ide(name, exe, "kiro")
 
 
+def _is_ollama_runner(name, exe):
+    # Ollama 0.40+ runs each model in the llama-server it ships with (Homebrew …/lib/ollama/llama-server,
+    # Ollama.app, Windows %LOCALAPPDATA%/Programs/Ollama/lib/ollama), not in `ollama runner`.
+    return name in ("llama-server", "llama-server.exe") and any(
+        d in exe for d in ("/lib/ollama/", "/ollama.app/", "/programs/ollama/"))
+
+
 def _is_devin_desktop(name, exe):
     # Cognition's IDE, formerly Windsurf. macOS app bundle, Windows and Linux installs.
     return "/devin.app/" in exe or "/programs/devin/" in exe or "/share/devin/" in exe or name == "devin desktop.exe"
@@ -44,7 +51,7 @@ def _is_devin_desktop(name, exe):
 
 # Checked in order; the first match wins. Arguments are lowercased, with "/" as path separator.
 AI_APPS = [
-    ("Ollama", "local", lambda name, exe, cmd: name.startswith("ollama")),
+    ("Ollama", "local", lambda name, exe, cmd: name.startswith("ollama") or _is_ollama_runner(name, exe)),
     ("LM Studio", "local", lambda name, exe, cmd: "/lm studio.app/" in exe or name in ("lms", "llmster")),
     ("llama.cpp", "local", lambda name, exe, cmd: name in ("llama-server", "llama-cli")),
     ("MLX", "local", lambda name, exe, cmd: "mlx_lm" in cmd),
@@ -317,7 +324,8 @@ def find_ai_processes():
     """CPU % (of one core, like Activity Monitor) and memory per AI app, summed over its processes.
 
     One row per app and host, plus a "tool runs" row for commands an agent started. Each
-    Ollama model runner (`ollama runner --model <blob>`) gets its own row with its model
+    Ollama model runner (`ollama runner --model <blob>`, or `llama-server --model <blob>` in
+    Ollama 0.40+) gets its own row with its model
     path, which local_models.label_local_models turns into the model's name. Rows keep
     their process IDs so per-process GPU readings can be matched to them.
     psutil caches processes between calls, so CPU % is measured since the previous call.

@@ -1,0 +1,46 @@
+{
+  "duration": 60,
+  "fps": 30,
+  "voice": "af_heart",
+  "speed": 0.92,
+  "cues": [
+    {"id": "moving", "scene": "hook", "say": "AI is moving out of the cloud, and onto your own computer.",
+     "caption": "AI is moving out of the cloud | and onto your own computer."},
+    {"id": "private", "scene": "hook", "say": "Private.", "pause": 0.5, "caption": "Private."},
+    {"id": "offline", "scene": "hook", "say": "Offline.", "pause": 0.5, "caption": "Private. Offline."},
+    {"id": "yours", "scene": "hook", "say": "Yours.", "caption": "Private. Offline. Yours."},
+    {"id": "bill", "scene": "hook", "say": "But the electric bill is yours too.", "pause": 3.2,
+     "caption": "But the electric bill is yours too."},
+
+    {"id": "ask", "scene": "problem", "say": "How much power does your AI really use?",
+     "caption": "How much power does your AI really use?"},
+    {"id": "guess", "scene": "problem", "say": "Most tools just guess.", "pause": 1.6,
+     "caption": "Most tools just guess."},
+
+    {"id": "meet", "scene": "meet", "say": "Meet Watt Trace.",
+     "caption": "Meet WattTrace."},
+    {"id": "runs", "scene": "meet", "say": "It runs entirely on your machine.",
+     "caption": "It runs entirely on your machine."},
+    {"id": "nos", "scene": "meet", "say": "No cloud, no account, no extra hardware.", "pause": 1.6,
+     "caption": "No cloud, no account, no extra hardware."},
+
+    {"id": "sensors", "scene": "how", "say": "Every two seconds, it reads your computer's own power sensors.",
+     "caption": "Every two seconds, it reads | your computer's own power sensors."},
+    {"id": "measured", "scene": "how", "say": "That total is measured, not guessed.",
+     "caption": "That total is measured, not guessed."},
+    {"id": "split", "scene": "how", "say": "Then it splits that power between your AI apps, by how much CPU and GPU each one uses.",
+     "caption": "Then it splits that power between your AI apps, | by how much CPU and GPU each one uses."},
+    {"id": "labeled", "scene": "how", "say": "Anything without a sensor is estimated, and always labeled.",
+     "caption": "Anything without a sensor is estimated, | and always labeled."},
+    {"id": "meter", "scene": "how", "say": "And you can check it against a wall meter.", "pause": 1.6,
+     "caption": "And you can check it against a wall meter."},
+
+    {"id": "units", "scene": "value", "say": "Watts become kilowatt hours, pesos, and carbon.",
+     "caption": "Watts become kilowatt-hours, pesos, and carbon."},
+    {"id": "features", "scene": "value", "say": "It forecasts your bill, and one click swaps a heavy model for a lighter one.", "pause": 1.6,
+     "caption": "It forecasts your bill, and one click | swaps a heavy model for a lighter one."},
+
+    {"id": "close", "scene": "close", "say": "Watt Trace. Measured, not guessed. Local, not cloud.",
+     "caption": "WattTrace. Measured, not guessed. | Local, not cloud."}
+  ]
+}

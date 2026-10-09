@@ -27,7 +27,7 @@ function Line({ label, value, strong }) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-1.5 border-b border-line last:border-0">
       <span className="text-xs text-ink-muted">{label}</span>
-      <span className={`tabular-nums ${strong ? "text-accent font-semibold text-base" : "text-ink text-sm"}`}>
+      <span className={`tabular-nums ${strong ? "text-accent font-bold text-base" : "text-ink font-medium text-sm"}`}>
         {value}
       </span>
     </div>
@@ -64,7 +64,7 @@ export default function ScaleUp({ liveReading, forecast, recs, rate }) {
 
       <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="inset-panel p-4 min-w-0">
-          <div className="text-xs font-medium text-ink-soft mb-1">From the live reading</div>
+          <div className="text-xs font-semibold text-ink-soft mb-1">From the live reading</div>
           {aiWatts == null ? (
             <p className="text-xs text-ink-muted">Start the device reader (This Device) to project the AI apps running now.</p>
           ) : (
@@ -82,7 +82,7 @@ export default function ScaleUp({ liveReading, forecast, recs, rate }) {
         </div>
 
         <div className="inset-panel p-4 min-w-0">
-          <div className="text-xs font-medium text-ink-soft mb-1 flex items-center gap-1.5">
+          <div className="text-xs font-semibold text-ink-soft mb-1 flex items-center gap-1.5">
             <Users className="w-3.5 h-3.5 text-ink-muted" /> From this cycle's forecast
           </div>
           <Line label="AI on the bill, next month" value={`${peso(aiMonthly * machines)} / mo`} />

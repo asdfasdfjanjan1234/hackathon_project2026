@@ -35,6 +35,10 @@ class Config:
     CLEAN_WINDOW_HOURS = int(os.getenv("CLEAN_WINDOW_HOURS", 3))
     # "flat": one rate at every hour (most households). "pop": Meralco's Peak/Off-Peak program, whose
     # rates are POP_PEAK_RATE / POP_OFFPEAK_RATE (0: estimated from ELECTRICITY_RATE, see cheap_hours.py).
+    # The assistant: a small local model in Ollama that explains the numbers. Unloaded after
+    # ASSISTANT_KEEP_ALIVE without a question, so it doesn't hold memory (or draw power) idle.
+    ASSISTANT_MODEL = os.getenv("ASSISTANT_MODEL", "qwen3.5:4b-q4_K_M")
+    ASSISTANT_KEEP_ALIVE = os.getenv("ASSISTANT_KEEP_ALIVE", "2m")
     TARIFF = os.getenv("TARIFF", "flat")
     POP_PEAK_RATE = float(os.getenv("POP_PEAK_RATE", 0))
     POP_OFFPEAK_RATE = float(os.getenv("POP_OFFPEAK_RATE", 0))

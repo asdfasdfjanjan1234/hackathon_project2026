@@ -1,0 +1,96 @@
+1
+00:00:00,550 --> 00:00:02,428
+AI is moving out of the cloud
+
+2
+00:00:02,428 --> 00:00:04,177
+and onto your own computer.
+
+3
+00:00:04,709 --> 00:00:05,459
+Private.
+
+4
+00:00:05,725 --> 00:00:06,535
+Private. Offline.
+
+5
+00:00:06,801 --> 00:00:07,561
+Private. Offline. Yours.
+
+6
+00:00:08,092 --> 00:00:10,192
+But the electric bill is yours too.
+
+7
+00:00:11,895 --> 00:00:14,113
+How much power does your AI really use?
+
+8
+00:00:14,645 --> 00:00:16,150
+Most tools just guess.
+
+9
+00:00:17,001 --> 00:00:18,260
+Meet WattTrace.
+
+10
+00:00:18,792 --> 00:00:20,733
+It runs entirely on your machine.
+
+11
+00:00:21,265 --> 00:00:24,081
+No cloud, no account, no extra hardware.
+
+12
+00:00:24,932 --> 00:00:26,566
+Every two seconds, it reads
+
+13
+00:00:26,566 --> 00:00:28,623
+your computer's own power sensors.
+
+14
+00:00:29,155 --> 00:00:31,203
+That total is measured, not guessed.
+
+15
+00:00:31,735 --> 00:00:35,132
+Then it splits that power between your AI apps,
+
+16
+00:00:35,132 --> 00:00:37,879
+by how much CPU and GPU each one uses.
+
+17
+00:00:38,411 --> 00:00:40,849
+Anything without a sensor is estimated,
+
+18
+00:00:40,849 --> 00:00:42,037
+and always labeled.
+
+19
+00:00:42,569 --> 00:00:44,930
+And you can check it against a wall meter.
+
+20
+00:00:45,781 --> 00:00:49,088
+Watts become kilowatt-hours, pesos, and carbon.
+
+21
+00:00:49,620 --> 00:00:51,777
+It forecasts your bill, and one click
+
+22
+00:00:51,777 --> 00:00:53,993
+swaps a heavy model for a lighter one.
+
+23
+00:00:54,844 --> 00:00:57,125
+WattTrace. Measured, not guessed.
+
+24
+00:00:57,125 --> 00:00:58,300
+Local, not cloud.
+

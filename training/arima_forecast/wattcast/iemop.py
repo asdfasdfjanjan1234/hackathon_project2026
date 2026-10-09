@@ -1,4 +1,4 @@
-"""Luzon grid demand by hour, from IEMOP's public RTD Regional Summaries (iemop.ph -> Market Data).
+"""Luzon grid demand by time step, from IEMOP's public RTD Regional Summaries (iemop.ph -> Market Data).
 
 Each daily file RTDREG_YYYYMMDD.csv has one row per 5-minute dispatch interval, region and commodity:
 
@@ -12,6 +12,7 @@ download again every few weeks to build a longer history: files already saved ar
 """
 
 import io
+import math
 import os
 import re
 import shutil
@@ -20,11 +21,14 @@ import zipfile
 
 import pandas as pd
 
+from .steps import STEP, load
+
 DOWNLOAD_URL = ("https://www.iemop.ph/market-data/rtd-regional-summaries/"
                 "?post=5760&sort=desc&page={page}&start=&end=")
 FILE_RE = re.compile(r"^RTDREG_\d{8}\.csv$")
 REGIONS = {"luzon": "CLUZ", "visayas": "CVIS", "mindanao": "CMIN"}
-MIN_INTERVALS = 10  # of an hour's 12 five-minute intervals, for the hour to count
+INTERVAL = pd.Timedelta(minutes=5)
+MIN_SHARE = 10 / 12  # of a step's five-minute intervals, for the step to count: 10 of an hour's 12
 
 
 def download(dest, max_pages=10, timeout=120):
@@ -66,16 +70,22 @@ def read_day(path, region="CLUZ"):
     return pd.Series(pd.to_numeric(df["MKT_REQT"], errors="coerce").to_numpy(), index=end).dropna()
 
 
-def hourly_demand(folder, region="CLUZ"):
-    """A region's average demand in each clock hour (MW, so also MWh in that hour), from every daily
-    file in `folder`. The interval ending 1:00 AM belongs to the 12 AM hour; 1:05 AM to the 1 AM hour.
-    Hours with fewer than MIN_INTERVALS intervals are missing (NaN)."""
+def demand(folder, region="CLUZ", step=STEP):
+    """A region's average demand (MW) in each step of clock time, from every daily file in `folder`.
+    An interval belongs to the step it ends in: the one ending 1:00 AM to the step before 1:00 AM,
+    the one ending 1:05 AM to the step that starts then. Steps with fewer than MIN_SHARE of their
+    intervals (all 3 of a 15-minute step) are missing (NaN)."""
     files = sorted(f for f in os.listdir(folder) if FILE_RE.match(f)) if os.path.isdir(folder) else []
     if not files:
         raise FileNotFoundError(f"No RTDREG_*.csv files in {folder}: run 01_download_iemop.py first")
     mw = pd.concat(read_day(os.path.join(folder, f), region) for f in files).sort_index()
     mw = mw[~mw.index.duplicated()]
-    by_hour = mw.groupby((mw.index - pd.Timedelta(seconds=1)).floor("h"))
-    hourly = by_hour.mean().where(by_hour.count() >= MIN_INTERVALS)
-    hours = pd.date_range(hourly.index.min(), hourly.index.max(), freq="h")
-    return hourly.reindex(hours).rename("mwh")
+    by_step = mw.groupby((mw.index - pd.Timedelta(seconds=1)).floor(step))
+    average = by_step.mean().where(by_step.count() >= math.ceil(round(step / INTERVAL * MIN_SHARE, 6)))
+    index = pd.date_range(average.index.min(), average.index.max(), freq=step)
+    return average.reindex(index).rename("mw")
+
+
+def load_demand(path):
+    """The series saved by 01_download_iemop.py, with a regular index at the configured step."""
+    return load(path, "01_download_iemop.py")["mw"]

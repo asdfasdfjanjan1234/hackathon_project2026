@@ -1,39 +1,41 @@
 {
   "timezone": "Asia/Manila",
+  "step_minutes": 15,
   "checkpoints": true,
   "luzon": {
-    "days": 60,
+    "days": 30,
     "folds": 7,
+    "horizon_hours": 24,
+    "min_train_hours": 48,
     "candidates": [
-      [[1, 0, 1], [1, 0, 1, 24]],
-      [[2, 0, 1], [1, 0, 1, 24]],
-      [[2, 0, 0], [2, 0, 0, 24]],
-      [[1, 0, 1], [0, 1, 1, 24]],
-      [[0, 1, 1], [0, 1, 1, 24]],
-      [[1, 1, 1], [0, 1, 1, 24]]
+      [[1, 0, 1], [0, 0, 0, 0]],
+      [[2, 0, 1], [0, 0, 0, 0]],
+      [[2, 0, 0], [0, 0, 0, 0]],
+      [[1, 0, 1], [1, 0, 1, "day"]],
+      [[2, 0, 0], [1, 0, 0, "day"]],
+      [[0, 1, 1], [0, 1, 1, "day"]]
     ]
   },
   "device": {
     "gaps": "day",
     "min_coverage": 0.5,
     "min_day_hours": 1.0,
-    "folds": 7,
+    "folds": 6,
+    "horizon_hours": 2,
+    "min_train_hours": 4,
     "top_structures": 2,
     "allow_routine_only": true,
-    "min_hours": 72,
-    "min_days": 3
+    "min_hours": 6,
+    "min_days": 1
   },
   "agents": {
     "used_wh": 0.05,
-    "min_used_hours": 24,
+    "min_used_hours": 2,
     "min_share": 0.02,
     "max_agents": 6
   },
   "levels": {
     "active_w": 1.0
-  },
-  "backtest": {
-    "horizon_hours": 24
   },
   "model": {
     "maxiter": 200,

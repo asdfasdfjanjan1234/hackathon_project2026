@@ -15,43 +15,53 @@ from importlib import metadata
 PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.json")
 
 DEFAULTS = {
-    # Clock hours for readings and the tariff schedule.
+    # Clock time for readings and the tariff schedule.
     "timezone": "Asia/Manila",
+    # Length of a time step, in minutes: every series has one value per step. 15 lets a device be
+    # fine-tuned on a few hours of readings; 60 is hourly. One of 5, 10, 15, 20, 30, 60 (IEMOP's
+    # data comes in 5-minute intervals). After changing it, run every step again, from 01.
+    "step_minutes": 15,
     # Save every fitted candidate as it finishes, and reuse it when a run is repeated or resumed.
     "checkpoints": True,
     "luzon": {
-        "days": 60,   # most recent days of Luzon demand to pre-train on
-        "folds": 7,   # held-out days in the backtest
-        # Seasonal ARIMA structures to try: [[p, d, q], [P, D, Q, season]].
+        "days": 30,             # most recent days of Luzon demand to pre-train on
+        "folds": 7,             # held-out windows in the backtest
+        "horizon_hours": 24,    # length of each held-out window: how far ahead it's forecast
+        "min_train_hours": 48,  # hours to fit on before the first held-out window, at least
+        # ARIMA structures to try: [[p, d, q], [P, D, Q, season]]. The season is in steps, or "day"
+        # for one day of steps (96 at 15 minutes); [0, 0, 0, 0] is no seasonal part. A structure with
+        # a season is only tried on a series with two seasons to fit on, so the ones without are what
+        # a device with a few hours of readings is fine-tuned with. --quick tries the first two.
         "candidates": [
-            [[1, 0, 1], [1, 0, 1, 24]],
-            [[2, 0, 1], [1, 0, 1, 24]],
-            [[2, 0, 0], [2, 0, 0, 24]],
-            [[1, 0, 1], [0, 1, 1, 24]],
-            [[0, 1, 1], [0, 1, 1, 24]],
-            [[1, 1, 1], [0, 1, 1, 24]],
+            [[1, 0, 1], [0, 0, 0, 0]],
+            [[2, 0, 1], [0, 0, 0, 0]],
+            [[2, 0, 0], [0, 0, 0, 0]],
+            [[1, 0, 1], [1, 0, 1, "day"]],
+            [[2, 0, 0], [1, 0, 0, "day"]],
+            [[0, 1, 1], [0, 1, 1, "day"]],
         ],
     },
     "device": {
-        "gaps": "day",        # hours the reader didn't run: "day", "missing" or "zero" (readings.py)
-        "min_coverage": 0.5,  # gaps "missing": share of an hour the reader must have run
+        "gaps": "day",         # steps the reader didn't run: "day", "missing" or "zero" (readings.py)
+        "min_coverage": 0.5,   # gaps "missing": share of a step the reader must have run
         "min_day_hours": 1.0,  # gaps "day": reader hours for a day to count as measured
-        "folds": 7,           # held-out days, at most
-        "top_structures": 2,  # Luzon structures tried per agent
+        "folds": 6,            # held-out windows, at most
+        "horizon_hours": 2,    # length of each held-out window
+        "min_train_hours": 4,  # hours to fit on before the first held-out window, at least
+        "top_structures": 2,   # Luzon structures tried per agent
         # May an agent's final model be its routine alone, with no AR/MA terms, when that forecasts
-        # the held-out days best? false: it's still scored for comparison, but an ARIMA is always chosen.
+        # the held-out windows best? false: it's still scored for comparison, but an ARIMA is always chosen.
         "allow_routine_only": True,
-        "min_hours": 72,      # known hours needed before fine-tuning
-        "min_days": 3,
+        "min_hours": 6,        # known hours needed before fine-tuning
+        "min_days": 1,
     },
     "agents": {
-        "used_wh": 0.05,       # Wh in an hour for the agent to count as in use
-        "min_used_hours": 24,  # hours in use for an agent to get its own model
+        "used_wh": 0.05,       # Wh an hour (average W) for the agent to count as in use in a step
+        "min_used_hours": 2,   # hours in use for an agent to get its own model
         "min_share": 0.02,     # and this share of the AI energy
         "max_agents": 6,       # the rest are forecast together as "Other AI apps"
     },
-    "levels": {"active_w": 1.0},  # below this average AI power an hour is "idle"
-    "backtest": {"horizon_hours": 24},
+    "levels": {"active_w": 1.0},  # below this average AI power a step is "idle"
     "model": {
         # ARIMA has no epochs: each fit is one optimization (maximum likelihood, L-BFGS) that stops
         # when it converges. Its iterations are the nearest thing to epochs; this is the most allowed.
@@ -65,6 +75,7 @@ DEFAULTS = {
         "max_hours": 840,   # longest forecast (35 days)
     },
 }
+STEP_MINUTES = (5, 10, 15, 20, 30, 60)
 
 
 def _merge(base, override, where=""):
@@ -83,10 +94,13 @@ def _merge(base, override, where=""):
 
 def load(path=PATH):
     """DEFAULTS with config.json's values on top."""
-    if not os.path.exists(path):
-        return copy.deepcopy(DEFAULTS)
-    with open(path) as f:
-        return _merge(DEFAULTS, json.load(f))
+    cfg = copy.deepcopy(DEFAULTS)
+    if os.path.exists(path):
+        with open(path) as f:
+            cfg = _merge(DEFAULTS, json.load(f))
+    if cfg["step_minutes"] not in STEP_MINUTES:
+        raise ValueError(f"Setting 'step_minutes' in config.json must be one of {STEP_MINUTES}")
+    return cfg
 
 
 CONFIG = load()

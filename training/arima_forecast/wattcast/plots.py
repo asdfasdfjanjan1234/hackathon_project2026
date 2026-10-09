@@ -7,6 +7,8 @@ import numpy as np
 from matplotlib.colors import ListedColormap
 from matplotlib.patches import Patch
 
+from .steps import per_hour
+
 SURFACE = "#fcfcfb"
 INK, INK_2, MUTED = "#0b0b0b", "#52514e", "#898781"
 GRID, AXIS = "#e1e0d9", "#c3c2b7"
@@ -57,20 +59,22 @@ def weekday_weekend(profile, title, unit):
     return fig
 
 
-def usage_heatmap(level, title="Usage level by hour"):
-    """One row per day, one cell per hour, colored by usage level; white-gray where not measured."""
+def usage_heatmap(level, title="Usage level by time of day"):
+    """One row per day, one cell per step, colored by usage level; white-gray where not measured."""
     style()
+    n = per_hour(level.index)
     days = sorted(set(level.index.date))
     codes = {name: i for i, name in enumerate(("idle", "light", "moderate", "heavy"))}
-    grid = np.full((len(days), 24), np.nan)
+    grid = np.full((len(days), 24 * n), np.nan)
     row = {d: i for i, d in enumerate(days)}
     for t, name in level.dropna().items():
-        grid[row[t.date()], t.hour] = codes[name]
+        grid[row[t.date()], (t.hour * 60 + t.minute) * n // 60] = codes[name]
     fig, ax = plt.subplots(figsize=(9, max(2.2, 0.28 * len(days) + 1.2)))
     cmap = ListedColormap(LEVEL_COLORS)
     cmap.set_bad(NOT_MEASURED)
-    ax.pcolormesh(np.ma.masked_invalid(grid), cmap=cmap, vmin=-0.5, vmax=3.5, edgecolors=SURFACE, linewidth=1.5)
-    ax.set_xticks([h + 0.5 for h in HOUR_TICKS], [_hour_label(h) for h in HOUR_TICKS])
+    ax.pcolormesh(np.ma.masked_invalid(grid), cmap=cmap, vmin=-0.5, vmax=3.5, edgecolors=SURFACE,
+                  linewidth=1.5 / n)
+    ax.set_xticks([(h + 0.5) * n for h in HOUR_TICKS], [_hour_label(h) for h in HOUR_TICKS])
     step = max(1, len(days) // 12)
     ax.set_yticks([i + 0.5 for i in range(0, len(days), step)], [f"{days[i]:%a %b %d}" for i in range(0, len(days), step)])
     ax.invert_yaxis()
@@ -106,14 +110,16 @@ def backtest_bars(rows, title="Held-out error (MASE, lower is better)"):
     return fig
 
 
-def forecast_cost(hourly, hours=72, title="Extra bill from AI, per hour"):
-    """Median pesos per hour with its 80% range, over the first `hours` forecast hours."""
+def forecast_cost(table, hours=72, title="Extra bill from AI, per hour"):
+    """Median pesos per hour with its 80% range, over the first `hours` hours of the forecast table.
+    Each step's cost is drawn as a rate (pesos an hour), so the chart reads the same at any step."""
     style()
-    h = hourly.iloc[:hours]
+    n = per_hour(table.index)
+    h = table.iloc[:hours * n]
     fig, ax = plt.subplots(figsize=(9, 3.6))
-    ax.fill_between(h.index, h["cost_low"], h["cost_high"], color=SERIES[0], alpha=0.18, linewidth=0,
+    ax.fill_between(h.index, h["cost_low"] * n, h["cost_high"] * n, color=SERIES[0], alpha=0.18, linewidth=0,
                     label="80% range")
-    ax.plot(h.index, h["cost"], color=SERIES[0], label="median")
+    ax.plot(h.index, h["cost"] * n, color=SERIES[0], label="median")
     ax.set_ylabel("PHP per hour")
     ax.set_ylim(bottom=0)
     ax.set_title(title)

@@ -3,6 +3,7 @@ import os
 
 import pytest
 
+from conftest import DAILY
 from wattcast import backtest, checkpoint, config, model, pipeline, settings
 
 SMALL = model.Spec((1, 0, 0), (1, 0, 0, 24))
@@ -72,7 +73,8 @@ def test_finetune_checkpoints_each_agent_and_records_the_run(agents, fits):
 
     bill_cfg = SimpleNamespace(ELECTRICITY_RATE=12.0, TARIFF="flat", POP_PEAK_RATE=0, POP_OFFPEAK_RATE=0,
                                BASELINE_BILL=1500.0, BILLING_CYCLE_START_DAY=1, DATABASE="mysql://user:secret@host/db")
-    saved = pipeline.finetune(agents, 7, [(SMALL, None)], folds=2, top=1, bill_cfg=bill_cfg, log=lambda *_: None)
+    saved = pipeline.finetune(agents, 7, [(SMALL, None)], folds=2, top=1, bill_cfg=bill_cfg, log=lambda *_: None,
+                              **DAILY)
     first = len(fits)
     run = saved["run"]
     assert run["checkpoints"]["fitted"] == first == 6  # per agent: routine only, one structure, the final fit
@@ -81,9 +83,10 @@ def test_finetune_checkpoints_each_agent_and_records_the_run(agents, fits):
     assert "secret" not in json.dumps(saved)  # no database credentials in what's saved
     folder = settings.device_checkpoints(7)
     with open(os.path.join(folder, "config.json")) as f:
-        assert json.load(f)["config"]["device"]["min_hours"] == 72
+        assert json.load(f)["config"]["device"] == config.CONFIG["device"]
 
-    again = pipeline.finetune(agents, 7, [(SMALL, None)], folds=2, top=1, bill_cfg=bill_cfg, log=lambda *_: None)
+    again = pipeline.finetune(agents, 7, [(SMALL, None)], folds=2, top=1, bill_cfg=bill_cfg, log=lambda *_: None,
+                              **DAILY)
     assert len(fits) == first and again["run"]["checkpoints"]["from_checkpoint"] == 6
     assert again["total"] == saved["total"]
     assert {a: v["chosen"] for a, v in again["agents"].items()} == {a: v["chosen"] for a, v in saved["agents"].items()}
@@ -109,9 +112,13 @@ def test_a_half_written_checkpoint_is_ignored(tmp_path):
 def test_config_file_overrides_defaults_and_rejects_typos(tmp_path):
     assert config.load() == config.DEFAULTS  # the config.json in the folder spells out the defaults
     path = tmp_path / "config.json"
-    path.write_text(json.dumps({"luzon": {"days": 30}}))
+    path.write_text(json.dumps({"luzon": {"days": 45}, "step_minutes": 60}))
     loaded = config.load(str(path))
-    assert loaded["luzon"]["days"] == 30 and loaded["luzon"]["folds"] == 7 and loaded["device"]["gaps"] == "day"
+    assert loaded["luzon"]["days"] == 45 and loaded["luzon"]["folds"] == 7 and loaded["device"]["gaps"] == "day"
+    assert loaded["step_minutes"] == 60
+    path.write_text(json.dumps({"step_minutes": 7}))  # not a whole number of IEMOP's 5-minute intervals
+    with pytest.raises(ValueError, match="step_minutes"):
+        config.load(str(path))
     path.write_text(json.dumps({"luzon": {"dayz": 30}}))
     with pytest.raises(ValueError, match="luzon.dayz"):
         config.load(str(path))

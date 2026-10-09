@@ -8,8 +8,8 @@ function Field({ label, value, onChange, min, max, step, format, accent, hint, c
   return (
     <div className="p-4 inset-panel space-y-2.5">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium text-ink">{label}</span>
-        <span className={`font-semibold text-sm tabular-nums ${accent}`}>{format(value)}</span>
+        <span className="text-sm font-semibold text-ink">{label}</span>
+        <span className={`font-bold text-sm tabular-nums ${accent}`}>{format(value)}</span>
       </div>
       <div className="flex items-center gap-3">
         <input
@@ -133,7 +133,7 @@ export default function TariffSettingsModal({
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 id="tariff-settings-title" className="text-lg font-semibold text-ink">Your tariff & bill</h2>
+            <h2 id="tariff-settings-title" className="text-lg font-bold text-ink">Your tariff & bill</h2>
             <div className="text-sm text-ink-muted mt-0.5">
               From your electricity bill. Every projection is recalculated with these values.
             </div>
@@ -156,7 +156,7 @@ export default function TariffSettingsModal({
             hint="The total ₱/kWh on your bill (generation, transmission, distribution and taxes)."
           />
           <div className="p-4 inset-panel space-y-2.5">
-            <div className="text-sm font-medium text-ink">Tariff</div>
+            <div className="text-sm font-semibold text-ink">Tariff</div>
             <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tariff">
               {[
                 ["flat", "Same rate all day", "Regular Meralco residential rate"],
@@ -173,7 +173,7 @@ export default function TariffSettingsModal({
                       : "border-line bg-surface hover:border-line-strong"
                   }`}
                 >
-                  <div className={`font-medium text-sm ${tariff === id ? "text-accent" : "text-ink"}`}>{title}</div>
+                  <div className={`font-semibold text-sm ${tariff === id ? "text-accent" : "text-ink"}`}>{title}</div>
                   <div className="text-xs text-ink-muted mt-0.5 leading-snug">{hint}</div>
                 </button>
               ))}
@@ -247,7 +247,7 @@ export default function TariffSettingsModal({
           />
           <div className="p-4 inset-panel flex items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-medium text-ink">Billing cycle starts on day</div>
+              <div className="text-sm font-semibold text-ink">Billing cycle starts on day</div>
               <div className="text-xs text-ink-muted">The meter reading day on your bill (1–31).</div>
             </div>
             <input

@@ -10,6 +10,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import wattcast  # noqa: E402,F401  (puts the backend on the import path)
 
 
+# The held-out windows the hourly tests use: a day each, after two days to fit on.
+DAILY = {"horizon_hours": 24, "min_train_hours": 48}
+
+
 def synthetic_agents(days=14, seed=0, start="2026-09-07"):
     """Made-up hourly Wh for tests only. "Claude Code": weekday work hours, light evenings.
     "Ollama": Tuesday and Thursday afternoons only. A few unknown hours in both."""

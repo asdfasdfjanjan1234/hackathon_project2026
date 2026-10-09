@@ -70,8 +70,8 @@ function Breakdown({ title, rows }) {
               <span className={`truncate ${r.text}`}>{r.label}</span>
               <span className="text-[11px] text-ink-muted shrink-0">{r.measured ? "meas." : "est."}</span>
             </span>
-            <span className="text-ink shrink-0">
-              {formatAppWatts(r.watts)} <span className="text-ink-muted">· {pct(r.watts)}%</span>
+            <span className="font-semibold text-ink shrink-0">
+              {formatAppWatts(r.watts)} <span className="font-normal text-ink-muted">· {pct(r.watts)}%</span>
             </span>
           </div>
         ))}

@@ -9,7 +9,9 @@ import { formatWatts } from "../format";
 import { ACTIVITY, METRICS, explainApp, explainReading } from "../explain";
 import { color } from "../theme";
 import AppPowerParts from "./AppPowerParts";
+import BrandIcon, { BrandName } from "./BrandIcon";
 import PowerSplit from "./PowerSplit";
+import Figures from "./Figures";
 
 // Dial full-scale steps: the smallest that fits the readings, so a 5 W laptop and a
 // 400 W gaming PC both use the whole arc.
@@ -57,7 +59,7 @@ export default function LiveWattage({ reading }) {
     () =>
       (reading?.apps || []).map((a) => ({
         name: a.name || a.model || a.app,
-        arch: `${a.kind === "local" ? "Local model" : "AI app"}${a.host ? ` · in ${a.host}` : ""}${a.effort ? ` · ${a.effort} effort` : ""}`,
+        kind: a.kind === "local" ? "Local model" : "AI app",
         watts: a.watts,
         cpu: `${(a.cpu_percent || 0).toFixed(1)}%`,
         app: a,
@@ -144,7 +146,7 @@ export default function LiveWattage({ reading }) {
                   textAnchor="middle"
                   fill={color("ink")}
                   fontFamily="inherit"
-                  fontWeight="600"
+                  fontWeight="700"
                   fontSize="30"
                   letterSpacing="-0.02em"
                   style={{ fontVariantNumeric: "tabular-nums" }}
@@ -162,7 +164,7 @@ export default function LiveWattage({ reading }) {
                   textAnchor="middle"
                   fill={color(powerState.tone)}
                   fontSize="11"
-                  fontWeight="500"
+                  fontWeight="600"
                   fontFamily="inherit"
                 >
                   {powerState.label} · {percentage}%
@@ -183,18 +185,20 @@ export default function LiveWattage({ reading }) {
                   />
                 ))}
               </div>
-              <span className="text-ink font-medium tabular-nums shrink-0">{currentWatts.toFixed(1)} W</span>
+              <span className="text-ink font-semibold tabular-nums shrink-0">{currentWatts.toFixed(1)} W</span>
             </div>
 
             {/* Why the computer draws what it draws, updated with every reading */}
             {summary.length > 0 && (
               <div className="w-full mt-3 p-3 rounded-lg bg-accent/[0.06] border border-accent/15 text-[13px] leading-relaxed text-ink-soft">
-                <div className="flex items-center gap-1.5 text-xs font-medium text-accent mb-1">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-accent mb-1">
                   <Info className="w-3.5 h-3.5" />
                   Right now
                 </div>
                 {summary.map((line, i) => (
-                  <p key={i} className={i === 0 ? "text-ink" : ""}>{line}</p>
+                  <p key={i} className={i === 0 ? "font-medium text-ink" : ""}>
+                    <Figures text={line} />
+                  </p>
                 ))}
               </div>
             )}
@@ -236,17 +240,17 @@ export default function LiveWattage({ reading }) {
               </div>
             )}
             {processList.map((proc, i) => {
-              const Icon = proc.icon || Terminal;
+              const { host, effort } = proc.app;
               return (
                 <div
                   key={i}
                   className={`flex items-start justify-between p-2.5 inset-panel ${proc.app.activity === "idle" ? "opacity-70" : ""}`}
                 >
                   <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                    <Icon className="w-4 h-4 text-ink-muted shrink-0 mt-0.5" />
+                    <BrandIcon name={proc.app.app} fallback={proc.icon} className="w-5 h-5" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-sm font-medium text-ink truncate">{proc.name}</span>
+                        <span className="text-sm font-semibold text-ink truncate">{proc.name}</span>
                         {proc.activity && (
                           <span className={`shrink-0 px-1.5 rounded-full border text-[11px] leading-4 ${proc.activity.chip}`}>
                             {proc.activity.label}
@@ -254,14 +258,16 @@ export default function LiveWattage({ reading }) {
                         )}
                       </div>
                       <div className="text-xs text-ink-muted truncate tabular-nums">
-                        {proc.arch} · CPU {proc.cpu}
+                        {proc.kind}
+                        {host && <> · in <BrandName name={host} /></>}
+                        {effort && ` · ${effort} effort`} · CPU {proc.cpu}
                       </div>
                       {proc.why && <div className="text-xs text-ink-soft leading-snug mt-1">{proc.why}</div>}
                       <AppPowerParts app={proc.app} />
                     </div>
                   </div>
 
-                  <div className="text-right shrink-0 font-semibold text-ink tabular-nums text-sm ml-2">
+                  <div className="text-right shrink-0 font-bold text-ink tabular-nums text-sm ml-2">
                     {formatWatts(proc.watts)}
                   </div>
                 </div>
@@ -291,7 +297,7 @@ export default function LiveWattage({ reading }) {
             <dl className="space-y-2 p-3 inset-panel text-xs leading-snug mt-2">
               {METRICS.map((m) => (
                 <div key={m.term}>
-                  <dt className="font-medium text-ink">{m.term}</dt>
+                  <dt className="font-semibold text-ink">{m.term}</dt>
                   <dd className="text-ink-soft">{m.text}</dd>
                 </div>
               ))}

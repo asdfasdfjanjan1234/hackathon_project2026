@@ -1,6 +1,7 @@
 """Which local models Ollama and LM Studio have loaded or installed, from their own APIs.
 
-Ollama runs each loaded model in its own `ollama runner --model <blob>` process, so a
+Ollama runs each loaded model in its own `ollama runner --model <blob>` process (in 0.40+,
+the `llama-server --model <blob>` it ships with), so a
 model's CPU and GPU use is that process's. The blob is matched to the model's name via
 the manifests next to it. Older Ollama versions run models inside the server process;
 then the model used most recently (latest expiry in /api/ps) gets the server's use.

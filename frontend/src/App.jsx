@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { api } from "./api/client";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
+import { LogoMark } from "./components/Logo";
 import LiveWattage from "./components/LiveWattage";
 import { TrajectoryBanner, BillMetricsGrid } from "./components/BillSummary";
 import UsageBreakdown from "./components/UsageBreakdown";
@@ -322,9 +323,8 @@ export default function App() {
             {/* Dashboard Footer */}
             <footer className="pt-4 pb-2 border-t border-line flex flex-wrap items-center justify-between text-xs text-ink-muted gap-2">
               <div className="flex items-center gap-1.5">
-                <img src="/logo-collapse.png" alt="Kilo What?" className="h-4 w-auto object-contain dark:hidden" />
-                <img src="/logo-collapse-dark.png" alt="Kilo What?" className="h-4 w-auto object-contain hidden dark:block" />
-                <span className="font-medium text-ink-soft">Kilo What?</span>
+                <LogoMark className="h-4 w-4" />
+                <span className="font-semibold text-ink-soft">Kilo What?</span>
               </div>
               <div className="tabular-nums">
                 This device · Sampling: {LIVE_POLL_MS} ms · Tariff: ₱{customParams?.rate?.toFixed(2)} / kWh · Cap: ₱{customParams?.budget} · Cycle starts day {customParams?.cycleStartDay ?? 1}
@@ -361,7 +361,7 @@ function ViewHeader({ view }) {
   if (!view) return null;
   return (
     <div className="min-w-0">
-      <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-ink">{view.title}</h2>
+      <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">{view.title}</h2>
       <p className="mt-1 text-sm text-ink-muted">{view.description}</p>
     </div>
   );

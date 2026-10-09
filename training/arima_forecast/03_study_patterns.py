@@ -7,10 +7,9 @@
 import argparse
 import json
 import os
+import sys
 
-import pandas as pd
-
-from wattcast import patterns, readings, settings
+from wattcast import iemop, patterns, readings, settings
 
 
 def write(path_base, report, markdown):
@@ -30,15 +29,20 @@ def main():
     group.add_argument("--luzon", action="store_true")
     args = ap.parse_args()
 
+    try:
+        if args.luzon:
+            demand = iemop.load_demand(settings.LUZON_DEMAND)
+        else:
+            energy = readings.load_energy(settings.device_data(args.device_id, "energy.csv"))
+            by_app = readings.load_by_app(settings.device_data(args.device_id, "by_app.csv"))
+    except (FileNotFoundError, ValueError) as e:
+        sys.exit(str(e))
     if args.luzon:
-        mwh = pd.read_csv(settings.LUZON_HOURLY, parse_dates=["hour"], index_col="hour")["mwh"].asfreq("h")
-        report = patterns.study_grid(mwh)
+        report = patterns.study_grid(demand)
         write(os.path.join(settings.LUZON_DIR, "luzon_patterns"), report, patterns.grid_markdown(report))
         return
 
-    hourly = readings.load_hourly(settings.device_data(args.device_id, "hourly.csv"))
-    by_app = readings.load_by_app(settings.device_data(args.device_id, "by_app.csv"))
-    report = patterns.study_device(hourly, by_app, readings.agent_series(hourly, by_app))
+    report = patterns.study_device(energy, by_app, readings.agent_series(energy, by_app))
     write(settings.device_artifact(args.device_id, "patterns"), report,
           patterns.device_markdown(args.device_id, report))
 

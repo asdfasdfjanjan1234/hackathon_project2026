@@ -165,17 +165,17 @@ export default function ForecastChart({ forecast, recs, className = "" }) {
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-0.5 rounded-full" style={{ backgroundColor: pathColor }} />
             <span className="text-ink-muted">Current path:</span>
-            <span className="text-ink font-semibold tabular-nums">{peso(forecastBill)}</span>
+            <span className="text-ink font-bold tabular-nums">{peso(forecastBill)}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-0.5 rounded-full bg-viz-green" />
             <span className="text-ink-muted">With recs:</span>
-            <span className="text-ink font-semibold tabular-nums">{peso(recsBill)}</span>
+            <span className="text-ink font-bold tabular-nums">{peso(recsBill)}</span>
           </div>
           <div className="hidden sm:flex items-center gap-1.5">
             <span className="w-3 border-t border-dashed border-viz-grey" />
             <span className="text-ink-muted">Without AI:</span>
-            <span className="text-ink-soft tabular-nums">{peso(baselineBill)}</span>
+            <span className="text-ink-soft font-medium tabular-nums">{peso(baselineBill)}</span>
           </div>
         </div>
         {coverage && (
@@ -194,8 +194,8 @@ export default function ForecastChart({ forecast, recs, className = "" }) {
               <div className="text-xs text-ink-muted">
                 Next {p.months === 1 ? "month" : `${p.months} months`}
               </div>
-              <div className="text-base font-semibold text-ink tabular-nums truncate mt-0.5">{peso(p.bill, 0)}</div>
-              <div className="text-xs text-pos tabular-nums truncate">{peso(p.bill_with_recommendations, 0)} with recs</div>
+              <div className="text-base font-bold text-ink tabular-nums truncate mt-0.5">{peso(p.bill, 0)}</div>
+              <div className="text-xs font-medium text-pos tabular-nums truncate">{peso(p.bill_with_recommendations, 0)} with recs</div>
               {p.months > 1 && (
                 <div className="text-[11px] text-ink-muted tabular-nums truncate">≈ {peso(p.monthly_bill, 0)} / month</div>
               )}

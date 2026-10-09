@@ -19,7 +19,7 @@ import numpy as np
 
 
 def fingerprint(y, **settings):
-    """A short hash of an hourly series (values, missing hours, time range) and the fit's settings."""
+    """A short hash of a series (values, missing steps, time range) and the fit's settings."""
     h = hashlib.sha1()
     h.update(np.nan_to_num(y.to_numpy(dtype=float), nan=-1.0).round(9).tobytes())
     h.update(f"{y.index[0]}|{y.index[-1]}|{len(y)}".encode())
