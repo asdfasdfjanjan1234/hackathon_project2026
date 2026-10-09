@@ -135,7 +135,9 @@ function ModelsPanel({ models }) {
               <div className="text-[10px] text-slate-500">
                 {m.requests} requests
                 {m.tokens.output ? ` · ${formatTokens(m.tokens.output)} output tokens` : " · no token counts"}
-                {m.relative_energy ? ` · ${m.relative_energy}× Sonnet` : ""}
+                {m.relative_energy ? ` · ${m.priced_as ? "≈" : ""}${m.relative_energy}× Sonnet` : ""}
+                {m.priced_as ? ` · not in catalog, priced like ${m.priced_as}` : ""}
+                {m.relative_energy == null ? ` · ${m.provider ? `${m.provider} model` : "model"} not in catalog, no estimate` : ""}
               </div>
             </div>
             <div className="text-right shrink-0">

@@ -7,9 +7,10 @@ import pytest
 
 from app import create_app
 from app.services import device_reader, model_usage
-from app.services.ai_processes import group_processes, label_active_models
+from app.services import ai_processes
+from app.services.ai_processes import app_name, group_processes, label_active_models, unrecognized_apps
 from app.services.forecasting import forecast_bill
-from app.services.models_catalog import REFERENCE, datacenter_wh, relative_energy
+from app.services.models_catalog import REFERENCE, cloud_model, datacenter_wh, provider_of, relative_energy
 
 VSCODE = "/Applications/Visual Studio Code.app/Contents/MacOS/Code"
 EXTHOST = "/Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin)"
@@ -66,6 +67,66 @@ def test_client_apps_are_labeled_with_their_active_model():
             {"app": "Ollama", "kind": "local", "model": None}]
     label_active_models(apps, {"Claude Code": "claude-opus-5-5", "Ollama": "x"})
     assert [a["model"] for a in apps] == ["Claude Code · claude-opus-5-5", "Claude Code · tool runs", None]
+
+
+@pytest.fixture
+def fresh_scan():
+    ai_processes._seen.clear()
+    ai_processes._scan["at"] = None
+    yield
+    ai_processes._seen.clear()
+    ai_processes._scan["at"] = None
+
+
+ZED = "/Applications/Zed.app/Contents/MacOS"
+FW_PYTHON = "/Library/Frameworks/Python.framework/Versions/3.12/Resources/Python.app/Contents/MacOS/Python"
+
+
+def test_unknown_apps_talking_to_an_ai_api_are_counted(fresh_scan):
+    procs = {
+        1: proc(0, "launchd"),
+        10: proc(1, "zed", f"{ZED}/zed"),
+        11: proc(10, "zed-helper", f"{ZED}/zed-helper"),  # same bundle: counted with it
+        20: proc(1, "Python", FW_PYTHON, "python /usr/local/bin/aider"),
+        21: proc(1, "Python", FW_PYTHON, "python manage.py runserver"),  # same program, no AI traffic
+        30: proc(1, "Google Chrome", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+        40: proc(1, "Code", VSCODE),
+        41: proc(40, "Code Helper (Plugin)", EXTHOST),  # e.g. Cline: shares VS Code's extension host
+        50: proc(1, "claude", "/usr/local/bin/claude"),
+        51: proc(50, "curl", "/usr/bin/curl"),  # Claude Code's tool run, not a new app
+        60: proc(1, "nsurlsessiond", "/usr/libexec/nsurlsessiond"),
+    }
+    for p in procs.values():
+        p["argv"] = p["cmdline"].split()
+    talking = {10, 20, 30, 41, 51, 60}
+    found = unrecognized_apps(procs, talking.__contains__, now=0)
+    assert found == {10: ("Zed", "client"), 11: ("Zed", "client"), 20: ("aider", "client")}
+
+    groups = group_processes(procs, extra=found)
+    assert groups[10] == ("Zed", "client", None, False)
+    assert groups[51] == ("Claude Code", "client", None, True)
+
+
+def test_unknown_apps_stay_counted_between_requests(fresh_scan):
+    procs = {1: proc(0, "launchd"), 10: proc(1, "zed", f"{ZED}/zed")}
+    assert unrecognized_apps(procs, lambda pid: True, now=0)
+    # No connection now and no scan due: still counted, until STICKY_S after the last one.
+    assert unrecognized_apps(procs, lambda pid: False, now=ai_processes.SCAN_EVERY_S - 1)
+    assert unrecognized_apps(procs, lambda pid: False, now=ai_processes.STICKY_S - 1)
+    assert unrecognized_apps(procs, lambda pid: False, now=ai_processes.STICKY_S) == {}
+
+
+@pytest.mark.parametrize("name, exe, argv, expected", [
+    ("zed", f"{ZED}/zed", [], "Zed"),
+    ("Trae Helper (Plugin)", "/Applications/Trae.app/Contents/Frameworks/Trae Helper (Plugin).app/Contents/MacOS/x",
+     [], "Trae"),
+    ("Python", FW_PYTHON, ["python", "-u", "/usr/local/bin/aider"], "aider"),
+    ("node", "/opt/homebrew/bin/node", ["node", "/opt/homebrew/lib/node_modules/@acme/agent/dist/index.js"],
+     "@acme/agent"),
+    ("goose.exe", r"C:\Users\x\goose.exe", [], "goose"),
+])
+def test_unrecognized_app_names(name, exe, argv, expected):
+    assert app_name(name, exe, argv) == expected
 
 
 def _assistant(msg_id, model, out, ts="2026-10-09T10:00:00Z", **usage):
@@ -171,6 +232,35 @@ def test_datacenter_estimate_matches_reference_query():
     assert datacenter_wh("claude-opus-5-5", typical) == pytest.approx(2 * REFERENCE["wh_per_query"])
     assert relative_energy("claude-haiku-4-5-20251001") == 0.5  # dated ids match their model
     assert datacenter_wh("gpt-4o-mini", typical) is None  # no price in the catalog: no estimate
+
+
+@pytest.mark.parametrize("model_id, priced_as, approximate", [
+    ("claude-opus-5-5", "Opus 5.5", False),
+    ("claude-opus-5-5-20261001", "Opus 5.5", False),
+    ("claude-haiku-4-5@20251001", "Haiku 4.5", False),
+    # A new version isn't read as an older one with the same prefix (claude-opus-5).
+    ("claude-opus-5-6", "Opus 5.5", True),
+    ("claude-opus-6", "Opus 5.5", True),
+    ("claude-sonnet-4.5", "Sonnet 5.5", True),
+    ("claude-3-5-sonnet-20241022", "Sonnet 5.5", True),
+    ("us.anthropic.claude-haiku-4-5-20251001-v1:0", "Haiku 4.5", True),
+    ("CLAUDE_SONNET_4_20250514_V1_0", "Sonnet 5.5", True),
+])
+def test_unknown_claude_models_are_priced_by_family(model_id, priced_as, approximate):
+    m = cloud_model(model_id)
+    assert (m["name"], m["approximate"]) == (priced_as, approximate)
+
+
+def test_models_outside_the_catalog():
+    assert cloud_model("gpt-6") is None and cloud_model("sonnet-poetry-7b") is None
+    assert [provider_of(m) for m in ("gpt-5-codex", "o4-mini", "gemini-3-pro", "claude-opus-6", "default")] == \
+        ["OpenAI", "OpenAI", "Google", "Anthropic", None]
+    models, _ = model_usage.summarize([("Claude Code", "2026-10-09", "claude-opus-6", {"output": 500}),
+                                       ("Codex", "2026-10-09", "gpt-6", {"output": 500})])
+    by_id = {m["model"]: m for m in models}
+    assert by_id["claude-opus-6"]["name"] == "claude-opus-6"  # not shown as Opus 5.5
+    assert by_id["claude-opus-6"]["priced_as"] == "Opus 5.5" and by_id["claude-opus-6"]["datacenter_wh"]
+    assert by_id["gpt-6"]["provider"] == "OpenAI" and by_id["gpt-6"]["datacenter_wh"] is None
 
 
 def test_summary_and_switch_hint():

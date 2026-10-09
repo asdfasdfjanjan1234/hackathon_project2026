@@ -102,14 +102,48 @@ REFERENCE = {
 }
 
 
+# A date suffix on a catalog id: claude-haiku-4-5-20251001, or claude-haiku-4-5@20251001 on Vertex.
+DATED = re.compile(r"[-@]\d{8}$")
+
+# A Claude model that isn't in the catalog (newer, older, or named another way, like
+# "claude-sonnet-4.5" or "us.anthropic.claude-opus-4-1-v1:0") is priced like the
+# catalog's model of the same family, and marked approximate.
+FAMILIES = {"fable": "claude-fable-5-1", "opus": "claude-opus-5-5",
+            "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-4-5"}
+FAMILY = re.compile(r"(?<![a-z])(" + "|".join(FAMILIES) + r")(?![a-z])")
+
+# Who makes a model, from its id, for models with no catalog entry.
+PROVIDERS = [
+    ("Anthropic", re.compile(r"claude")),
+    ("OpenAI", re.compile(r"(^|[/.])(gpt|o\d|codex|chatgpt)")),
+    ("Google", re.compile(r"gemini|gemma")),
+    ("Meta", re.compile(r"llama")),
+    ("Mistral", re.compile(r"mistral|mixtral|codestral|devstral")),
+    ("DeepSeek", re.compile(r"deepseek")),
+    ("xAI", re.compile(r"grok")),
+    ("Alibaba", re.compile(r"qwen")),
+]
+
+
 def cloud_model(model_id):
-    """Catalog entry for a model id, matching dated ids like claude-haiku-4-5-20251001."""
+    """Catalog entry for a model id, with "approximate" set when only its family is known.
+
+    Dated ids match their model exactly. Only a date suffix is ignored, so a new version
+    like claude-opus-5-6 isn't mistaken for claude-opus-5.
+    """
     if not model_id:
         return None
-    if model_id in CLOUD_MODELS:
-        return CLOUD_MODELS[model_id]
-    matches = [k for k in CLOUD_MODELS if model_id.startswith(k + "-")]
-    return CLOUD_MODELS[max(matches, key=len)] if matches else None
+    key = DATED.sub("", model_id)
+    if key in CLOUD_MODELS:
+        return {**CLOUD_MODELS[key], "approximate": False}
+    lowered = model_id.lower()
+    family = FAMILY.search(lowered) if "claude" in lowered else None
+    return {**CLOUD_MODELS[FAMILIES[family.group(1)]], "approximate": True} if family else None
+
+
+def provider_of(model_id):
+    lowered = (model_id or "").lower()
+    return next((name for name, pattern in PROVIDERS if pattern.search(lowered)), None)
 
 
 def list_cost(model_id, tokens):

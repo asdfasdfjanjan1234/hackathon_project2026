@@ -21,7 +21,7 @@ import sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from .models_catalog import cloud_model, datacenter_wh, list_cost, relative_energy
+from .models_catalog import cloud_model, datacenter_wh, list_cost, provider_of, relative_energy
 
 TOKEN_TYPES = ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h")
 
@@ -271,9 +271,12 @@ def _with_estimates(row):
     cost = list_cost(row["model"], row["tokens"]) if has_tokens else None
     wh = datacenter_wh(row["model"], row["tokens"]) if has_tokens else None
     info = cloud_model(row["model"])
+    approximate = bool(info and info["approximate"])
     return {**row,
-            "name": info["name"] if info else row["model"],
-            "provider": info["provider"] if info else None,
+            # A model only matched by family keeps its own id as its name.
+            "name": info["name"] if info and not approximate else row["model"],
+            "provider": provider_of(row["model"]),
+            "priced_as": info["name"] if approximate else None,
             "list_cost_usd": None if cost is None else round(cost, 4),
             "datacenter_wh": None if wh is None else round(wh, 2),
             "relative_energy": relative_energy(row["model"]),

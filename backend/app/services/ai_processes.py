@@ -6,9 +6,17 @@ kind "client": a cloud AI app; only its own CPU use on this machine is on the bi
 Processes started by a coding agent (tests, builds, shells) count toward that agent as
 "tool runs": they use this machine's CPU, so they are on the bill too. Each app also gets
 the host it runs in (VS Code, Terminal, ...), found by walking up its parent processes.
+
+Apps not listed here are found by their network connections: a process talking to an AI
+provider's API is counted as an "unrecognized AI app", so new tools show up without a
+code change.
 """
 
 import os
+import re
+import socket
+import threading
+import time
 
 import psutil
 
@@ -93,13 +101,15 @@ def _ancestors(pid, procs):
         pid = procs[pid]["ppid"]
 
 
-def group_processes(procs, exclude=()):
+def group_processes(procs, exclude=(), extra=None):
     """Assign processes to AI apps.
 
     procs: {pid: {"ppid", "name", "exe", "cmdline"}}. Returns {pid: (app, kind, host, is_tool_run)}.
     Processes in `exclude` (and their children) are skipped, so this app never measures itself.
+    `extra` = {pid: (app, kind)} for apps found another way (unrecognized_apps).
     """
-    direct = {pid: classify(p["name"], p["exe"], p["cmdline"]) for pid, p in procs.items()}
+    extra = extra or {}
+    direct = {pid: classify(p["name"], p["exe"], p["cmdline"]) or extra.get(pid) for pid, p in procs.items()}
     out = {}
     for pid, p in procs.items():
         if pid in exclude or any(a in exclude for a in _ancestors(pid, procs)):
@@ -117,6 +127,123 @@ def group_processes(procs, exclude=()):
                      for h in [host_of(procs[a]["name"], procs[a]["exe"])] if h), None)
         out[pid] = (label, kind, host, tool_run)
     return out
+
+
+# --- Apps not in AI_APPS --------------------------------------------------------
+
+# AI APIs served from addresses of their own. Most other providers (Google, Mistral,
+# OpenRouter, Groq, ...) sit behind CDN addresses shared with unrelated sites, which
+# would flag apps that never use AI, so they aren't listed.
+AI_API_HOSTS = ("api.anthropic.com", "api.openai.com", "api.githubcopilot.com",
+                "api.individual.githubcopilot.com")
+DNS_EVERY_S = 600   # re-resolve the APIs this often; addresses seen before are kept
+SCAN_EVERY_S = 15   # read every process's connections this often
+STICKY_S = 600      # an app stays counted this long after its last API connection
+UNRECOGNIZED = "unrecognized AI app"
+
+# Browsers reach AI websites but also everything else, so their use isn't counted as AI.
+BROWSERS = {"safari", "google chrome", "chrome", "chromium", "firefox", "microsoft edge", "msedge",
+            "brave browser", "brave", "arc", "opera", "vivaldi", "dia", "comet", "chatgpt atlas"}
+SYSTEM_DIRS = ("/system/", "/usr/libexec/", "/usr/sbin/", "/sbin/", "c:/windows/")
+INTERPRETER = re.compile(r"(python|node|bun|deno|ruby)[\d.]*(\.exe)?$")
+
+_api_ips = {"at": None, "ips": set()}
+_scan = {"at": None}
+_seen = {}  # app key -> last time it had a connection to an AI API
+
+
+def _resolve_api_ips():
+    ips = set()
+    for host in AI_API_HOSTS:
+        try:
+            ips.update(a[4][0] for a in socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP))
+        except OSError:
+            continue
+    _api_ips["ips"] = _api_ips["ips"] | ips  # replaced, not changed, while the sampler may be reading it
+
+
+def ai_api_ips():
+    """Addresses of the AI APIs. Resolved in the background so a slow DNS never stalls sampling."""
+    now = time.monotonic()
+    if _api_ips["at"] is None or now - _api_ips["at"] >= DNS_EVERY_S:
+        _api_ips["at"] = now
+        threading.Thread(target=_resolve_api_ips, daemon=True).start()
+    return _api_ips["ips"]
+
+
+def _bundle(exe):
+    """The outermost macOS app bundle in a path ("/Applications/Zed.app/…" → "/Applications/Zed.app")."""
+    m = re.search(r"^(.*?/([^/]+)\.app)/", exe)
+    return (m.group(1), m.group(2)) if m else None
+
+
+def app_name(name, exe, argv):
+    """What to call an unrecognized app: its macOS bundle, the package or script an
+    interpreter runs (`python /usr/local/bin/aider` → "aider"), else the process name."""
+    if INTERPRETER.match((name or "").lower()):
+        script = next((a for a in argv[1:] if not a.startswith("-")), None)
+        if script:
+            script = script.replace("\\", "/")
+            pkg = re.search(r"node_modules/((?:@[^/]+/)?[^/]+)", script)
+            return pkg.group(1) if pkg else os.path.splitext(os.path.basename(script))[0]
+    bundle = _bundle((exe or "").replace("\\", "/"))
+    return bundle[1] if bundle else re.sub(r"\.exe$", "", name or "", flags=re.I)
+
+
+def app_key(pid, p):
+    """Processes with the same key are one app: a whole macOS bundle (its network helper is
+    often not the process doing the work), or all copies of one program. Interpreters are
+    keyed by process, since every Python script shares the same program (on macOS, even
+    the same Python.app bundle)."""
+    exe = (p["exe"] or "").replace("\\", "/")
+    if INTERPRETER.match((p["name"] or "").lower()) or not exe:
+        return (pid, p["name"])
+    bundle = _bundle(exe)
+    return bundle[0].lower() if bundle else exe.lower()
+
+
+def is_candidate(pid, procs, known):
+    """Could this be an AI app we don't know? Not a known app or a child of one (those are
+    tool runs), not a known editor or terminal (their AI extensions share one process with
+    everything else), not a browser and not part of the OS. known = {pid: classify(...)}."""
+    p = procs[pid]
+    name, exe, _ = _norm(p["name"], p["exe"], "")
+    if known[pid] or host_of(name, exe) or exe.startswith(SYSTEM_DIRS):
+        return False
+    if any(known[a] for a in _ancestors(pid, procs)):
+        return False
+    return app_name(p["name"], p["exe"], []).lower() not in BROWSERS
+
+
+def unrecognized_apps(procs, talks_to_ai, now=None):
+    """{pid: (app name, "client")} for apps not in AI_APPS that recently talked to an AI API.
+
+    talks_to_ai(pid) says whether a process has a connection to one now. It is asked every
+    SCAN_EVERY_S, and an app stays counted for STICKY_S after, so the work it does between
+    requests is counted too.
+    """
+    now = time.monotonic() if now is None else now
+    for key in [k for k, t in _seen.items() if now - t >= STICKY_S]:
+        del _seen[key]
+    scan = _scan["at"] is None or now - _scan["at"] >= SCAN_EVERY_S
+    if not scan and not _seen:
+        return {}
+    known = {pid: classify(p["name"], p["exe"], p["cmdline"]) for pid, p in procs.items()}
+    candidates = [pid for pid in procs if is_candidate(pid, procs, known)]
+    if scan:
+        _scan["at"] = now
+        for pid in candidates:
+            if talks_to_ai(pid):
+                _seen[app_key(pid, procs[pid])] = now
+    return {pid: (app_name(procs[pid]["name"], procs[pid]["exe"], procs[pid].get("argv") or []), "client")
+            for pid in candidates if app_key(pid, procs[pid]) in _seen}
+
+
+def _connected_to(handle, ips):
+    try:
+        return any(c.raddr and c.raddr.ip in ips for c in handle.net_connections(kind="inet"))
+    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError):
+        return False
 
 
 def flag_value(argv, flag):
@@ -142,13 +269,17 @@ def find_ai_processes():
     for p in psutil.process_iter(["ppid", "name", "exe", "cmdline"]):
         try:
             argv[p.pid] = p.info["cmdline"] or []
-            procs[p.pid] = {**p.info, "cmdline": " ".join(argv[p.pid])}
+            procs[p.pid] = {**p.info, "cmdline": " ".join(argv[p.pid]), "argv": argv[p.pid]}
             handles[p.pid] = p
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
 
+    ips = ai_api_ips()
+    extra = unrecognized_apps(procs, lambda pid: _connected_to(handles[pid], ips)) if ips else {}
+    unknown = {label for label, _ in extra.values()}
+
     apps = {}
-    for pid, (label, kind, host, tool_run) in group_processes(procs, exclude={os.getpid()}).items():
+    for pid, (label, kind, host, tool_run) in group_processes(procs, exclude={os.getpid()}, extra=extra).items():
         p = handles[pid]
         try:
             cpu = p.cpu_percent(None)
@@ -157,7 +288,8 @@ def find_ai_processes():
             continue
         model_path = flag_value(argv[pid], "--model") if label == "Ollama" and not tool_run else None
         key = (label, host, tool_run, model_path)
-        app = apps.setdefault(key, {"app": label, "model": f"{label} · tool runs" if tool_run else None,
+        model = f"{label} · tool runs" if tool_run else f"{label} · {UNRECOGNIZED}" if label in unknown else None
+        app = apps.setdefault(key, {"app": label, "model": model,
                                     "kind": kind, "host": host, "cpu_percent": 0.0, "rss_mb": 0.0,
                                     "pids": [], "model_path": model_path})
         app["cpu_percent"] += cpu
