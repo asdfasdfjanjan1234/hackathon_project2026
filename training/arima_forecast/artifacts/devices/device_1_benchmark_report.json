@@ -1,0 +1,98 @@
+{
+  "device_id": 1,
+  "timestamp": "2026-10-10T03:10:57",
+  "all_passed": true,
+  "checks": [
+    {
+      "Test": "Regular 15-minute time steps",
+      "Status": "PASS",
+      "Detail": "Consistent intervals"
+    },
+    {
+      "Test": "Non-negative energy inputs",
+      "Status": "PASS",
+      "Detail": "Physical reality"
+    },
+    {
+      "Test": "Non-negative forecast bounds (kWh & cost >= 0)",
+      "Status": "PASS",
+      "Detail": "Energy & cost cannot be negative"
+    },
+    {
+      "Test": "Ordered confidence intervals (low <= median <= high)",
+      "Status": "PASS",
+      "Detail": "Valid distribution"
+    },
+    {
+      "Test": "Bill projection additivity (Baseline + AI)",
+      "Status": "PASS",
+      "Detail": "\u20b11500.13 == \u20b11500.13"
+    },
+    {
+      "Test": "80% Interval Empirical Coverage (81.2%)",
+      "Status": "PASS",
+      "Detail": "Calibrated prediction bounds"
+    },
+    {
+      "Test": "Sub-150ms inference latency",
+      "Status": "PASS",
+      "Detail": "3.2ms per day"
+    }
+  ],
+  "benchmarks": [
+    {
+      "Model": "\u2605 WattTrace ARIMA (Ours)",
+      "MAE (Wh)": "0.00750",
+      "RMSE (Wh)": "0.01490",
+      "WAPE": "125.68%",
+      "MASE": "9.3172",
+      "Window Total Err": "142.21%",
+      "Rel. to Naive": "BASELINE"
+    },
+    {
+      "Model": "Seasonal Naive",
+      "MAE (Wh)": "0.00770",
+      "RMSE (Wh)": "0.01510",
+      "WAPE": "129.73%",
+      "MASE": "9.6178",
+      "Window Total Err": "160.40%",
+      "Rel. to Naive": "+2.6% vs ARIMA"
+    },
+    {
+      "Model": "Profile",
+      "MAE (Wh)": "0.00770",
+      "RMSE (Wh)": "0.01510",
+      "WAPE": "129.73%",
+      "MASE": "9.6178",
+      "Window Total Err": "160.40%",
+      "Rel. to Naive": "+2.6% vs ARIMA"
+    },
+    {
+      "Model": "Last Value",
+      "MAE (Wh)": "0.00600",
+      "RMSE (Wh)": "0.01480",
+      "WAPE": "100.00%",
+      "MASE": "7.4136",
+      "Window Total Err": "100.00%",
+      "Rel. to Naive": "-25.0% vs ARIMA"
+    },
+    {
+      "Model": "Historical Mean",
+      "MAE (Wh)": "0.00710",
+      "RMSE (Wh)": "0.01470",
+      "WAPE": "118.68%",
+      "MASE": "8.7985",
+      "Window Total Err": "116.68%",
+      "Rel. to Naive": "-5.6% vs ARIMA"
+    }
+  ],
+  "performance": {
+    "forecast_24h_ms": 3.19,
+    "forecast_7d_ms": 5.4,
+    "simulation_500paths_ms": 14.12
+  },
+  "coverage": {
+    "empirical_interval_coverage": 0.8125,
+    "target_interval": 0.8
+  }
+}
