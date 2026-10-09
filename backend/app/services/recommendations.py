@@ -9,7 +9,7 @@ def build_recommendations(daily, forecast, rate, budget):
 
     # SWITCH: a big local model that has a smaller alternative.
     for model, m in by_model.items():
-        alt = MODELS[model].get("smaller_alternative")
+        alt = MODELS.get(model, {}).get("smaller_alternative")
         if not alt:
             continue
         ratio = MODELS[alt]["avg_watts"] / MODELS[model]["avg_watts"]

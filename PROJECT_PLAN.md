@@ -4,6 +4,24 @@ Software that measures how much electricity AI models (coding agents, chatbots, 
 
 **Example:** John's bill was ₱1,500 before he used AI. After he started using different AI models, it rose to ₱2,500. Our app shows how much each model contributed, what his next bills will be if he keeps going, and what he can change.
 
+## Core question: did AI increase the bill?
+
+The app doesn't assume AI caused a bill increase. It measures how much of the increase AI explains:
+
+| Part of the increase | How it's calculated |
+|---|---|
+| Rate effect | baseline kWh × (current rate − baseline rate). Not caused by usage. |
+| AI effect | measured local-model kWh × current rate (capped at the consumption increase) |
+| Other usage | consumption increase that AI doesn't explain (aircon, appliances, etc.) |
+
+Cloud AI energy is shown separately but never counted in the bill, because the provider's data center pays for it.
+
+**Verdict** (AI share of the increase): ≥50% *major* · 20–50% *contributing* · under 20% *minor* · 0 *none*.
+
+**With the current sample data:** John's bill went from ₱1,500 to ₱2,500. Local AI used 72 kWh (≈ ₱866), so AI explains about 87% of the increase. Verdict: *major*. These figures come from synthetic data and will change once real measurements are in.
+
+**Ways to strengthen the evidence later:** an "AI-off week" vs. "AI-on week" experiment, or daily meter readings compared with daily AI kWh.
+
 ---
 
 ## 1. Where the electricity is actually used
@@ -21,17 +39,29 @@ The app keeps **measured** and **estimated** values separate and labels them cle
 
 ---
 
-## 2. Measurement
+## 2. Measurement (from device resources)
 
-### Local models: real watts
-- **Mac (Apple Silicon):** `sudo powermetrics` gives live CPU/GPU/Neural Engine power.
-- **NVIDIA GPU:** `nvidia-smi --query-gpu=power.draw --format=csv`
-- **Intel/AMD on Linux:** RAPL counters in `/sys/class/powercap`
-- **Per-model attribution:** record idle power first, then record power while each model runs. The difference is that model's usage.
+All values come from the device's own resource readings while AI apps run. `backend/collect.py` does the sampling.
 
-### Cloud models: estimates
-- Count tokens from API responses, a local proxy, or tool logs (for example, Claude Code stores token usage in `~/.claude/projects/*.jsonl`).
-- Multiply by a published energy-per-token or energy-per-prompt estimate for each model (for example, Google's ~0.24 Wh per median Gemini text prompt, or Hugging Face AI Energy Score benchmarks). Published estimates vary a lot, so these values are labeled as estimates.
+| Reading | Source on Apple Silicon (no sudo) | How often |
+|---|---|---|
+| Total system watts (measured) | Battery controller via `ioreg -rn AppleSmartBattery` | Averaged about once a minute |
+| CPU % (system) | `psutil` | Every 2 s |
+| GPU % | `ioreg -c IOAccelerator` | Every 2 s |
+| CPU % and memory per AI app | `psutil`, matched by process name/path | Every 2 s |
+| Which Ollama model is loaded | Ollama API `/api/ps` | Every 2 s |
+
+**Turning readings into watts per app:**
+1. Each time the battery controller reports a new average, store it with the average CPU % and GPU % for that minute.
+2. Fit `watts ≈ idle + a·CPU% + b·GPU%` with non-negative least squares. This calibrates the formula to this specific device. Until there are about 8 readings, rough M2 defaults are used.
+3. Each AI app gets `a × its CPU share`, plus `b × GPU%` for local model runners. Idle power is never assigned to AI.
+4. Energy = watts × seconds, summed per app per day → kWh.
+
+**App types:** *local* (Ollama, LM Studio, llama.cpp, MLX): the model runs on the device, so inference energy is on the bill. *client* (Claude Code, Claude Desktop, ChatGPT, Cursor, Copilot, OpenCode): only the app's own device energy is on the bill; the model's energy is used in the provider's data center.
+
+**First real reading (M2 MacBook Air, Oct 9, 2026):** whole laptop ~4.5 W; Claude Code + Copilot clients 0.01–0.18 W.
+
+**Upgrades:** `sudo powermetrics` for CPU/GPU power split and per-process GPU time; `nvidia-smi` on PCs; desktop Macs have no battery sensor, so they rely on the default model or a smart plug.
 
 ---
 

@@ -9,4 +9,5 @@ export const api = {
   live: () => get("/live"),
   forecast: () => get("/forecast"),
   recommendations: () => get("/recommendations"),
+  impact: () => get("/impact"),
 };

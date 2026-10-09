@@ -5,14 +5,15 @@ import BillSummary from "./components/BillSummary";
 import UsageBreakdown from "./components/UsageBreakdown";
 import ForecastChart from "./components/ForecastChart";
 import Recommendations from "./components/Recommendations";
+import BillImpact from "./components/BillImpact";
 
 export default function App() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    Promise.all([api.usage(), api.forecast(), api.recommendations()])
-      .then(([usage, forecast, recs]) => setData({ usage, forecast, recs }))
+    Promise.all([api.usage(), api.forecast(), api.recommendations(), api.impact()])
+      .then(([usage, forecast, recs, impact]) => setData({ usage, forecast, recs, impact }))
       .catch((e) => setError(e.message));
   }, []);
 
@@ -25,6 +26,7 @@ export default function App() {
         <h1>AI Wattage Tracker</h1>
         <p className="subtitle">How much electricity your AI models use, and what it does to your bill.</p>
       </header>
+      <BillImpact impact={data.impact} />
       <div className="grid">
         <LiveWattage />
         <BillSummary forecast={data.forecast} recs={data.recs} />
