@@ -8,6 +8,7 @@ Measures how much electricity AI models use, forecasts the electricity bill, and
 backend/                  Flask API (port 5001)
   run.py                  Entry point
   collect.py              Device collector (run while using AI tools)
+  demo_load.py            Keeps an Ollama model busy for the live demo; follows applied switches
   migrate_to_mysql.py     Copies readings from the SQLite file into MySQL
   db/setup_mysql.sql      Creates the MySQL database and user
   app/
@@ -22,6 +23,8 @@ backend/                  Flask API (port 5001)
       device.py           POST /api/device/start|stop, GET /api/device/status, POST /api/device/source
       readings.py         GET /api/devices, GET /api/readings   stored devices and readings
       models.py           GET /api/models           models found in app logs: tokens, estimated data-center Wh
+      actions.py          POST /api/actions/apply, GET /api/actions/state   apply a recommendation to Ollama
+      validation.py       GET /api/validation, POST /api/validation/watts|start|finish   wall-meter checks
       health.py           GET /api/health
     services/             Logic, separate from routes
       system_info.py      Detects OS and devices: CPU, RAM, GPUs, NPU, disks, displays, battery
@@ -42,6 +45,8 @@ backend/                  Flask API (port 5001)
       forecasting.py      Billing cycle, weekday/weekend pattern, damped trend → bill per day and 1/3/12 months
       recommendations.py  Rule-based recommendations with savings (budget, smaller model, quantization, idle, …)
       outlook.py          Forecast + recommendations together ("with recommendations" path)
+      actions.py          Unloads / switches Ollama models when a recommendation is applied
+      validation.py       Compares our whole-machine readings with a plug-in wall meter
   tests/                  API, measurement, sensors, storage, forecast, recommendations, platforms (Linux/Windows/NVIDIA/Ollama)
 
 frontend/                 React + Vite (port 5173), proxies /api to Flask
@@ -49,7 +54,8 @@ frontend/                 React + Vite (port 5173), proxies /api to Flask
     App.jsx               Dashboard layout
     api/client.js         API calls
     components/           LiveWattage, BillSummary, UsageBreakdown,
-                          ForecastChart, Recommendations
+                          ForecastChart, Recommendations, MeterCheck (wall-meter
+                          check), ScaleUp (monthly / team projection)
 ```
 
 ## Run it
@@ -127,10 +133,30 @@ The backend creates the tables on first connect:
 | `ai_samples` | AI app in a reading: app, model, host, CPU %, memory, attributed watts |
 | `power_windows` | averaged battery-sensor window used to fit the power model |
 | `settings` | stored values, e.g. the fitted power model |
+| `meter_checks` | check against a wall meter: meter reading, our reading, when |
 
 Every reading row has the `device_id` of the computer that took it. `GET /api/devices` lists the devices; `GET /api/readings?device_id=&since=&until=&limit=` returns stored readings with their components and AI apps.
 
 Tests: `cd backend && .venv/bin/python -m pytest` (add `TEST_DATABASE_URL=mysql://…/ai_wattage_test` to also run the storage tests on MySQL)
+
+### Check the readings against a wall meter
+
+Plug the computer into a plug-in power meter or a smart plug that shows watts, start the device reader, and open **This Device → Wall-Meter Check**:
+
+- **Spot check:** hold the load steady for 30 s and type the watts the meter shows. It's compared with our average over those 30 s.
+- **Energy check:** type the meter's kWh counter, run any workload, and type it again at the end. Meters count in 0.01 kWh steps, so a laptop needs an hour or more; a gaming PC needs a few minutes.
+
+The panel shows the average difference over all checks. That's the accuracy figure to quote. The meter reads at the wall, so it also counts charger losses (often 5–15%) and battery charging; keep a laptop at 100%.
+
+### Apply a recommendation live
+
+When a recommendation's model is loaded in Ollama, it gets an **Unload now** or **Switch now** button. Unload frees the model with `keep_alive: 0`. Switch unloads the big model, loads the smaller one, and records the switch at `GET /api/actions/state`. The card then shows the AI watts before and now.
+
+The app can't change which model your other tools ask for. For the demo, `demo_load.py` stands in for the user: it keeps prompting a model and follows the switch.
+
+```bash
+cd backend && .venv/bin/python demo_load.py --model llama3:70b
+```
 
 ## Notes
 

@@ -10,6 +10,8 @@ import Recommendations from "./components/Recommendations";
 import BillImpact from "./components/BillImpact";
 import TariffSettingsModal from "./components/TariffSettingsModal";
 import DeviceReader from "./components/DeviceReader";
+import MeterCheck from "./components/MeterCheck";
+import ScaleUp from "./components/ScaleUp";
 import { VIEWS } from "./navigation";
 import { AlertTriangle, RefreshCw, Zap } from "lucide-react";
 
@@ -242,6 +244,7 @@ export default function App() {
           <>
             <DeviceReader dataSource={dataSource} params={customParams} onDataChanged={refresh} />
             <LiveWattage reading={liveReading} />
+            <MeterCheck />
           </>
         );
       case "analytics":
@@ -254,7 +257,7 @@ export default function App() {
       case "models":
         return <UsageBreakdown usage={processedData.usage} />;
       case "recommendations":
-        return <Recommendations recs={processedData.recs} />;
+        return <Recommendations recs={processedData.recs} liveReading={liveReading} onApplied={refresh} />;
       default:
         return (
           <>
@@ -273,6 +276,12 @@ export default function App() {
                 <ForecastChart forecast={processedData.forecast} recs={processedData.recs} />
               </div>
             </div>
+            <ScaleUp
+              liveReading={liveReading}
+              forecast={processedData.forecast}
+              recs={processedData.recs}
+              rate={customParams?.rate ?? processedData.usage.rate_per_kwh}
+            />
           </>
         );
     }

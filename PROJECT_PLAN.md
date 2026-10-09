@@ -2,6 +2,8 @@
 
 Software that measures how much electricity AI models (coding agents, chatbots, image generators) use, forecasts the user's electricity bill, and recommends ways to reduce it.
 
+**One line:** "Everyone blames AI for their electric bill. We built the tool that measures it, and tells you the truth. For most people it's the aircon. For people running AI on their own GPU it's real money, and we show which model and how to cut it."
+
 **The pitch, in three parts** (based on what we measured; see section 1):
 
 1. **"Did AI really raise your bill?"** The app gives an honest answer. For most people it's "no: AI explains about 2% of the increase, check your aircon", and that answer is still useful.
@@ -304,6 +306,10 @@ Measure (watts per model) → Store (daily kWh per model)
 
 ## 7. Demo plan
 
+The minute-by-minute script, setup checklist, fallbacks and judge Q&A are in [DEMO_SCRIPT.md](DEMO_SCRIPT.md). The arc: **hook** (did AI raise the bill?) → **live measurement** (watts climb) → **verdict** (AI explains X%) → **fix** (apply a recommendation, watts drop) → **proof** (matches a wall meter).
+
+Earlier plan, kept for reference:
+
 1. **Maria (live, on the Mac):** start `collect.py`, show the detected devices and the AI apps. Claude Code in VS Code adds a fraction of a watt: AI didn't raise her bill. Show its per-model breakdown (Opus 5.5 vs. Sonnet 5.5) with the estimated data-center energy.
 2. **Local AI (live, on the Mac):** run Ollama and show the live wattage climb. We expect about 5 W → 20 W; measure it in rehearsal. Small in pesos, but clearly visible.
 3. **John (sample data, labeled as such):** the gaming-PC case. Show the "without AI vs. with AI" bill, the forecast (current path vs. following recommendations) and the recommendations with savings. If a teammate has a Windows PC with an NVIDIA GPU, run this one live instead.
@@ -317,11 +323,15 @@ Measure (watts per model) → Store (daily kWh per model)
 - [ ] Electricity rate and billing cycle to use as defaults
 - [ ] Test the Windows sensors and device detection on a real Windows PC (the code is only tested against sample data)
 - [ ] Rehearse the Ollama demo on the Mac and record the real watt jump for step 2
+- [ ] Buy a plug-in power meter or smart plug that shows watts (₱500–800) and run wall-meter checks (This Device → Wall-Meter Check) until we have an accuracy figure to quote
+- [ ] Find a Windows PC with an NVIDIA GPU (teammate, friend, internet café) to run John's case live instead of sample data; this also tests the Windows sensors
+- [ ] Record a video of the full demo as a fallback
 
 **Risks and how we handle them:**
 
 | Risk | How we handle it |
 |---|---|
+| Judges say "these are just estimates" | Wall-meter check: "our reading was within X% of a meter at the wall, with no extra hardware". Say "measured at the device, calculated per app" |
 | Judges question "AI added ₱1,000 to the bill" | Only claim it for local models on a big GPU (John). For cloud AI, say plainly that it's under ₱1 (Maria). |
 | Cloud data-center energy is a rough estimate | Always labeled *estimated*, with the reference figure cited (section 3.3) |
 | Per-app watts are estimated from CPU/GPU share | The whole-laptop and GPU readings are measured; per-app splits are labeled as calculated |

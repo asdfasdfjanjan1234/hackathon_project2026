@@ -1,6 +1,10 @@
 async function request(path, options) {
   const res = await fetch(`/api${path}`, options);
-  if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
+  if (!res.ok) {
+    // The backend explains refused actions ("start the device reader first") in `error`.
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error || `${path} failed: ${res.status}`);
+  }
   return res.json();
 }
 
@@ -11,6 +15,7 @@ const post = (path, body) =>
     headers: { "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
+const del = (path) => request(path, { method: "DELETE" });
 
 // The user's rate, bills and budget; the backend does all bill math with them.
 function billQuery(params) {
@@ -41,4 +46,14 @@ export const api = {
   stopDevice: () => post("/device/stop"),
   deviceStatus: () => get("/device/status"),
   setDataSource: (source) => post("/device/source", { source }),
+
+  // Apply a recommendation to Ollama (unload, or switch to the smaller model).
+  applyRecommendation: (rec) => post("/actions/apply", rec),
+
+  // Wall-meter checks of the whole-machine reading.
+  validation: () => get("/validation"),
+  meterWatts: (value) => post("/validation/watts", { value }),
+  meterStart: (value) => post("/validation/start", { value }),
+  meterFinish: (value) => post("/validation/finish", { value }),
+  deleteMeterCheck: (id) => del(`/validation/${id}`),
 };

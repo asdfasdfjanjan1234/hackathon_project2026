@@ -1,0 +1,78 @@
+# Demo Script — AI Wattage Tracker
+
+3 minutes on stage, then Q&A. The arc: **hook → live measurement → verdict → fix → proof**.
+
+> "Everyone blames AI for their electric bill. We built the tool that measures it, and tells you the truth. For most people it's the aircon. For people running AI on their own GPU it's real money, and we show which model and how to cut it."
+
+Numbers marked **[fill in]** come from rehearsal. Never say a number on stage that we didn't measure.
+
+---
+
+## Before demo day
+
+- [ ] **Install Ollama on the demo Mac** (it isn't installed yet) and pull a big and a small model of the same family. For example: `ollama pull llama3.1:8b` and `ollama pull llama3.2:3b`. On a gaming PC: `llama3:70b` and `llama3:8b`.
+- [ ] **Record some usage of the big model on the demo day,** so the dashboard has a "SWITCH" recommendation for it. With `demo_load.py`, 20–30 minutes is enough.
+- [ ] **Plug-in power meter.** Do at least 5 spot checks and one energy check of an hour or more (This Device → Wall-Meter Check). Quote the average difference it shows: **[fill in] %**.
+- [ ] **Gaming PC with an NVIDIA GPU.** If we get one, run John's case live on it instead of sample data. Run it once beforehand to test the Windows sensors.
+- [ ] **Rehearse with a timer** at least three times. Write down the real watt jump: idle **[fill in] W** → big model **[fill in] W** → small model **[fill in] W**.
+- [ ] **Record a video** of a full run-through as a fallback.
+
+## 30 minutes before
+
+1. Laptop at 100% battery, plugged in through the power meter, with the meter visible to the audience or on camera.
+2. Terminal 1: `cd backend && python run.py`. Terminal 2: `cd frontend && npm run dev`. Open http://localhost:5173.
+3. Click **This Device → Start reading my device**, so the reader has run for more than 30 s before any spot check.
+4. Terminal 3, ready but **not started**: `cd backend && .venv/bin/python demo_load.py --model llama3.1:8b`
+5. Close other heavy apps (browsers with many tabs, Docker) so the jump is clean.
+6. Set the tariff (Tariff & Hardware) to the local rate.
+
+---
+
+## The 3 minutes
+
+| Time | Say | Do |
+|---|---|---|
+| 0:00 | "Your electric bill went up. Everyone's saying it's AI. Is it?" | Dashboard (**Telemetry Console**) on screen. |
+| 0:15 | "Most tools guess. We measure. This app reads this laptop's power sensors, with no extra hardware, and finds every AI app running." | Click **This Device**. Point at the sensor list (measured vs. estimated) and the AI apps panel. |
+| 0:35 | "Claude Code and Copilot running right now: a fraction of a watt. For people using cloud AI, the honest answer is: AI didn't raise your bill." | Point at the AI apps' watts. |
+| 0:50 | "But some people run AI on their own machine. Watch." | Start `demo_load.py` in terminal 3. |
+| 1:00 | "There's the model. **[fill in] watts** and climbing, and the meter on the wall agrees." | Point at the live dial, then the physical meter. |
+| 1:15 | "Kept up 4 hours a day, that's **₱[fill in]** a month on this laptop. On a gaming PC it's ₱800 or more. For a 10-machine dev shop, multiply by ten." | Dashboard → **If You Kept This Up**. Set machines to 10. |
+| 1:35 | "Here's John: gaming PC, bill went from ₱1,500 to ₱2,500. The app splits the increase: rate change, AI, everything else. AI explains **87%**." Say plainly: "John's numbers are sample data." (Or "measured live" if the gaming PC is with us.) | **This device / Sample (John)** toggle → **Billing Projection**. Show the verdict and the two forecast lines. |
+| 2:05 | "And it doesn't just tell you. It fixes it." | Back to **This device** data. **Load Directives** → **Switch now** on the big model. |
+| 2:15 | "Big model unloaded, small one loaded. The AI draw drops from **[fill in] W** to **[fill in] W**, right now." | Point at the "before → now" line on the card and the live dial. |
+| 2:35 | "Is any of this accurate? We checked against a power meter at the wall. Within **[fill in]%**, using only the laptop's own sensors." | **This Device → Wall-Meter Check**. Point at the average difference. |
+| 2:50 | "AI Wattage Tracker: the honest answer about AI and your bill, and the fix when it's real." | Done. |
+
+**Don't show on stage** (keep for Q&A): cloud data-center Wh, Opus vs. Sonnet, per-host breakdown, CO₂, 12-month projections, reasoning effort, the per-component kWh table.
+
+## If something breaks
+
+| What breaks | Do this |
+|---|---|
+| Backend or frontend won't start | Play the recorded video. Keep talking over it. |
+| Ollama is slow to load the big model | Start `demo_load.py` at 0:35 instead of 0:50, or preload the model beforehand with `ollama run llama3.1:8b ""`. |
+| No **Switch now** button | The big model isn't loaded, or it has no recorded usage today. Use **Unload now** on any loaded model, or stop `demo_load.py` and show the watts falling. |
+| The watts barely move | Say the number honestly ("on a laptop it's small"), then go straight to John's case and the 10-machine projection. |
+| Spot check says "needs 30 s of readings" | The reader just started. Show the energy check done earlier instead. |
+| Wi-Fi is down | Nothing here needs the internet. |
+
+## Judge Q&A
+
+**"Isn't this all estimates?"**
+The whole machine is measured: the battery controller on a Mac, RAPL or nvidia-smi on a PC. We checked it against a wall meter: **[fill in]%**. The split per app is calculated from each app's CPU and GPU share, fitted to that measured total, and we label it that way. Cloud AI energy is a clearly labeled estimate.
+
+**"What about ChatGPT / Claude energy?"**
+It runs in the provider's data center, so it isn't on your bill. We show an estimate from token counts per model (Opus vs. Sonnet), labeled as estimated, so people can still see the difference their model choice makes.
+
+**"Who would pay for this?"**
+Dev shops, schools and labs running local models on several machines, where the savings multiply (see the team view). Also anyone on high Philippine rates who's wondering whether to blame the aircon or the GPU.
+
+**"Privacy?"**
+Everything runs on the user's own computer. From app logs we read only model names and token counts, never prompts or code.
+
+**"Does it work on Windows?"**
+The Windows sensors (Energy Meter Interface, GPU counters, nvidia-smi) are written and unit-tested. **[Update after testing on a real PC.]**
+
+**"Why not just use a smart plug?"**
+A smart plug shows the whole machine's power. It can't tell which app or model used it, or what to change. We use one only to prove our numbers.

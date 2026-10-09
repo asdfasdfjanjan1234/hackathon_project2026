@@ -1,6 +1,7 @@
 """Known AI models and how we get their energy numbers.
 
-Local models are "measured": real watts from this machine.
+Local models are "measured" at the device: real watts from this machine, split per model
+by each model's share of CPU and GPU use (attribution.py).
 
 Cloud models run in the provider's data center, so their energy is never on the
 user's bill. It is "estimated" from token counts: list price per token stands in

@@ -37,6 +37,10 @@ CREATE TABLE IF NOT EXISTS component_samples (
     ts REAL, interval_s REAL, component TEXT, watts REAL, source TEXT, device_id INTEGER
 );
 CREATE TABLE IF NOT EXISTS settings (`key` TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS meter_checks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, device_id INTEGER, kind TEXT,
+    started_at REAL, ended_at REAL, meter_start REAL, meter_end REAL, app_value REAL, coverage REAL
+);
 CREATE INDEX IF NOT EXISTS idx_samples_ts ON samples(ts);
 CREATE INDEX IF NOT EXISTS idx_ai_samples_ts ON ai_samples(ts);
 CREATE INDEX IF NOT EXISTS idx_component_samples_ts ON component_samples(ts);
@@ -74,6 +78,11 @@ CREATE TABLE IF NOT EXISTS component_samples (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS settings (
     `key` VARCHAR(64) PRIMARY KEY, value TEXT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS meter_checks (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, device_id INT, kind VARCHAR(16),
+    started_at DOUBLE, ended_at DOUBLE, meter_start DOUBLE, meter_end DOUBLE, app_value DOUBLE, coverage DOUBLE,
+    FOREIGN KEY (device_id) REFERENCES devices(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 """
 
@@ -436,3 +445,55 @@ def readings(conn, since=None, until=None, device_id=None, limit=1000):
         key = (r["ts"], r["device_id"])
         r["components"], r["apps"] = parts.get(key, {}), apps.get(key, [])
     return rows
+
+
+# --- Wall-meter checks ------------------------------------------------------
+# A plug-in power meter or smart plug reads the whole machine at the wall: the ground truth
+# for our whole-machine watts. "watts" checks compare one meter reading with our average over
+# the last few seconds; "kwh" checks compare the meter's kWh counter over a window with ours.
+
+def machine_energy(conn, since, until, device_id=None):
+    """Our whole-machine energy between two times: the sensor reading where there is one,
+    else the formula's estimate. coverage: share of the time the device reader was running."""
+    where, params = _device_filter(device_id)
+    r = conn.execute(
+        f"""
+        SELECT SUM(COALESCE(measured_watts, est_watts) * interval_s) AS joules, SUM(interval_s) AS seconds,
+               SUM(CASE WHEN measured_watts IS NULL THEN 0 ELSE interval_s END) AS measured_s
+        FROM samples WHERE ts > ? AND ts <= ?{where}
+        """,
+        (since, until, *params),
+    ).fetchone()
+    seconds = r["seconds"] or 0.0
+    span = max(until - since, 1e-9)
+    return {"kwh": (r["joules"] or 0.0) / 3_600_000, "seconds": seconds,
+            "avg_watts": (r["joules"] or 0.0) / seconds if seconds else None,
+            "coverage": min(seconds / span, 1.0), "measured_share": (r["measured_s"] or 0.0) / seconds if seconds else 0.0}
+
+
+def add_meter_check(conn, kind, started_at, ended_at=None, meter_start=None, meter_end=None,
+                    app_value=None, coverage=None, device_id=None):
+    cur = conn.execute(
+        "INSERT INTO meter_checks (device_id, kind, started_at, ended_at, meter_start, meter_end, app_value, coverage) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (device_id, kind, started_at, ended_at, meter_start, meter_end, app_value, coverage))
+    conn.commit()
+    return cur.lastrowid
+
+
+def finish_meter_check(conn, check_id, ended_at, meter_end, app_value, coverage):
+    conn.execute("UPDATE meter_checks SET ended_at = ?, meter_end = ?, app_value = ?, coverage = ? WHERE id = ?",
+                 (ended_at, meter_end, app_value, coverage, check_id))
+    conn.commit()
+
+
+def delete_meter_check(conn, check_id):
+    conn.execute("DELETE FROM meter_checks WHERE id = ?", (check_id,))
+    conn.commit()
+
+
+def meter_checks(conn, device_id=None):
+    """Every check, newest first. An open kWh check has no ended_at yet."""
+    where, params = _device_filter(device_id)
+    return [dict(r) for r in conn.execute(
+        f"SELECT * FROM meter_checks WHERE 1 = 1{where} ORDER BY started_at DESC", params).fetchall()]

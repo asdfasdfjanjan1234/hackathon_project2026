@@ -65,7 +65,7 @@ export default function LiveWattage({ reading }) {
     };
   }
 
-  // Watts per AI app, as attributed by the device reader. Nothing is shown that wasn't measured.
+  // Watts per AI app, as attributed by the device reader: its share of the machine's power by CPU and GPU use.
   const processList = useMemo(
     () =>
       (reading?.apps || []).map((a) => ({
@@ -273,6 +273,11 @@ export default function LiveWattage({ reading }) {
             );
           })}
         </div>
+        {processList.length > 0 && (
+          <div className="text-[9px] font-mono text-slate-500">
+            Machine total {estimated ? "estimated" : "measured"} · per-app split calculated from CPU/GPU share
+          </div>
+        )}
       </div>
     </section>
   );

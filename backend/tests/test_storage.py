@@ -29,7 +29,7 @@ def database(request, tmp_path):
     if request.param == "sqlite":
         return str(tmp_path / "t.db")
     with closing(storage.connect(MYSQL_URL)) as conn:
-        for table in (*storage.READING_TABLES, "settings", "devices"):
+        for table in (*storage.READING_TABLES, "meter_checks", "settings", "devices"):
             conn.execute(f"DELETE FROM {table}")
         conn.commit()
     return MYSQL_URL
