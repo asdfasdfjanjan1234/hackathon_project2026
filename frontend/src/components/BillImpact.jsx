@@ -52,14 +52,14 @@ export default function BillImpact({ impact }) {
 
   const donutData = useMemo(
     () => [
-      { name: "Local AI Metal/CUDA Draw", value: safeImpact.ai_effect, color: "#F43F5E" },
-      { name: "Utility Rate Hike", value: safeImpact.rate_effect, color: "#64748B" },
-      { name: "Base Non-AI Household", value: safeImpact.other_effect, color: "#0284C7" },
+      { name: "Local AI Metal/CUDA Draw", value: safeImpact.ai_effect, color: color("accent") },
+      { name: "Utility Rate Hike", value: safeImpact.rate_effect, color: color("viz-grey") },
+      { name: "Base Non-AI Household", value: safeImpact.other_effect, color: color("viz-amber") },
     ].filter((item) => item.value > 0),
     [safeImpact]
   );
   // No increase over the baseline: an empty ring, not a made-up slice.
-  const ringData = donutData.length > 0 ? donutData : [{ name: "No increase", value: 1, color: "#1E293B", empty: true }];
+  const ringData = donutData.length > 0 ? donutData : [{ name: "No increase", value: 1, color: color("line"), empty: true }];
 
   const totalIncrease = Math.max(1, safeImpact.increase || 1);
   if (!impact) return <section className="dash-card p-5 h-72 animate-pulse" />;
@@ -139,9 +139,9 @@ export default function BillImpact({ impact }) {
           </div>
 
           {/* Attribution Items */}
-          <div className="space-y-1.5 font-mono text-xs">
+          <div className="divide-y divide-line">
             {donutData.length === 0 && (
-              <div className="p-1.5 rounded bg-white/[0.02] border border-white/5 text-[11px] text-slate-400">
+              <div className="p-3 inset-panel text-xs text-ink-muted">
                 This cycle's bill is not above the baseline, so there is nothing to attribute.
               </div>
             )}
@@ -170,8 +170,8 @@ export default function BillImpact({ impact }) {
               Green computing & eco equivalencies
             </span>
             {safeImpact.factors && (
-              <span className="text-[10px] text-slate-400" title={safeImpact.factors.co2_source}>
-                Grid Factor: {safeImpact.factors.co2_kg_per_kwh} kg CO₂/kWh
+              <span className="text-xs text-ink-muted" title={safeImpact.factors.co2_source}>
+                Grid factor: {safeImpact.factors.co2_kg_per_kwh} kg CO₂/kWh
               </span>
             )}
           </div>

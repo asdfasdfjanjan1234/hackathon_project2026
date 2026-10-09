@@ -107,6 +107,8 @@ export default function TopBar({
           ))}
         </div>
 
+        <ThemeToggle className="hidden sm:flex" />
+
         {/* Telemetry Alert Log */}
         <div className="relative">
           <button
