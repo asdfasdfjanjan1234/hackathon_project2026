@@ -2,12 +2,12 @@ import { useEffect, useState, useMemo } from "react";
 import {
   Server,
   Terminal,
-  Radio,
   Info,
   ChevronDown,
 } from "lucide-react";
 import { formatWatts } from "../format";
 import { ACTIVITY, METRICS, explainApp, explainReading } from "../explain";
+import { color } from "../theme";
 import AppPowerParts from "./AppPowerParts";
 import PowerSplit from "./PowerSplit";
 
@@ -30,7 +30,7 @@ export default function LiveWattage({ reading }) {
   const currentWatts = reading?.watts ?? 0;
   const collecting = reading?.source === "collector";
   const estimated = reading?.estimated ?? false;
-  const sourceName = !reading ? "NO READING" : estimated ? "ESTIMATED" : collecting ? "MEASURED" : reading.source;
+  const sourceName = !reading ? "No reading" : estimated ? "Estimated" : collecting ? "Measured" : reading.source;
 
   const peak = Math.max(currentWatts, ...history, 1);
   const maxWatts = SCALES.find((s) => s >= peak * 1.15) || SCALES[SCALES.length - 1];
@@ -41,34 +41,16 @@ export default function LiveWattage({ reading }) {
   const clampedWatts = Math.min(Math.max(currentWatts, 0), maxWatts);
   const percentage = Math.round((clampedWatts / maxWatts) * 100);
 
-  // Precision Semicircle SVG Arc Geometry (180 degrees)
+  // Semicircle arc geometry (180 degrees)
   // Center: (120, 116), Radius: 82. Arc length = PI * 82 = 257.61
   const radius = 82;
   const arcLength = Math.PI * radius; // 257.61
   const strokeDashoffset = arcLength * (1 - clampedWatts / maxWatts);
 
   // Load relative to the dial's scale
-  let powerState = {
-    label: "NOMINAL LOAD",
-    color: "#38BDF8", // Instrument Cyan
-    stroke: "rgba(56, 189, 248, 0.35)",
-    bg: "rgba(56, 189, 248, 0.08)",
-  };
-  if (percentage > 80) {
-    powerState = {
-      label: "HIGH LOAD",
-      color: "#FB7185", // Crimson
-      stroke: "rgba(244, 63, 94, 0.35)",
-      bg: "rgba(244, 63, 94, 0.08)",
-    };
-  } else if (percentage < 25) {
-    powerState = {
-      label: "LOW LOAD",
-      color: "#94A3B8", // Slate
-      stroke: "rgba(148, 163, 184, 0.3)",
-      bg: "rgba(148, 163, 184, 0.08)",
-    };
-  }
+  let powerState = { label: "Nominal load", tone: "accent" };
+  if (percentage > 80) powerState = { label: "High load", tone: "warn" };
+  else if (percentage < 25) powerState = { label: "Low load", tone: "ink-muted" };
 
   // Watts per AI app, as attributed by the device reader: its share of the machine's power by CPU and GPU use.
   const processList = useMemo(
@@ -89,162 +71,102 @@ export default function LiveWattage({ reading }) {
 
   if (!reading) return <section className="dash-card p-5 h-80 animate-pulse" />;
 
-  return (
-    <section className="dash-card p-4 sm:p-5 flex flex-col justify-between select-none min-w-0">
-      {/* Instrumentation Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-white/5 gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="w-7 h-7 rounded bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 shrink-0">
-            <Radio className="w-3.5 h-3.5 animate-pulse" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-xs font-mono font-bold text-slate-100 uppercase tracking-wider truncate">
-              Active Power Draw Monitor
-            </h2>
-            <div className="text-[10px] font-mono text-slate-400 truncate">
-              Sensor Bus: {sourceName.toLowerCase()}
-            </div>
-          </div>
-        </div>
+  const tick = color("line-strong");
+  const label = { fill: color("ink-muted"), fontSize: 10, fontFamily: "inherit" };
 
-        {/* Status Chip (Amber for simulated, Cyan for live) */}
-        <span
-          className={`tech-tag shrink-0 ${
-            estimated ? "tech-tag-sim" : "tech-tag-live"
-          }`}
-        >
-          <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              estimated ? "bg-amber-400" : "bg-sky-400 animate-pulse"
-            }`}
-          />
+  return (
+    <section className="dash-card p-5 flex flex-col justify-between min-w-0">
+      {/* Header */}
+      <div className="flex items-start justify-between pb-4 border-b border-line gap-2">
+        <div className="min-w-0">
+          <h2 className="card-title truncate">Active power draw monitor</h2>
+          <div className="card-sub truncate mt-0.5">Sensor bus: {sourceName.toLowerCase()}</div>
+        </div>
+        <span className={`tech-tag shrink-0 ${estimated ? "tech-tag-sim" : "tech-tag-live"}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${estimated ? "bg-warn" : "bg-accent"}`} />
           {sourceName}
         </span>
       </div>
 
-      {/* Center: Precision SVG Dial Meter (Proportionally Scaled, Zero Clipping) */}
-      <div className="py-2 sm:py-3 flex flex-col items-center justify-center min-w-0">
+      {/* Dial */}
+      <div className="py-3 flex flex-col items-center justify-center min-w-0">
         <div className="w-full max-w-[280px]">
-          <svg
-            viewBox="0 0 240 142"
-            className="w-full h-auto overflow-visible select-none"
-          >
+          <svg viewBox="0 0 240 142" className="w-full h-auto overflow-visible" role="img"
+               aria-label={`${formatWatts(currentWatts)}, ${powerState.label.toLowerCase()}, ${percentage}% of a ${maxWatts} W scale`}>
             {/* Background Arc Track */}
-            <path
-              d="M 38 116 A 82 82 0 0 1 202 116"
-              fill="none"
-              stroke="#1A2234"
-              strokeWidth="9"
-              strokeLinecap="round"
-            />
+            <path d="M 38 116 A 82 82 0 0 1 202 116" fill="none" stroke={color("sunken")} strokeWidth="10" strokeLinecap="round" />
+            <path d="M 38 116 A 82 82 0 0 1 202 116" fill="none" stroke={color("line")} strokeWidth="10" strokeLinecap="round" strokeOpacity="0.6" />
 
-            {/* Active Cyan Progress Arc */}
+            {/* Progress Arc */}
             <path
               d="M 38 116 A 82 82 0 0 1 202 116"
               fill="none"
-              stroke="#38BDF8"
-              strokeWidth="9"
+              stroke={color(powerState.tone)}
+              strokeWidth="10"
               strokeLinecap="round"
               strokeDasharray={arcLength}
               strokeDashoffset={strokeDashoffset}
-              style={{
-                transition: "stroke-dashoffset 0.5s ease-out",
-              }}
+              style={{ transition: "stroke-dashoffset 0.5s ease-out, stroke 0.3s" }}
             />
 
             {/* Calibration Tick Notches at 0, ¼, ½, ¾ and full scale */}
             {/* 0: 180° */}
-            <line x1="38" y1="116" x2="31" y2="116" stroke="#475569" strokeWidth="1.5" />
+            <line x1="38" y1="116" x2="31" y2="116" stroke={tick} strokeWidth="1.5" />
             {/* ¼: 135° */}
-            <line x1="62.0" y1="58.0" x2="57.0" y2="53.0" stroke="#475569" strokeWidth="1.5" />
+            <line x1="62.0" y1="58.0" x2="57.0" y2="53.0" stroke={tick} strokeWidth="1.5" />
             {/* ½: 90° (Apex) */}
-            <line x1="120" y1="34" x2="120" y2="27" stroke="#475569" strokeWidth="1.5" />
+            <line x1="120" y1="34" x2="120" y2="27" stroke={tick} strokeWidth="1.5" />
             {/* ¾: 45° */}
-            <line x1="178.0" y1="58.0" x2="183.0" y2="53.0" stroke="#475569" strokeWidth="1.5" />
+            <line x1="178.0" y1="58.0" x2="183.0" y2="53.0" stroke={tick} strokeWidth="1.5" />
             {/* full scale: 0° */}
-            <line x1="202" y1="116" x2="209" y2="116" stroke="#475569" strokeWidth="1.5" />
+            <line x1="202" y1="116" x2="209" y2="116" stroke={tick} strokeWidth="1.5" />
 
             {/* Calibration Numerical Labels */}
-            <text x="26" y="132" fill="#64748B" fontSize="9" fontFamily="'JetBrains Mono', monospace" textAnchor="middle">{ticks[0]}W</text>
-            <text x="48" y="47" fill="#64748B" fontSize="9" fontFamily="'JetBrains Mono', monospace" textAnchor="end">{ticks[1]}W</text>
-            <text x="120" y="22" fill="#64748B" fontSize="9" fontFamily="'JetBrains Mono', monospace" textAnchor="middle">{ticks[2]}W</text>
-            <text x="192" y="47" fill="#64748B" fontSize="9" fontFamily="'JetBrains Mono', monospace" textAnchor="start">{ticks[3]}W</text>
-            <text x="214" y="132" fill="#64748B" fontSize="9" fontFamily="'JetBrains Mono', monospace" textAnchor="middle">{ticks[4]}W</text>
+            <text x="26" y="132" {...label} textAnchor="middle">{ticks[0]} W</text>
+            <text x="48" y="47" {...label} textAnchor="end">{ticks[1]} W</text>
+            <text x="120" y="20" {...label} textAnchor="middle">{ticks[2]} W</text>
+            <text x="192" y="47" {...label} textAnchor="start">{ticks[3]} W</text>
+            <text x="214" y="132" {...label} textAnchor="middle">{ticks[4]} W</text>
 
             {/* Digital Readout */}
-            <text
-              x="120"
-              y="82"
-              textAnchor="middle"
-              fill="#FFFFFF"
-              fontFamily="'JetBrains Mono', monospace"
-              fontWeight="800"
-              fontSize="28"
-              letterSpacing="-0.02em"
-            >
+            <text x="120" y="84" textAnchor="middle" fill={color("ink")} fontFamily="inherit" fontWeight="600" fontSize="30"
+                  letterSpacing="-0.02em" style={{ fontVariantNumeric: "tabular-nums" }}>
               {currentWatts >= 1000 ? (currentWatts / 1000).toFixed(2) : currentWatts.toFixed(1)}
-              <tspan fontSize="15" fontWeight="600" fill="#38BDF8">{currentWatts >= 1000 ? " kW" : " W"}</tspan>
+              <tspan fontSize="15" fontWeight="500" fill={color("ink-muted")}>{currentWatts >= 1000 ? " kW" : " W"}</tspan>
             </text>
 
-            {/* Operational Status Pill (Cleanly Positioned Inside Arc, No Overlap) */}
-            <g transform="translate(120, 102)">
-              <rect
-                x="-58"
-                y="-9"
-                width="116"
-                height="18"
-                rx="4"
-                fill={powerState.bg}
-                stroke={powerState.stroke}
-                strokeWidth="1"
-              />
-              <text
-                x="0"
-                y="3.5"
-                textAnchor="middle"
-                fill={powerState.color}
-                fontSize="8.5"
-                fontWeight="700"
-                fontFamily="'JetBrains Mono', monospace"
-                letterSpacing="0.04em"
-              >
-                {powerState.label} · {percentage}%
-              </text>
-            </g>
+            {/* Load status, inside the arc */}
+            <text x="120" y="106" textAnchor="middle" fill={color(powerState.tone)} fontSize="11" fontWeight="500" fontFamily="inherit">
+              {powerState.label} · {percentage}%
+            </text>
           </svg>
         </div>
 
-        {/* 30s Hardware Histogram Bar Ticker */}
-        <div className="w-full max-w-[280px] flex items-center justify-between text-[10px] text-slate-400 mt-2 px-3 font-mono bg-black/30 py-1.5 rounded border border-white/5">
-          <span className="text-[9px] text-slate-400 uppercase tracking-wider shrink-0">
-            {HISTORY * 2}S HISTORY:
-          </span>
-          <div className="flex items-end gap-1 h-3.5 mx-2">
+        {/* 30s history */}
+        <div className="w-full max-w-[280px] flex items-center justify-between text-xs text-ink-muted mt-2 px-3 py-1.5 inset-panel">
+          <span className="shrink-0">{HISTORY * 2}s history</span>
+          <div className="flex items-end gap-1 h-4 mx-2" aria-hidden>
             {history.map((val, idx) => (
               <div
                 key={idx}
-                className="w-1.5 bg-sky-500/60 rounded-t-xs transition-all duration-300"
-                style={{
-                  height: `${Math.max(2, Math.min(14, (val / maxWatts) * 14))}px`,
-                }}
+                className="w-1.5 bg-accent/60 rounded-t-sm transition-all duration-300"
+                style={{ height: `${Math.max(2, Math.min(16, (val / maxWatts) * 16))}px` }}
                 title={`${val.toFixed(1)} W`}
               />
             ))}
           </div>
-          <span className="text-[10px] text-sky-400 font-bold tabular-nums shrink-0">
-            {currentWatts.toFixed(1)}W
-          </span>
+          <span className="text-ink font-medium tabular-nums shrink-0">{currentWatts.toFixed(1)} W</span>
         </div>
 
         {/* Why the computer draws what it draws, updated with every reading */}
         {summary.length > 0 && (
-          <div className="w-full mt-2 p-2.5 rounded bg-sky-500/[0.06] border border-sky-500/15 text-[11px] leading-relaxed text-slate-300">
-            <div className="flex items-center gap-1.5 text-[9px] font-mono font-semibold text-sky-300 uppercase tracking-wider mb-1">
-              <Info className="w-3 h-3" />
+          <div className="w-full mt-3 p-3 rounded-lg bg-accent/[0.06] border border-accent/15 text-[13px] leading-relaxed text-ink-soft">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-accent mb-1">
+              <Info className="w-3.5 h-3.5" />
               Right now
             </div>
             {summary.map((line, i) => (
-              <p key={i} className={i === 0 ? "text-slate-100" : ""}>{line}</p>
+              <p key={i} className={i === 0 ? "text-ink" : ""}>{line}</p>
             ))}
           </div>
         )}
@@ -253,15 +175,15 @@ export default function LiveWattage({ reading }) {
       </div>
 
       {/* Active AI Workload Breakdown */}
-      <div className="pt-3 border-t border-white/5 space-y-2">
-        <div className="flex items-center justify-between text-[10px] font-mono font-semibold text-slate-400 uppercase tracking-wider">
-          <span>PROCESS / RUNTIME</span>
-          <span>ATTRIBUTED DRAW</span>
+      <div className="pt-4 border-t border-line space-y-2">
+        <div className="flex items-center justify-between text-xs font-medium text-ink-muted">
+          <span>Process / runtime</span>
+          <span>Attributed draw</span>
         </div>
 
         <div className="space-y-1.5">
           {processList.length === 0 && (
-            <div className="p-2 rounded bg-black/30 border border-white/5 text-[11px] text-slate-400">
+            <div className="p-2.5 inset-panel text-xs text-ink-muted">
               {collecting
                 ? "No AI apps running right now."
                 : "Start the device reader (This Device) to measure watts per AI app."}
@@ -272,38 +194,28 @@ export default function LiveWattage({ reading }) {
             return (
               <div
                 key={i}
-                className={`flex items-start justify-between p-2 rounded bg-black/30 border border-white/5 text-xs font-mono ${
-                  proc.app.activity === "idle" ? "opacity-60" : ""
-                }`}
+                className={`flex items-start justify-between p-2.5 inset-panel ${proc.app.activity === "idle" ? "opacity-70" : ""}`}
               >
-                <div className="flex items-start gap-2 min-w-0 flex-1">
-                  <div className="w-5 h-5 rounded bg-white/[0.04] border border-white/5 flex items-center justify-center text-slate-400 shrink-0">
-                    <Icon className="w-3 h-3" />
-                  </div>
-                  <div className="truncate min-w-0 flex-1">
+                <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                  <Icon className="w-4 h-4 text-ink-muted shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-slate-200 font-medium truncate text-[11px]">
-                        {proc.name}
-                      </span>
+                      <span className="text-sm font-medium text-ink truncate">{proc.name}</span>
                       {proc.activity && (
-                        <span className={`shrink-0 px-1 rounded border text-[8.5px] uppercase tracking-wider ${proc.activity.chip}`}>
+                        <span className={`shrink-0 px-1.5 rounded-full border text-[11px] leading-4 ${proc.activity.chip}`}>
                           {proc.activity.label}
                         </span>
                       )}
                     </div>
-                    <div className="text-[9px] text-slate-400 truncate">
+                    <div className="text-xs text-ink-muted truncate tabular-nums">
                       {proc.arch} · CPU {proc.cpu}
                     </div>
-                    {proc.why && (
-                      <div className="text-[10px] font-sans text-slate-400 leading-snug mt-0.5 whitespace-normal">
-                        {proc.why}
-                      </div>
-                    )}
+                    {proc.why && <div className="text-xs text-ink-soft leading-snug mt-1">{proc.why}</div>}
                     <AppPowerParts app={proc.app} />
                   </div>
                 </div>
 
-                <div className="text-right shrink-0 font-bold text-slate-100 tabular-nums text-xs ml-2">
+                <div className="text-right shrink-0 font-semibold text-ink tabular-nums text-sm ml-2">
                   {formatWatts(proc.watts)}
                 </div>
               </div>
@@ -311,7 +223,7 @@ export default function LiveWattage({ reading }) {
           })}
         </div>
         {processList.length > 0 && (
-          <div className="text-[9px] font-mono text-slate-500">
+          <div className="text-xs text-ink-muted">
             Machine total {estimated ? "estimated" : "measured"} · per-app split calculated from CPU/GPU share
           </div>
         )}
@@ -320,17 +232,17 @@ export default function LiveWattage({ reading }) {
           type="button"
           onClick={() => setShowMetrics((v) => !v)}
           aria-expanded={showMetrics}
-          className="flex items-center gap-1 text-[10px] font-mono text-sky-300 hover:text-sky-200"
+          className="link"
         >
-          <ChevronDown className={`w-3 h-3 transition-transform ${showMetrics ? "rotate-180" : ""}`} />
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showMetrics ? "rotate-180" : ""}`} />
           What do these numbers mean?
         </button>
         {showMetrics && (
-          <dl className="space-y-1.5 p-2.5 rounded bg-black/30 border border-white/5 text-[11px] leading-snug">
+          <dl className="space-y-2 p-3 inset-panel text-xs leading-snug">
             {METRICS.map((m) => (
               <div key={m.term}>
-                <dt className="font-mono font-semibold text-slate-200">{m.term}</dt>
-                <dd className="text-slate-400">{m.text}</dd>
+                <dt className="font-medium text-ink">{m.term}</dt>
+                <dd className="text-ink-soft">{m.text}</dd>
               </div>
             ))}
           </dl>

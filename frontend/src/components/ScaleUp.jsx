@@ -6,8 +6,8 @@ const DAYS_PER_MONTH = 30;
 
 function Stepper({ label, value, setValue, min, max, unit }) {
   return (
-    <label className="flex items-center justify-between gap-2 rounded bg-black/40 border border-white/10 px-2 py-1.5">
-      <span className="text-[10px] font-mono uppercase text-slate-500">{label}</span>
+    <label className="flex items-center justify-between gap-2 rounded-lg bg-surface border border-line px-3 py-2 focus-within:border-accent">
+      <span className="text-xs font-medium text-ink-muted">{label}</span>
       <span className="flex items-center gap-1">
         <input
           type="number"
@@ -15,9 +15,9 @@ function Stepper({ label, value, setValue, min, max, unit }) {
           max={max}
           value={value}
           onChange={(e) => setValue(Math.min(max, Math.max(min, Number(e.target.value) || min)))}
-          className="w-14 bg-transparent text-right text-sm font-mono text-white outline-none tabular-nums"
+          className="w-14 bg-transparent text-right text-sm font-semibold text-ink focus:outline-none tabular-nums"
         />
-        <span className="text-[11px] font-mono text-slate-400">{unit}</span>
+        <span className="text-xs text-ink-muted">{unit}</span>
       </span>
     </label>
   );
@@ -25,9 +25,9 @@ function Stepper({ label, value, setValue, min, max, unit }) {
 
 function Line({ label, value, strong }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 py-1 border-b border-white/[0.04] last:border-0">
-      <span className="text-[11px] text-slate-400">{label}</span>
-      <span className={`font-mono tabular-nums ${strong ? "text-sky-300 font-bold text-sm" : "text-slate-200 text-xs"}`}>
+    <div className="flex items-baseline justify-between gap-3 py-1.5 border-b border-line last:border-0">
+      <span className="text-xs text-ink-muted">{label}</span>
+      <span className={`tabular-nums ${strong ? "text-accent font-semibold text-base" : "text-ink text-sm"}`}>
         {value}
       </span>
     </div>
@@ -49,29 +49,24 @@ export default function ScaleUp({ liveReading, forecast, recs, rate }) {
   const savings = recs?.monthly_savings ?? 0;
 
   return (
-    <section className="dash-card p-4 sm:p-5 min-w-0">
-      <div className="flex items-center gap-2 pb-3 border-b border-white/5 min-w-0">
-        <div className="w-7 h-7 rounded bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 shrink-0">
-          <Calculator className="w-3.5 h-3.5" />
-        </div>
-        <div className="min-w-0">
-          <h2 className="text-xs font-mono font-bold text-slate-100 uppercase tracking-wider truncate">
-            If You Kept This Up
-          </h2>
-          <div className="text-[10px] text-slate-400 truncate">Today's AI draw as a monthly bill, for one machine or a team</div>
-        </div>
+    <section className="dash-card p-5 min-w-0">
+      <div className="pb-4 border-b border-line min-w-0">
+        <h2 className="card-title flex items-center gap-2">
+          <Calculator className="w-4 h-4 text-ink-muted" /> If you kept this up
+        </h2>
+        <div className="card-sub mt-0.5">Today's AI draw as a monthly bill, for one machine or a team</div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      <div className="mt-4 grid grid-cols-2 gap-3">
         <Stepper label="Use" value={hours} setValue={setHours} min={1} max={24} unit="h/day" />
         <Stepper label="Machines" value={machines} setValue={setMachines} min={1} max={500} unit="" />
       </div>
 
       <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="rounded-lg bg-black/30 border border-white/5 p-3 min-w-0">
-          <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300 mb-1">From the live reading</div>
+        <div className="inset-panel p-4 min-w-0">
+          <div className="text-xs font-medium text-ink-soft mb-1">From the live reading</div>
           {aiWatts == null ? (
-            <p className="text-[11px] text-slate-400">Start the device reader (This Device) to project the AI apps running now.</p>
+            <p className="text-xs text-ink-muted">Start the device reader (This Device) to project the AI apps running now.</p>
           ) : (
             <>
               <Line label="AI apps right now" value={formatWatts(aiWatts)} />
@@ -86,9 +81,9 @@ export default function ScaleUp({ liveReading, forecast, recs, rate }) {
           )}
         </div>
 
-        <div className="rounded-lg bg-black/30 border border-white/5 p-3 min-w-0">
-          <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300 mb-1 flex items-center gap-1.5">
-            <Users className="w-3 h-3 text-sky-400" /> From this cycle's forecast
+        <div className="inset-panel p-4 min-w-0">
+          <div className="text-xs font-medium text-ink-soft mb-1 flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5 text-ink-muted" /> From this cycle's forecast
           </div>
           <Line label="AI on the bill, next month" value={`${peso(aiMonthly * machines)} / mo`} />
           <Line label="Saved with recommendations" value={`${peso(savings * machines)} / mo`} />
@@ -96,7 +91,7 @@ export default function ScaleUp({ liveReading, forecast, recs, rate }) {
         </div>
       </div>
 
-      <p className="mt-3 text-[10px] text-slate-500">
+      <p className="mt-3 text-xs text-ink-muted">
         Assumes every machine is used like this one. AI watts are this device's{" "}
         {liveReading?.estimated ? "estimated" : "measured"} power, split per app by CPU and GPU share.
       </p>

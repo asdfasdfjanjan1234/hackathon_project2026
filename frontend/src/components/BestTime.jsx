@@ -2,14 +2,15 @@ import { useMemo } from "react";
 import { BarChart, Bar, Cell, LabelList, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { CalendarClock, SlidersHorizontal } from "lucide-react";
 import { peso } from "../format";
+import { color } from "../theme";
 
-// Highlight-vs-context (dataviz validator, dark surface #121927): the best window in emerald,
-// the rest of off-peak in sky, peak hours recede in slate. The best window is also labelled,
-// since emerald and sky are close under tritanopia.
-const BEST = "#059669";
-const OFFPEAK = "#0284C7";
-const PEAK = "#3B4A61";
-const SURFACE = "#121927";
+// Highlight-vs-context: the best window in green, the rest of off-peak in blue, peak hours
+// recede in grey. The best window is also labelled, since green and blue are close under tritanopia.
+const BEST = color("viz-green");
+const OFFPEAK = color("viz-blue");
+const PEAK = color("viz-grey", 0.55);
+const SURFACE = color("surface");
+const AXIS = { tick: { fill: color("ink-muted"), fontSize: 11 }, tickLine: false, axisLine: false };
 
 const hourLabel = (h) => `${h % 12 || 12}${h < 12 ? "a" : "p"}`;
 const inWindow = (h, w) =>
@@ -19,22 +20,22 @@ function HourTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="rounded bg-slate-950 border border-white/10 p-2 shadow-2xl text-[11px] font-mono">
-      <div className="text-slate-300 font-bold">
+    <div className="rounded-lg bg-surface border border-line p-2 shadow-pop text-xs">
+      <div className="text-ink-soft font-medium">
         {d.label} · {d.peak ? "peak" : "off-peak"}
-        {d.best && <span className="text-emerald-300"> · best</span>}
+        {d.best && <span className="text-pos"> · best</span>}
       </div>
-      <div className="text-white tabular-nums">{peso(d.rate)} / kWh</div>
+      <div className="text-ink font-semibold tabular-nums">{peso(d.rate)} / kWh</div>
     </div>
   );
 }
 
-function Tile({ title, value, sub, accent = "text-white", highlight }) {
+function Tile({ title, value, sub, accent = "text-ink", highlight }) {
   return (
-    <div className={`p-2.5 rounded bg-white/[0.02] border ${highlight ? "border-emerald-500/20" : "border-white/5"}`}>
-      <div className={`text-[10px] uppercase font-semibold ${highlight ? "text-emerald-300" : "text-slate-400"}`}>{title}</div>
-      <div className={`text-sm font-bold ${accent}`}>{value}</div>
-      <div className="text-[10px] text-slate-400 font-sans leading-snug">{sub}</div>
+    <div className={`p-3 rounded-lg border ${highlight ? "border-pos/30 bg-pos/[0.06]" : "border-line bg-sunken"}`}>
+      <div className={`text-xs font-medium ${highlight ? "text-pos" : "text-ink-muted"}`}>{title}</div>
+      <div className={`text-base font-semibold mt-0.5 tabular-nums ${accent}`}>{value}</div>
+      <div className="text-xs text-ink-muted leading-snug mt-0.5">{sub}</div>
     </div>
   );
 }
@@ -60,35 +61,31 @@ export default function BestTime({ info, onOpenSettings }) {
   const whatIf = info.what_if_pop;
 
   return (
-    <section className="dash-card p-4 sm:p-5 min-w-0">
-      <div className="flex flex-wrap items-center justify-between pb-3 border-b border-white/5 gap-2">
+    <section className="dash-card p-5 min-w-0">
+      <div className="flex flex-wrap items-start justify-between pb-4 border-b border-line gap-2">
         <div className="min-w-0">
-          <h2 className="text-xs font-mono font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
-            <CalendarClock className="w-3.5 h-3.5 text-emerald-400" /> Best Time to Run Local AI
+          <h2 className="card-title flex items-center gap-2">
+            <CalendarClock className="w-4 h-4 text-ink-muted" /> Best time to run local AI
           </h2>
-          <div className="text-[10px] text-slate-400">
+          <div className="card-sub mt-0.5">
             When batch jobs (evals, indexing, long agent runs) cost least on your tariff and the grid is cleanest
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="tech-tag tech-tag-neutral">
+        <div className="flex items-center gap-1.5">
+          <span className="tech-tag tech-tag-neutral tabular-nums">
             {pop
-              ? `NOW: ${info.now.peak ? "PEAK" : "OFF-PEAK"} ${peso(info.now.rate)}/kWh · ${
-                  info.now.peak ? "OFF-PEAK" : "PEAK"
-                } FROM ${info.now.changes_at}`
-              : `SAME RATE ALL DAY: ${peso(info.rate)}/kWh`}
+              ? `Now: ${info.now.peak ? "peak" : "off-peak"} ${peso(info.now.rate)}/kWh · ${
+                  info.now.peak ? "off-peak" : "peak"
+                } from ${info.now.changes_at}`
+              : `Same rate all day: ${peso(info.rate)}/kWh`}
           </span>
-          <button
-            onClick={onOpenSettings}
-            title="Change tariff"
-            className="p-1.5 rounded text-slate-400 hover:text-white hover:bg-white/[0.04]"
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
+          <button onClick={onOpenSettings} title="Change tariff" aria-label="Change tariff" className="btn-icon">
+            <SlidersHorizontal className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3 font-mono">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
         <Tile
           highlight
           title="Best time for batch jobs"
@@ -104,7 +101,7 @@ export default function BestTime({ info, onOpenSettings }) {
           <Tile
             title="Shift batch jobs off-peak"
             value={shift ? `-${peso(shift.savings)} / mo` : "Already off-peak"}
-            accent="text-emerald-300"
+            accent="text-pos"
             sub={
               shift
                 ? `${Math.round(info.ai.peak_share * 100)}% of your AI energy is in peak hours; moving ${Math.round(
@@ -133,9 +130,9 @@ export default function BestTime({ info, onOpenSettings }) {
         )}
       </div>
 
-      <div className="mt-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-slate-400 mb-1">
-          <span>{pop ? "YOUR RATE TODAY · ₱ / kWh" : "IF YOU WERE ON MERALCO POP · ₱ / kWh TODAY"}</span>
+      <div className="mt-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted mb-2">
+          <span>{pop ? "Your rate today · ₱ / kWh" : "If you were on Meralco POP · ₱ / kWh today"}</span>
           <span className="flex items-center gap-3">
             {best?.g_per_kwh != null && (
               <span className="flex items-center gap-1.5">
@@ -150,15 +147,14 @@ export default function BestTime({ info, onOpenSettings }) {
             </span>
           </span>
         </div>
-        <div className="h-32">
+        <div className="h-36">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 14, right: 4, left: -12, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis dataKey="hour" stroke="#64748B" fontSize={10} tickLine={false} axisLine={false} interval={2}
-                     tickFormatter={hourLabel} />
-              <YAxis stroke="#64748B" fontSize={10} tickLine={false} axisLine={false} domain={[0, "auto"]} />
-              <Tooltip content={<HourTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-              <Bar dataKey="rate" radius={[4, 4, 0, 0]} stroke={SURFACE} strokeWidth={2}>
+            <BarChart data={data} margin={{ top: 16, right: 4, left: -16, bottom: 0 }}>
+              <CartesianGrid stroke={color("line")} vertical={false} />
+              <XAxis dataKey="hour" {...AXIS} interval={2} tickFormatter={hourLabel} />
+              <YAxis {...AXIS} domain={[0, "auto"]} />
+              <Tooltip content={<HourTooltip />} cursor={{ fill: color("ink", 0.04) }} />
+              <Bar dataKey="rate" radius={[3, 3, 0, 0]} stroke={SURFACE} strokeWidth={2}>
                 {data.map((d) => (
                   <Cell key={d.hour} fill={d.best ? BEST : d.peak ? PEAK : OFFPEAK} />
                 ))}
@@ -166,9 +162,8 @@ export default function BestTime({ info, onOpenSettings }) {
                   dataKey="hour"
                   content={({ x, y, value }) =>
                     value === firstBest ? (
-                      <text x={x} y={y - 4} textAnchor="start" fontSize={9} fill="#6EE7B7"
-                            fontFamily="monospace">
-                        BEST
+                      <text x={x} y={y - 5} textAnchor="start" fontSize={11} fontWeight={600} fill={BEST}>
+                        Best
                       </text>
                     ) : null
                   }
@@ -179,7 +174,7 @@ export default function BestTime({ info, onOpenSettings }) {
         </div>
       </div>
 
-      <p className="mt-2 text-[10px] text-slate-500 font-sans">
+      <p className="mt-3 text-xs text-ink-muted leading-relaxed">
         Philippine households have no live hourly price: WESM spot prices reach the bill only as a monthly
         average. Peak/off-peak times are Meralco's POP schedule; holidays aren't included.
       </p>

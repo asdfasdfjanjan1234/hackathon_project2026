@@ -1,15 +1,24 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI Wattage Tracker — Power & Bill Monitor</title>
-    <!-- Google Fonts: DM Sans & JetBrains Mono -->
+    <title>WattTrace — Power & Bill Monitor</title>
+    <!-- Apply the saved or system theme before first paint, so there's no flash of the wrong theme -->
+    <script>
+      (function () {
+        var pref = "system";
+        try { pref = localStorage.getItem("watttrace-theme") || "system"; } catch (e) {}
+        var dark = pref === "dark" || (pref === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.classList.toggle("dark", dark);
+      })();
+    </script>
+    <!-- Google Fonts: DM Sans -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400..700&display=swap" rel="stylesheet" />
   </head>
-  <body class="bg-darkBg text-slate-100 antialiased selection:bg-blue-600 selection:text-white min-h-screen">
+  <body class="bg-canvas text-ink antialiased min-h-screen">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

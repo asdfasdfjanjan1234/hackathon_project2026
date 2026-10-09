@@ -2,12 +2,12 @@ import { formatAppWatts } from "../format";
 
 // The machine's parts, as read by the device reader (backend measurement.py Sensors.components).
 const PARTS = [
-  { key: "cpu", label: "CPU", bar: "bg-sky-400", text: "text-sky-300" },
-  { key: "gpu", label: "GPU", bar: "bg-violet-400", text: "text-violet-300" },
-  { key: "memory", label: "RAM", bar: "bg-amber-400", text: "text-amber-300" },
-  { key: "disk", label: "Disk", bar: "bg-emerald-400", text: "text-emerald-300" },
+  { key: "cpu", label: "CPU", bar: "bg-viz-blue", text: "text-ink-soft" },
+  { key: "gpu", label: "GPU", bar: "bg-viz-violet", text: "text-ink-soft" },
+  { key: "memory", label: "RAM", bar: "bg-viz-amber", text: "text-ink-soft" },
+  { key: "disk", label: "Disk", bar: "bg-viz-green", text: "text-ink-soft" },
 ];
-const OTHER = { bar: "bg-slate-500", text: "text-slate-300" };
+const OTHER = { bar: "bg-viz-grey", text: "text-ink-soft" };
 
 const isMeasured = (source) => source && source !== "estimated";
 
@@ -40,10 +40,10 @@ export function splitReading(reading) {
   const ai = Math.min(reading.ai_watts ?? apps.reduce((s, a) => s + (a.watts || 0), 0), total);
   const baseline = Math.min(reading.power_model?.idle_watts ?? 0, Math.max(total - ai, 0));
   const byUse = [
-    { key: "ai", label: "AI apps", bar: "bg-sky-400", text: "text-sky-300", watts: ai, measured: !reading.estimated },
-    { key: "rest", label: "Other apps & OS", bar: "bg-slate-400", text: "text-slate-300",
+    { key: "ai", label: "AI apps", bar: "bg-accent", text: "text-ink-soft", watts: ai, measured: !reading.estimated },
+    { key: "rest", label: "Other apps & OS", bar: "bg-viz-grey", text: "text-ink-soft",
       watts: Math.max(total - ai - baseline, 0), measured: false },
-    { key: "baseline", label: "Baseline (idle)", bar: "bg-slate-600", text: "text-slate-400",
+    { key: "baseline", label: "Baseline (idle)", bar: "bg-line-strong", text: "text-ink-soft",
       watts: baseline, measured: false },
   ];
 
@@ -54,24 +54,24 @@ function Breakdown({ title, rows }) {
   const total = rows.reduce((s, r) => s + r.watts, 0);
   const pct = (w) => (total > 0 ? Math.round((w / total) * 100) : 0);
   return (
-    <div className="space-y-1.5 min-w-0">
-      <div className="text-[9px] font-mono font-semibold text-slate-400 uppercase tracking-wider">{title}</div>
-      <div className="w-full flex h-2 bg-slate-800 rounded-sm overflow-hidden">
+    <div className="space-y-2 min-w-0">
+      <div className="text-xs font-medium text-ink-muted">{title}</div>
+      <div className="w-full flex h-2 bg-line rounded-full overflow-hidden gap-px">
         {total > 0 &&
           rows.map((r) => (
             <div key={r.key} className={r.bar} style={{ width: `${(r.watts / total) * 100}%` }} title={`${r.label}: ${formatAppWatts(r.watts)}`} />
           ))}
       </div>
-      <div className="space-y-0.5">
+      <div className="space-y-1">
         {rows.map((r) => (
-          <div key={r.key} className="flex items-center justify-between gap-2 text-[10px] font-mono tabular-nums">
+          <div key={r.key} className="flex items-center justify-between gap-2 text-xs tabular-nums">
             <span className="flex items-center gap-1.5 min-w-0">
-              <span className={`w-2 h-2 rounded-sm shrink-0 ${r.bar}`} />
+              <span className={`w-2 h-2 rounded-full shrink-0 ${r.bar}`} />
               <span className={`truncate ${r.text}`}>{r.label}</span>
-              <span className="text-[8.5px] text-slate-500 uppercase shrink-0">{r.measured ? "meas." : "est."}</span>
+              <span className="text-[11px] text-ink-muted shrink-0">{r.measured ? "meas." : "est."}</span>
             </span>
-            <span className="text-slate-200 shrink-0">
-              {formatAppWatts(r.watts)} <span className="text-slate-500">· {pct(r.watts)}%</span>
+            <span className="text-ink shrink-0">
+              {formatAppWatts(r.watts)} <span className="text-ink-muted">· {pct(r.watts)}%</span>
             </span>
           </div>
         ))}
@@ -85,7 +85,7 @@ export default function PowerSplit({ reading }) {
   const split = splitReading(reading);
   if (!split) return null;
   return (
-    <div className="w-full mt-2 p-2.5 rounded bg-black/30 border border-white/5 space-y-3">
+    <div className="w-full mt-3 p-3 inset-panel space-y-4">
       <Breakdown title="Where the watts go · by part" rows={split.byPart} />
       <Breakdown title="Where the watts go · by use" rows={split.byUse} />
     </div>

@@ -5,6 +5,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { peso } from "../format";
+import ThemeToggle from "./ThemeToggle";
 
 const OS_NAMES = { macos: "macOS", windows: "Windows", linux: "Linux" };
 
@@ -16,10 +17,10 @@ function deviceLabel(system) {
 
 // What the live power number is based on right now.
 function sensorStatus(reading) {
-  if (!reading) return { text: "CONNECTING", live: false };
-  if (reading.source === "collector") return { text: "READING DEVICE", live: true };
-  if (reading.estimated) return { text: "ESTIMATED POWER", live: false };
-  return { text: "SENSOR ONLINE", live: true };
+  if (!reading) return { text: "Connecting", live: false };
+  if (reading.source === "collector") return { text: "Reading device", live: true };
+  if (reading.estimated) return { text: "Estimated power", live: false };
+  return { text: "Sensor online", live: true };
 }
 
 export default function TopBar({
@@ -37,53 +38,40 @@ export default function TopBar({
   const status = sensorStatus(liveReading);
 
   return (
-    <header className="h-16 bg-panelBg border-b border-white/5 px-3 sm:px-5 lg:px-6 flex items-center justify-between gap-3 sticky top-0 z-20 select-none">
+    <header className="h-16 bg-surface/80 backdrop-blur border-b border-line px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-3 sticky top-0 z-20">
       {/* Left: Mobile hamburger menu & Title */}
       <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
         {/* Hamburger Menu on Mobile */}
-        <button
-          onClick={onOpenMobileMenu}
-          className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.04] transition-colors"
-          aria-label="Open navigation drawer"
-        >
+        <button onClick={onOpenMobileMenu} className="md:hidden btn-icon" aria-label="Open navigation drawer">
           <Menu className="w-5 h-5" />
         </button>
 
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-sm sm:text-base font-bold font-mono tracking-tight text-white uppercase truncate">
-              AI Power Telemetry
-            </h1>
-            {/* LIVE SENSOR BADGE: Instrument Cyan, NO GREEN */}
-            <span
-              className={`hidden xs:inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-mono font-semibold px-2 py-0.5 rounded border shrink-0 ${
-                status.live
-                  ? "bg-sky-500/10 text-sky-400 border-sky-500/25"
-                  : "bg-amber-500/10 text-amber-300 border-amber-500/25"
-              }`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${status.live ? "bg-sky-400 animate-pulse" : "bg-amber-400"}`} />
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-base font-semibold tracking-tight text-ink truncate md:sr-only">WattTrace</h1>
+            <span className="hidden xs:inline-flex items-center gap-1.5 text-xs font-medium text-ink-soft shrink-0">
+              <span className={`w-2 h-2 rounded-full ${status.live ? "bg-pos" : "bg-warn"}`} />
               {status.text}
             </span>
           </div>
 
-          <div className="text-[10px] sm:text-[11px] font-mono text-slate-400 hidden lg:flex items-center gap-2 mt-0.5">
+          <div className="text-xs text-ink-muted hidden lg:flex items-center gap-2 mt-0.5">
             <span className="truncate max-w-[18rem]" title={system?.cpu}>{deviceLabel(system)}</span>
-            <span>·</span>
+            <span aria-hidden>·</span>
             <button
               onClick={onOpenSettings}
-              className="hover:text-sky-400 transition-colors underline decoration-dotted"
+              className="hover:text-accent transition-colors tabular-nums"
               title="Click to configure tariff"
             >
-              TARIFF: {peso(electricityRate)} / kWh
+              Tariff: {peso(electricityRate)} / kWh
             </button>
-            <span>·</span>
+            <span aria-hidden>·</span>
             <button
               onClick={onOpenSettings}
-              className="hover:text-sky-400 transition-colors underline decoration-dotted"
+              className="hover:text-accent transition-colors tabular-nums"
               title="Click to configure budget cap"
             >
-              CAP: {peso(monthlyBudget)} / mo
+              Cap: {peso(monthlyBudget)} / mo
             </button>
           </div>
         </div>
@@ -94,15 +82,15 @@ export default function TopBar({
         {/* Quick Clickable Tariff/Budget Chip on Tablet/Laptop */}
         <button
           onClick={onOpenSettings}
-          className="hidden sm:flex md:hidden xl:flex items-center gap-1 px-2.5 py-1 rounded bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 text-[11px] font-mono text-slate-300 transition-colors"
+          className="btn hidden sm:inline-flex md:hidden xl:inline-flex tabular-nums"
           title="Configure Tariff & Hardware Cap"
         >
-          <SlidersHorizontal className="w-3 h-3 text-sky-400" />
+          <SlidersHorizontal className="w-3.5 h-3.5 text-ink-muted" />
           <span>{peso(electricityRate)}/kWh</span>
         </button>
 
         {/* Time Window Selector (7D, 30D, MTD) */}
-        <div className="flex items-center bg-black/40 border border-white/10 rounded-md p-0.5 font-mono text-xs">
+        <div className="seg" role="group" aria-label="Time window">
           {[
             { id: "7d", label: "7D" },
             { id: "30d", label: "30D" },
@@ -111,11 +99,8 @@ export default function TopBar({
             <button
               key={range.id}
               onClick={() => setDateRange && setDateRange(range.id)}
-              className={`px-2 sm:px-2.5 py-0.5 sm:py-1 rounded text-[10px] sm:text-[11px] font-medium transition-colors ${
-                dateRange === range.id
-                  ? "bg-slate-700 text-sky-300 font-semibold shadow-inner"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
+              aria-pressed={dateRange === range.id}
+              className={`seg-item px-2 sm:px-2.5 ${dateRange === range.id ? "seg-item-active" : ""}`}
             >
               {range.label}
             </button>
@@ -126,40 +111,34 @@ export default function TopBar({
         <div className="relative">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className="w-7 sm:w-8 h-7 sm:h-8 rounded-md bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 flex items-center justify-center text-slate-300 hover:text-white transition-colors relative"
+            className="btn-icon relative"
             title="System Alert Log"
+            aria-label={`Alerts${alerts.length ? ` (${alerts.length})` : ""}`}
+            aria-expanded={showNotifications}
           >
-            <Bell className="w-3.5 h-3.5 text-slate-400" />
-            {alerts.length > 0 && (
-              <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-400" />
-            )}
+            <Bell className="w-4 h-4" />
+            {alerts.length > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-warn ring-2 ring-surface" />}
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-72 sm:w-80 rounded-lg bg-slate-900 border border-white/10 shadow-2xl p-3 z-50 text-xs font-mono">
-              <div className="flex items-center justify-between pb-2 border-b border-white/10 mb-2.5">
-                <span className="font-semibold text-slate-200 uppercase tracking-wider text-[11px]">
-                  TELEMETRY DIRECTIVES
-                </span>
-                <span className="text-[10px] text-amber-400">{alerts.length} PENDING</span>
+            <div className="absolute right-0 mt-2 w-72 sm:w-80 rounded-xl bg-surface border border-line shadow-pop p-3 z-50 text-sm">
+              <div className="flex items-center justify-between pb-2 border-b border-line mb-2.5">
+                <span className="font-semibold text-ink">Telemetry directives</span>
+                <span className="text-xs text-warn tabular-nums">{alerts.length} pending</span>
               </div>
-              <div className="space-y-2 text-[11px]">
+              <div className="space-y-2 text-xs">
                 {alerts.length === 0 && (
-                  <div className="p-2 text-slate-400 font-sans">No alerts: the forecast is within budget.</div>
+                  <div className="p-2 text-ink-muted">No alerts: the forecast is within budget.</div>
                 )}
                 {alerts.map((a, i) => (
                   <div
                     key={i}
-                    className={`p-2 rounded border text-slate-300 font-sans ${
-                      a.level === "warn" ? "bg-rose-500/10 border-rose-500/20" : "bg-amber-500/10 border-amber-500/20"
+                    className={`p-2.5 rounded-lg border text-ink-soft leading-relaxed ${
+                      a.level === "warn" ? "bg-neg/5 border-neg/20" : "bg-warn/5 border-warn/20"
                     }`}
                   >
-                    <div
-                      className={`font-bold font-mono text-[10px] uppercase ${
-                        a.level === "warn" ? "text-rose-400" : "text-amber-400"
-                      }`}
-                    >
-                      [{a.level === "warn" ? "WARN" : "OPT"}] {a.title}
+                    <div className={`font-semibold mb-0.5 ${a.level === "warn" ? "text-neg" : "text-warn"}`}>
+                      {a.level === "warn" ? "Warn" : "Opt"} · {a.title}
                     </div>
                     {a.text}
                   </div>

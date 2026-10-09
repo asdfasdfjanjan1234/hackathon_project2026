@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Zap, X } from "lucide-react";
 import { NAV_GROUPS } from "../navigation";
+import ThemeToggle from "./ThemeToggle";
 
 export default function Sidebar({
   activeTab = "dashboard",
@@ -26,35 +27,25 @@ export default function Sidebar({
       {/* Mobile Backdrop */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 md:hidden"
+          className="fixed inset-0 bg-ink/30 backdrop-blur-[2px] z-40 md:hidden"
           onClick={() => setMobileOpen && setMobileOpen(false)}
         />
       )}
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-50 flex flex-col bg-panelBg border-r border-white/5 transition-all duration-200 ease-in-out shrink-0 select-none ${
-          mobileOpen ? "translate-x-0 w-64 shadow-2xl" : "-translate-x-full md:translate-x-0"
+        className={`fixed md:static inset-y-0 left-0 z-50 flex flex-col bg-surface border-r border-line transition-all duration-200 ease-in-out shrink-0 ${
+          mobileOpen ? "translate-x-0 w-64 shadow-pop" : "-translate-x-full md:translate-x-0"
         } ${collapsed ? "md:w-16" : "md:w-60"}`}
       >
-        {/* Technical Brand Header */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-white/5">
+        {/* Brand */}
+        <div className="h-16 flex items-center justify-between px-4 border-b border-line">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/25 flex items-center justify-center text-sky-400 shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-accent text-accent-on flex items-center justify-center shrink-0">
               <Zap className="w-4 h-4" />
             </div>
             {expanded && (
-              <div className="flex flex-col overflow-hidden min-w-0">
-                <div className="font-mono font-bold text-sm tracking-wider text-slate-100 flex items-center gap-1.5 whitespace-nowrap">
-                  <span>WATT<span className="text-sky-400">TRACE</span></span>
-                  <span className="text-[9px] font-mono font-semibold px-1 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700">
-                    SCADA
-                  </span>
-                </div>
-                <span className="text-[10px] text-slate-400 truncate uppercase tracking-widest font-mono">
-                  Hardware Telemetry
-                </span>
-              </div>
+              <span className="text-[17px] font-semibold tracking-tight text-ink whitespace-nowrap">WattTrace</span>
             )}
           </div>
 
@@ -62,7 +53,8 @@ export default function Sidebar({
           {mobileOpen && (
             <button
               onClick={() => setMobileOpen && setMobileOpen(false)}
-              className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.04]"
+              className="md:hidden btn-icon"
+              aria-label="Close navigation"
             >
               <X className="w-4 h-4" />
             </button>
@@ -70,15 +62,13 @@ export default function Sidebar({
         </div>
 
         {/* Navigation Groups */}
-        <nav className="flex-1 px-2.5 py-4 space-y-5 overflow-y-auto">
+        <nav className="flex-1 px-3 py-4 space-y-6 overflow-y-auto">
           {NAV_GROUPS.map((group, gi) => (
-            <div key={group.label} className="space-y-1">
+            <div key={group.label} className="space-y-0.5">
               {expanded ? (
-                <div className="text-[10px] font-mono tracking-widest uppercase text-slate-500 px-2.5 mb-2">
-                  {group.label}
-                </div>
+                <div className="text-xs font-medium text-ink-muted px-2.5 mb-1.5">{group.label}</div>
               ) : (
-                gi > 0 && <div className="mx-2.5 mb-2 border-t border-white/5" />
+                gi > 0 && <div className="mx-2 mb-3 border-t border-line" />
               )}
               {group.items.map((item) => {
                 const Icon = item.icon;
@@ -89,32 +79,23 @@ export default function Sidebar({
                     key={item.id}
                     onClick={() => handleNavClick(item.id)}
                     aria-current={isActive ? "page" : undefined}
-                    className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-xs font-medium transition-colors group relative ${
-                      isActive
-                        ? "bg-sky-500/10 text-sky-300 border border-sky-500/20 shadow-sm"
-                        : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.03] border border-transparent"
-                    }`}
-                    title={!expanded ? item.label : undefined}
+                    aria-label={!expanded ? item.label : undefined}
+                    className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-colors group relative ${
+                      isActive ? "bg-accent/10 text-accent font-medium" : "text-ink-soft hover:text-ink hover:bg-sunken"
+                    } ${!expanded ? "justify-center" : ""}`}
                   >
-                    {isActive && (
-                      <span className="absolute -left-2.5 top-1.5 bottom-1.5 w-0.5 rounded-r bg-sky-400" />
-                    )}
-                    <Icon
-                      className={`w-4 h-4 shrink-0 ${
-                        isActive ? "text-sky-400" : "text-slate-400 group-hover:text-slate-300"
-                      }`}
-                    />
-                    {expanded && <span className="flex-1 text-left truncate font-sans">{item.label}</span>}
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-accent" : "text-ink-muted group-hover:text-ink-soft"}`} />
+                    {expanded && <span className="flex-1 text-left truncate">{item.label}</span>}
                     {expanded && badge > 0 && (
-                      <span className="px-1.5 py-0.2 text-[9px] font-mono font-bold rounded bg-amber-500/10 text-amber-400 border border-amber-500/25">
+                      <span className="min-w-[1.25rem] px-1.5 text-[11px] font-semibold leading-5 rounded-full bg-warn/15 text-warn tabular-nums">
                         {badge}
                       </span>
                     )}
                     {!expanded && badge > 0 && (
-                      <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-amber-400" />
+                      <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-warn" />
                     )}
                     {!expanded && (
-                      <div className="absolute left-full ml-2 px-2 py-1 rounded bg-slate-900 text-slate-200 text-xs font-mono whitespace-nowrap shadow-xl border border-white/10 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                      <div className="absolute left-full ml-2 px-2 py-1 rounded-md bg-ink text-canvas text-xs whitespace-nowrap shadow-pop opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 pointer-events-none transition-opacity z-50">
                         {item.label}
                       </div>
                     )}
@@ -125,29 +106,31 @@ export default function Sidebar({
           ))}
         </nav>
 
-        {/* Hardware Sensor Bus Status (CYAN, NO GREEN) */}
-        <div className="p-2.5 border-t border-white/5">
-          <div
-            className={`rounded-lg p-2.5 bg-black/40 border border-white/5 flex items-center gap-2.5 ${
-              !expanded ? "justify-center" : ""
-            }`}
-          >
-            {/* Precision Instrument Cyan Pulsing Indicator */}
-            <div className="relative shrink-0">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-60"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-400"></span>
-              </span>
-            </div>
+        {/* Theme, in the drawer on phones (the header has it on wider screens) */}
+        {mobileOpen && (
+          <div className="px-3 pb-3 sm:hidden">
+            <div className="text-xs font-medium text-ink-muted px-2.5 mb-1.5">Theme</div>
+            <ThemeToggle showLabels />
+          </div>
+        )}
+
+        {/* Power source status */}
+        <div className="p-3 border-t border-line">
+          <div className={`inset-panel p-2.5 flex items-center gap-2.5 ${!expanded ? "justify-center" : ""}`}>
+            <span
+              className={`h-2 w-2 rounded-full shrink-0 ${
+                !liveReading ? "bg-ink-muted" : liveReading.estimated ? "bg-warn" : "bg-pos"
+              }`}
+            />
             {expanded && (
-              <div className="flex-1 min-w-0 font-mono text-[10px]">
-                <div className="flex items-center justify-between text-slate-300 font-semibold">
-                  <span>POWER SOURCE</span>
-                  <span className={liveReading?.estimated ? "text-amber-300" : "text-sky-400"}>
-                    {liveReading?.estimated ? "ESTIMATED" : liveReading ? "MEASURED" : "—"}
+              <div className="flex-1 min-w-0 text-xs">
+                <div className="flex items-center justify-between font-medium text-ink">
+                  <span>Power source</span>
+                  <span className={liveReading?.estimated ? "text-warn" : "text-pos"}>
+                    {liveReading?.estimated ? "Estimated" : liveReading ? "Measured" : "—"}
                   </span>
                 </div>
-                <div className="text-slate-400 truncate mt-0.5" title={sensor}>
+                <div className="text-ink-muted truncate mt-0.5" title={sensor}>
                   {sensor} · this device
                 </div>
               </div>
@@ -158,16 +141,16 @@ export default function Sidebar({
         {/* Desktop Collapse Toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="hidden md:flex h-9 items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.03] transition-colors border-t border-white/5"
+          className="hidden md:flex h-10 items-center justify-center gap-1.5 text-xs text-ink-muted hover:text-ink hover:bg-sunken transition-colors border-t border-line"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {collapsed ? (
             <ChevronRight className="w-3.5 h-3.5" />
           ) : (
-            <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
+            <>
               <ChevronLeft className="w-3.5 h-3.5" />
-              <span>COLLAPSE</span>
-            </div>
+              <span>Collapse</span>
+            </>
           )}
         </button>
       </aside>
