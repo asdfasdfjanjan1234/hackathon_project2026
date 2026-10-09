@@ -39,6 +39,19 @@ def test_agent_children_are_tool_runs_and_host_is_found():
     assert 21 not in groups and 11 not in groups  # the user's shell and VS Code itself aren't AI
 
 
+def test_agents_inside_antigravity_have_it_as_host():
+    app = "/Applications/Antigravity.app/Contents"
+    procs = {
+        1: proc(0, "launchd"),
+        10: proc(1, "Electron", f"{app}/MacOS/Electron"),
+        11: proc(10, "Antigravity Helper (Plugin)", f"{app}/Frameworks/Antigravity Helper (Plugin).app/Contents/MacOS/x"),
+        12: proc(11, "claude", "/Users/x/.antigravity/extensions/anthropic.claude-code-2.1/resources/native-binary/claude"),
+    }
+    groups = group_processes(procs)
+    assert groups[11][0] == "Antigravity"
+    assert groups[12] == ("Claude Code", "client", "Antigravity", False)
+
+
 def test_own_process_is_not_counted_as_a_tool_run():
     procs = {1: proc(0, "claude", "/usr/local/bin/claude"), 2: proc(1, "python", "/usr/bin/python3"),
              3: proc(2, "powermetrics", "/usr/bin/powermetrics")}

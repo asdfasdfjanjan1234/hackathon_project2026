@@ -14,6 +14,12 @@ import urllib.request
 
 import psutil
 
+
+def _is_antigravity(name, exe):
+    # macOS app bundle, Windows (%LOCALAPPDATA%/Programs/Antigravity) and Linux (/usr/share/antigravity).
+    return "/antigravity.app/" in exe or "/antigravity/" in exe or name == "antigravity.exe"
+
+
 # Checked in order; the first match wins. Arguments are lowercased, with "/" as path separator.
 AI_APPS = [
     ("Ollama", "local", lambda name, exe, cmd: name.startswith("ollama")),
@@ -27,7 +33,9 @@ AI_APPS = [
     ("ChatGPT", "client", lambda name, exe, cmd: "/chatgpt.app/" in exe),
     ("Cursor", "client", lambda name, exe, cmd: "/cursor.app/" in exe),
     ("Windsurf", "client", lambda name, exe, cmd: "/windsurf.app/" in exe),
+    ("Antigravity", "client", lambda name, exe, cmd: _is_antigravity(name, exe)),
     ("OpenCode", "client", lambda name, exe, cmd: "/opencode.app/" in exe or name == "opencode"),
+    # Last: VS Code forks bundle VS Code's Copilot runtime, so they must match first.
     ("GitHub Copilot", "client", lambda name, exe, cmd: "copilot" in exe),
 ]
 
@@ -39,6 +47,7 @@ HOSTS = [
     ("VS Code", lambda name, exe: "/visual studio code.app/" in exe or name == "code.exe"),
     ("Cursor", lambda name, exe: "/cursor.app/" in exe or name == "cursor.exe"),
     ("Windsurf", lambda name, exe: "/windsurf.app/" in exe or name == "windsurf.exe"),
+    ("Antigravity", lambda name, exe: _is_antigravity(name, exe)),
     ("Terminal", lambda name, exe: "/terminal.app/" in exe),
     ("iTerm", lambda name, exe: "/iterm.app/" in exe),
     ("Warp", lambda name, exe: "/warp.app/" in exe),

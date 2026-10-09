@@ -14,6 +14,12 @@ from app.services.attribution import PowerModel, attribute, fit_power_model
     ("Claude Helper (GPU)", "/Applications/Claude.app/Contents/Frameworks/x/Claude Helper (GPU)", "", "Claude Desktop"),
     ("ollama_llama_server", "/usr/local/bin/ollama_llama_server", "", "Ollama"),
     ("co", "/Applications/Visual Studio Code.app/.../@github/copilot-sdk-darwin-arm64/co", "", "GitHub Copilot"),
+    # Antigravity bundles VS Code's Copilot runtime; it must not be read as Copilot.
+    ("co", "/Applications/Antigravity.app/.../@github/copilot-sdk-darwin-arm64/co", "", "Antigravity"),
+    ("language_server_macos_arm",
+     "/Applications/Antigravity.app/Contents/Resources/app/extensions/antigravity/bin/language_server_macos_arm", "",
+     "Antigravity"),
+    ("Antigravity.exe", r"C:\Users\x\AppData\Local\Programs\Antigravity\Antigravity.exe", "", "Antigravity"),
 ])
 def test_classify_ai_apps(name, exe, cmd, expected):
     assert classify(name, exe, cmd)[0] == expected
