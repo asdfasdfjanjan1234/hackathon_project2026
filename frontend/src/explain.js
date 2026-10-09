@@ -126,6 +126,10 @@ export const METRICS = [
     text: "The app's share of each part's power. Power the computer uses while doing nothing is never charged to an app.",
   },
   {
+    term: "Where the watts go",
+    text: "By part: what the CPU, GPU, RAM and disk draw; the rest is the screen, Wi-Fi, fans and board. By use: AI apps, other apps and the OS, and the baseline the computer draws even when doing nothing.",
+  },
+  {
     term: "Holds RAM",
     text: "Memory the app keeps reserved. Holding memory costs little power; reading and writing it while generating costs more.",
   },

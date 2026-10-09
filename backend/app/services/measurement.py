@@ -215,6 +215,14 @@ class Sensors:
             else:
                 out[k] = {"watts": round(estimates[k], 3), "source": "estimated"}
         if system_watts is not None:
+            # The measured total caps the parts: when the estimates add up to more than the
+            # measured parts leave room for, scale the estimates down to fit.
+            guessed = [c for c in out.values() if c["source"] == "estimated"]
+            room = max(system_watts - sum(c["watts"] for c in out.values() if c["source"] != "estimated"), 0.0)
+            guessed_sum = sum(c["watts"] for c in guessed)
+            if guessed_sum > room:
+                for c in guessed:
+                    c["watts"] = round(c["watts"] * room / guessed_sum, 3)
             rest = system_watts - sum(c["watts"] for c in out.values())
             out["other"] = {"watts": round(max(rest, 0.0), 3), "source": DERIVED}
         return out

@@ -56,6 +56,18 @@ def test_measured_components_keep_their_sensor_and_the_rest_are_estimated():
     assert parts["other"]["watts"] == pytest.approx(10.0 - explained, abs=1e-3)
 
 
+def test_estimated_components_never_exceed_the_measured_total():
+    mac = FakePlatform({"system": "battery (ioreg)", "gpu": "IOReport GPU Energy"}, {"gpu": 1.0})
+    model = PowerModel(idle_watts=3, watts_per_cpu_pct=0.2, watts_per_gpu_pct=0.2)
+    # CPU alone is estimated at 0.2 W/% × 80% = 16 W, far above the 5 W the battery measured.
+    parts = Sensors(system=MAC, platform_sensors=mac).components(80, 10, model, system_watts=5.0)
+
+    assert parts["gpu"]["watts"] == 1.0  # measured parts are kept as read
+    estimated = sum(parts[k]["watts"] for k in ("cpu", "memory", "disk"))
+    assert estimated == pytest.approx(4.0, abs=1e-2)  # scaled into the 4 W the measured GPU leaves
+    assert parts["other"]["watts"] == pytest.approx(0.0, abs=1e-2)
+
+
 def test_windows_sources_report_emi_channels():
     win = FakePlatform({"system": "battery (CallNtPowerInformation)", "cpu": "EMI (RAPL)", "memory": "EMI (RAPL DRAM)"},
                        {"cpu": 6.0, "memory": 1.2})

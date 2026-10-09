@@ -37,14 +37,15 @@ export default function App() {
   const effectiveLiveReading = useMemo(() => {
     if (!liveReading) return null;
     if (!demoSpike) return liveReading;
+    // Components are {watts, source}; the spike adds 485.4 W split across GPU, CPU and RAM.
+    const parts = liveReading.components || {};
+    const bump = (key, w) => ({ ...parts[key], watts: Math.round(((parts[key]?.watts || 0) + w) * 10) / 10,
+                                source: parts[key]?.source || "estimated" });
     return {
       ...liveReading,
       watts: Math.round(((liveReading.watts || 12) + 485.4) * 10) / 10,
-      components: {
-        ...(liveReading.components || {}),
-        gpu: Math.round(((liveReading.components?.gpu || 0) + 382.5) * 10) / 10,
-        cpu: Math.round(((liveReading.components?.cpu || 0) + 91.2) * 10) / 10,
-      },
+      ai_watts: Math.round(((liveReading.ai_watts || 0) + 485.4) * 10) / 10,
+      components: { ...parts, gpu: bump("gpu", 382.5), cpu: bump("cpu", 91.2), memory: bump("memory", 11.7) },
       apps: [
         { name: "ollama (llama3:70b)", kind: "local", cpu_percent: 780, watts: 452.0 },
         { name: "python (stable-diffusion-xl)", kind: "local", cpu_percent: 120, watts: 33.4 },

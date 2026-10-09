@@ -9,6 +9,7 @@ import {
 import { formatWatts } from "../format";
 import { ACTIVITY, METRICS, explainApp, explainReading } from "../explain";
 import AppPowerParts from "./AppPowerParts";
+import PowerSplit from "./PowerSplit";
 
 // Dial full-scale steps: the smallest that fits the readings, so a 5 W laptop and a
 // 400 W gaming PC both use the whole arc.
@@ -247,6 +248,8 @@ export default function LiveWattage({ reading }) {
             ))}
           </div>
         )}
+
+        <PowerSplit reading={reading} />
       </div>
 
       {/* Active AI Workload Breakdown */}
