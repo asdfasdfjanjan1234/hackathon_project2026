@@ -3,7 +3,7 @@
  * what each AI app is doing, and what the numbers mean.
  */
 
-import { formatWatts } from "./format";
+import { formatCo2, formatWatts, shortDate } from "./format";
 
 // What each `activity` from the backend (attribution.activity) means for the user.
 // TODO: Add more activities and their meanings
@@ -138,5 +138,117 @@ export const METRICS = [
   {
     term: "Working / Background / Loaded / Idle",
     text: "Working: generating, streaming or running tools. Background: open with light upkeep. Loaded: a local model in memory, not generating. Idle: open, waiting for a prompt.",
+  },
+];
+
+const pct = (x) => `${Math.round(x * 100)}%`;
+const count = (n) => Math.round(n).toLocaleString("en-PH");
+
+// The Carbon Ledger in a few plain sentences, from the figures the backend worked out
+// (carbon.insights). Each item: {key, text}, so the page can show them as a list.
+export function explainCarbon(carbon) {
+  if (!carbon) return [];
+  const { totals, insights: ins = {}, budget, top_actions: actions = [], window } = carbon;
+  const span = window?.label?.toLowerCase() || "in this window";
+  if (!totals.total_kg) {
+    return [{ key: "none", text: `No CO₂ from AI was recorded ${span}. Start the device reader in This Device to measure it.` }];
+  }
+
+  const out = [];
+  const eq = ins.equivalents || {};
+  out.push({
+    key: "size",
+    text: `Your AI use caused ${formatCo2(totals.total_kg)} ${span}: about as much as driving a car ${count(eq.car_km)} km, or charging a phone ${count(eq.phone_charges)} times.`,
+  });
+
+  const cloud = ins.cloud_share ?? 0;
+  out.push({
+    key: "where",
+    text:
+      cloud >= 0.995
+        ? "Almost all of it (over 99%) came from cloud data centers running models like Claude. That CO₂ isn't on your electricity bill, but it still counts."
+        : cloud <= 0.005
+        ? "Almost all of it (over 99%) came from this computer, so the same energy is on your electricity bill too."
+        : cloud >= 0.5
+        ? `${pct(cloud)} of it came from cloud data centers running models like Claude. That CO₂ isn't on your electricity bill, but it still counts.`
+        : `${pct(1 - cloud)} of it came from this computer, so the same energy is on your electricity bill too.`,
+  });
+
+  const peak = ins.peak_day;
+  if (peak && ins.active_days > 1) {
+    out.push({
+      key: "peak",
+      text: `${shortDate(peak.date)} was your heaviest day at ${formatCo2(peak.kg)}, ${pct(peak.share)} of the total.`,
+    });
+  }
+
+  const trend = ins.trend;
+  if (trend?.direction === "up") {
+    out.push({
+      key: "trend",
+      text: `It's rising: since ${shortDate(trend.split_date)} you've averaged ${formatCo2(trend.later_avg_kg)} a day, up from ${formatCo2(trend.earlier_avg_kg)}.`,
+    });
+  } else if (trend?.direction === "down") {
+    out.push({
+      key: "trend",
+      text: `It's falling: since ${shortDate(trend.split_date)} you've averaged ${formatCo2(trend.later_avg_kg)} a day, down from ${formatCo2(trend.earlier_avg_kg)}.`,
+    });
+  } else if (trend?.direction === "flat") {
+    out.push({ key: "trend", text: `It's steady at about ${formatCo2(ins.avg_per_day_kg)} a day.` });
+  }
+
+  if (budget) {
+    const now = pct(budget.used_share);
+    const recs = pct(budget.used_share_with_recommendations);
+    out.push({
+      key: "budget",
+      text:
+        budget.status === "under"
+          ? `This cycle is on track: ${now} of your ${budget.kg} kg CO₂ budget.`
+          : budget.status === "fixed_by_recommendations"
+          ? `This cycle is heading for ${now} of your ${budget.kg} kg CO₂ budget. Following the directives would bring it to ${recs}.`
+          : `This cycle is heading for ${now} of your ${budget.kg} kg CO₂ budget, and still ${recs} with the directives.`,
+    });
+  }
+
+  const top = actions[0];
+  if (top) {
+    out.push({
+      key: "action",
+      text: `The biggest single cut would save about ${formatCo2(top.co2_saved_kg)} a month (${top.model}; see Biggest CO₂ cuts below).`,
+    });
+  }
+  return out;
+}
+
+// What the words on the Carbon Ledger mean.
+export const CARBON_TERMS = [
+  {
+    term: "CO₂ (kg, g)",
+    text: "Carbon dioxide, the main gas that warms the climate. Power plants release it when they make electricity. 1 kg is 1,000 g.",
+  },
+  {
+    term: "This device",
+    text: "CO₂ from the electricity this computer used for AI: measured kWh times the local grid's factor. The same energy is on your bill.",
+  },
+  {
+    term: "Cloud data centers",
+    text: "CO₂ from the servers that run cloud models like Claude or GPT. Estimated from the tokens you used, so treat it as a ranking rather than an exact figure. It is never on your bill.",
+  },
+  {
+    term: "Grid factor (kg CO₂/kWh)",
+    text: "How much CO₂ the grid releases for each kWh. It is higher when coal and gas plants supply more of the power, and changes by the hour (see Cleanest hours).",
+  },
+  {
+    term: "Carbon budget",
+    text: "A monthly CO₂ cap you set in Tariff & Hardware. The bar shows where this cycle is heading; the marker shows where the directives would bring it.",
+  },
+  {
+    term: "Directives",
+    text: "The app's suggested changes (a smaller model, unloading an idle one, running in cleaner hours) with the CO₂ and pesos each one saves.",
+  },
+  {
+    term: "Trees",
+    text: "A mature tree absorbs about 22 kg of CO₂ a year (1.8 kg a month). It turns a CO₂ figure into something you can picture.",
   },
 ];

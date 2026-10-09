@@ -239,7 +239,15 @@ export default function App() {
       case "models":
         return <UsageBreakdown usage={rawData.usage} />;
       case "carbon":
-        return <CarbonFootprint carbon={rawData.carbon} onOpenDirectives={() => handleSelectTab("recommendations")} />;
+        return (
+          <CarbonFootprint
+            carbon={rawData.carbon}
+            params={customParams}
+            range={dateRange}
+            onAsk={askAssistant}
+            onOpenDirectives={() => handleSelectTab("recommendations")}
+          />
+        );
       case "recommendations":
         return <Recommendations recs={rawData.recs} liveReading={liveReading} onApplied={refresh} />;
       default:

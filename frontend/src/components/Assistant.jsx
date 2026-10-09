@@ -24,7 +24,7 @@ const SUGGESTIONS = {
   device: ["What's using power right now?", "Is this reading measured or estimated?", "What does “loaded” mean?"],
   analytics: ["Will I stay under my budget?", "How much does AI add to my bill?", "How much is AI over a year?"],
   models: ["Which model costs me the most?", "Why does a local model cost more than a cloud one?"],
-  carbon: ["Where does my CO₂ come from?", "How can I lower my AI carbon footprint?"],
+  carbon: ["Is my AI carbon footprint a lot?", "Where does my CO₂ come from?", "Is it going up or down?", "How can I lower my AI carbon footprint?"],
   recommendations: ["Which recommendation should I do first?", "How much can I save a month?"],
 };
 
