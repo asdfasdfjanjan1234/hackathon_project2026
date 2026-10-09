@@ -22,3 +22,9 @@ class Config:
     GRID_CO2_KG_PER_KWH = float(os.getenv("GRID_CO2_KG_PER_KWH", 0.7122))
     GRID_CO2_SOURCE = os.getenv("GRID_CO2_SOURCE", "DOE Philippines 2015-2017 grid emission factor, Luzon-Visayas")
     AIRCON_WATTS = float(os.getenv("AIRCON_WATTS", 750))
+    # Cloud AI's estimated data-center energy runs on the provider's grid, not this one. Default:
+    # world-average grid intensity (IEA, ~0.45 kg CO2/kWh); set it to your provider's region.
+    DATACENTER_CO2_KG_PER_KWH = float(os.getenv("DATACENTER_CO2_KG_PER_KWH", 0.45))
+    DATACENTER_CO2_SOURCE = os.getenv("DATACENTER_CO2_SOURCE", "World-average grid intensity (IEA), approximate")
+    # Monthly AI carbon budget in kg CO2 (local + cloud); 0 turns it off.
+    CARBON_BUDGET_KG = float(os.getenv("CARBON_BUDGET_KG", 10))

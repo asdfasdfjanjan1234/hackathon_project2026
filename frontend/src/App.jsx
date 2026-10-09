@@ -12,6 +12,7 @@ import TariffSettingsModal from "./components/TariffSettingsModal";
 import DeviceReader from "./components/DeviceReader";
 import MeterCheck from "./components/MeterCheck";
 import ScaleUp from "./components/ScaleUp";
+import CarbonFootprint from "./components/CarbonFootprint";
 import { VIEWS } from "./navigation";
 import { AlertTriangle, RefreshCw, Zap } from "lucide-react";
 
@@ -68,13 +69,14 @@ export default function App() {
     setError(null);
 
     try {
-      const [usage, forecast, recs, impact] = await Promise.all([
+      const [usage, forecast, recs, impact, carbon] = await Promise.all([
         api.usage(params, dateRangeRef.current),
         api.forecast(params),
         api.recommendations(params),
         api.impact(params),
+        api.carbon(params, dateRangeRef.current),
       ]);
-      setRawData({ usage, forecast, recs, impact });
+      setRawData({ usage, forecast, recs, impact, carbon });
       if (!params) {
         const fromServer = {
           rate: usage.rate_per_kwh,
@@ -82,6 +84,7 @@ export default function App() {
           currentBill: impact.current_bill,
           budget: forecast.budget,
           cycleStartDay: forecast.cycle?.start_day ?? 1,
+          carbonBudget: carbon.budget?.kg ?? 0,
         };
         setCustomParams(fromServer);
         setDefaultParams(fromServer);
@@ -147,16 +150,15 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  // 7D / 30D / MTD: only usage depends on the window; the forecast and bill follow the billing cycle.
+  // 7D / 30D / MTD: only usage and carbon depend on the window; the forecast and bill follow the billing cycle.
   const usageRequest = useRef(0);
   useEffect(() => {
     if (!rawData) return;
     const id = ++usageRequest.current;
     setIsRefreshing(true);
-    api
-      .usage(customParams, dateRange)
-      .then((usage) => {
-        if (id === usageRequest.current) setRawData((d) => ({ ...d, usage }));
+    Promise.all([api.usage(customParams, dateRange), api.carbon(customParams, dateRange)])
+      .then(([usage, carbon]) => {
+        if (id === usageRequest.current) setRawData((d) => ({ ...d, usage, carbon }));
       })
       .catch((e) => setError(e.message || "Failed to load usage for this window."))
       .finally(() => {
@@ -273,6 +275,8 @@ export default function App() {
         );
       case "models":
         return <UsageBreakdown usage={rawData.usage} />;
+      case "carbon":
+        return <CarbonFootprint carbon={rawData.carbon} onOpenDirectives={() => handleSelectTab("recommendations")} />;
       case "recommendations":
         return <Recommendations recs={rawData.recs} liveReading={liveReading} onApplied={refresh} />;
       default:
@@ -365,6 +369,7 @@ export default function App() {
         currentBaseline={customParams?.baseline}
         currentBill={customParams?.currentBill}
         currentCycleStartDay={customParams?.cycleStartDay}
+        currentCarbonBudget={customParams?.carbonBudget}
         defaults={defaultParams}
         onSave={(newParams) => {
           setCustomParams(newParams);

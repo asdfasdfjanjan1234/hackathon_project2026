@@ -21,7 +21,8 @@ backend/                  Flask API (port 5001)
       usage.py            GET /api/usage            kWh + cost per model
       live.py             GET /api/live             current watts
       forecast.py         GET /api/forecast         projected monthly bill
-      recommendations.py  GET /api/recommendations  STOP / SWITCH / REDUCE tips
+      recommendations.py  GET /api/recommendations  STOP / SWITCH / REDUCE tips, with CO₂ saved each
+      carbon.py           GET /api/carbon           CO₂ on device + data center, cycle/year, carbon budget
       system.py           GET /api/system           detected OS and devices, sensor per component, kWh per component
       device.py           POST /api/device/start|stop, GET /api/device/status, POST /api/device/source
       readings.py         GET /api/devices, GET /api/readings   stored devices and readings
@@ -46,6 +47,7 @@ backend/                  Flask API (port 5001)
       usage_store.py      Daily usage per model from this device's readings
       forecasting.py      Billing cycle, weekday/weekend pattern, damped trend → bill per day and 1/3/12 months
       recommendations.py  Rule-based recommendations with savings (budget, smaller model, quantization, idle, …)
+      carbon.py           CO₂ per model and day, two grid factors, carbon budget, CO₂ avoided by recommendations
       outlook.py          Forecast + recommendations together ("with recommendations" path)
       actions.py          Unloads / switches Ollama models when a recommendation is applied
       validation.py       Compares our whole-machine readings with a plug-in wall meter
@@ -56,7 +58,7 @@ frontend/                 React + Vite (port 5173), proxies /api to Flask
     App.jsx               Dashboard layout
     api/client.js         API calls
     components/           LiveWattage, BillSummary, UsageBreakdown,
-                          ForecastChart, Recommendations, MeterCheck (wall-meter
+                          ForecastChart, Recommendations, CarbonFootprint, MeterCheck (wall-meter
                           check), ScaleUp (monthly / team projection)
 ```
 

@@ -8,7 +8,7 @@ import {
   Zap,
 } from "lucide-react";
 import { api } from "../api/client";
-import { peso, formatWh, formatWatts } from "../format";
+import { peso, formatWh, formatWatts, formatCo2 } from "../format";
 
 const keyOf = (rec) => `${rec.rule}|${rec.model}`;
 
@@ -85,6 +85,9 @@ export default function Recommendations({ recs, liveReading, onApplied }) {
           <span className="text-sky-300 font-bold tabular-nums">
             {peso(totalPotentialSavings)} / mo
           </span>
+          {recs?.monthly_co2_saved_kg > 0 && (
+            <span className="text-emerald-300 font-bold tabular-nums">· -{formatCo2(recs.monthly_co2_saved_kg)}</span>
+          )}
         </div>
       </div>
 
@@ -161,6 +164,16 @@ export default function Recommendations({ recs, liveReading, onApplied }) {
                         ? "—"
                         : `-${peso(rec.monthly_savings)} / mo`}
                     </span>
+                    {rec.co2_saved_kg > 0 && (
+                      <span className="text-[10px] text-emerald-300 tabular-nums block">
+                        -{formatCo2(rec.co2_saved_kg)} / mo
+                      </span>
+                    )}
+                    {rec.co2_shifted_kg > 0 && (
+                      <span className="text-[10px] text-slate-400 tabular-nums block" title="Moves CO₂ to the data center's grid; doesn't avoid it">
+                        {formatCo2(rec.co2_shifted_kg)} shifted
+                      </span>
+                    )}
                   </div>
 
                   {rec.apply && !result?.done ? (

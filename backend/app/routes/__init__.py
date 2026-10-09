@@ -22,5 +22,5 @@ def bill_params():
     }
 
 
-from . import (actions, device, forecast, health, impact, live, models, readings, recommendations,  # noqa: E402,F401
+from . import (actions, carbon, device, forecast, health, impact, live, models, readings, recommendations,  # noqa: E402,F401
                system, usage, validation)

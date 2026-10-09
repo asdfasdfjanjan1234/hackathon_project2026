@@ -28,6 +28,7 @@ function billQuery(params) {
     budget: params.budget,
   });
   if (params.cycleStartDay) q.set("cycle_start_day", params.cycleStartDay);
+  if (params.carbonBudget != null) q.set("carbon_budget", params.carbonBudget);
   return `?${q}`;
 }
 
@@ -40,6 +41,11 @@ export const api = {
   forecast: (params) => get(`/forecast${billQuery(params)}`),
   recommendations: (params) => get(`/recommendations${billQuery(params)}`),
   impact: (params) => get(`/impact${billQuery(params)}`),
+  // CO₂ on this device and in cloud data centers, for the same windows as usage.
+  carbon: (params, range = "30d") => {
+    const q = billQuery(params);
+    return get(`/carbon${q ? `${q}&` : "?"}range=${range}`);
+  },
   models: (params) => get(`/models${billQuery(params)}`),
 
   live: () => get("/live"),

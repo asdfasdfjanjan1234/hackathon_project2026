@@ -1,4 +1,4 @@
-import { Activity, BarChart2, Cpu, Laptop, Settings, Sliders } from "lucide-react";
+import { Activity, BarChart2, Cpu, Laptop, Leaf, Settings, Sliders } from "lucide-react";
 
 // Sidebar groups. Each item is its own view in App, except "settings" which opens the tariff modal.
 export const NAV_GROUPS = [
@@ -37,6 +37,13 @@ export const NAV_GROUPS = [
         icon: Cpu,
         title: "Model Runtimes",
         description: "Energy and cost per model for the selected window.",
+      },
+      {
+        id: "carbon",
+        label: "Carbon Ledger",
+        icon: Leaf,
+        title: "Carbon Ledger",
+        description: "CO₂ from AI on this device and in cloud data centers, and what the directives avoid.",
       },
       {
         id: "recommendations",

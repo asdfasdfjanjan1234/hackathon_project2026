@@ -45,6 +45,7 @@ export default function TariffSettingsModal({
   currentBaseline,
   currentBill,
   currentCycleStartDay,
+  currentCarbonBudget,
   defaults,
   onSave,
 }) {
@@ -53,6 +54,7 @@ export default function TariffSettingsModal({
   const [baseline, setBaseline] = useState(currentBaseline ?? 1500);
   const [bill, setBill] = useState(currentBill ?? 2500);
   const [cycleDay, setCycleDay] = useState(currentCycleStartDay ?? 1);
+  const [carbonBudget, setCarbonBudget] = useState(currentCarbonBudget ?? 10);
 
   // Start from the values in use each time the modal opens.
   useEffect(() => {
@@ -62,7 +64,8 @@ export default function TariffSettingsModal({
     setBaseline(currentBaseline ?? 1500);
     setBill(currentBill ?? 2500);
     setCycleDay(currentCycleStartDay ?? 1);
-  }, [isOpen, currentRate, currentBudget, currentBaseline, currentBill, currentCycleStartDay]);
+    setCarbonBudget(currentCarbonBudget ?? 10);
+  }, [isOpen, currentRate, currentBudget, currentBaseline, currentBill, currentCycleStartDay, currentCarbonBudget]);
 
   if (!isOpen) return null;
 
@@ -74,6 +77,7 @@ export default function TariffSettingsModal({
     setBaseline(defaults.baseline);
     setBill(defaults.currentBill);
     setCycleDay(defaults.cycleStartDay);
+    setCarbonBudget(defaults.carbonBudget);
   };
 
   const handleApply = () => {
@@ -84,6 +88,7 @@ export default function TariffSettingsModal({
         baseline: Number(baseline) || 0,
         currentBill: Number(bill) || 0,
         cycleStartDay: Math.min(Math.max(Math.round(Number(cycleDay)) || 1, 1), 31),
+        carbonBudget: Number(carbonBudget) || 0,
       });
     }
     onClose();
@@ -153,6 +158,17 @@ export default function TariffSettingsModal({
             format={(v) => peso(v, 0)}
             accent="text-rose-300"
             hint={'Used to answer "did AI raise my bill?": the increase over the baseline is split into rate change, AI and other usage.'}
+          />
+          <Field
+            label="Monthly AI carbon budget"
+            value={carbonBudget}
+            onChange={setCarbonBudget}
+            min={0}
+            max={100}
+            step={0.5}
+            format={(v) => (v > 0 ? `${v} kg CO₂ / mo` : "Off")}
+            accent="text-emerald-300"
+            hint="CO₂ from AI on this device plus cloud data centers. 0 turns the budget off."
           />
           <div className="p-3 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between gap-3">
             <div>
