@@ -41,21 +41,21 @@ export default function Sidebar({
         {/* Brand */}
         <div
           className={`h-16 flex items-center border-b border-line transition-all ${
-            collapsed ? "justify-center px-2" : "justify-between px-4"
+            collapsed ? "justify-center px-2" : "justify-between px-3.5"
           }`}
         >
           <div className="flex items-center min-w-0">
             {expanded ? (
-              <div className="flex items-center h-10">
+              <div className="flex items-center h-12">
                 <img
                   src="/logo.png"
                   alt="Kilo What?"
-                  className="h-9 w-auto max-w-[170px] object-contain dark:hidden"
+                  className="h-11 sm:h-12 w-auto max-w-[195px] object-contain dark:hidden"
                 />
                 <img
                   src="/logo-dark.png"
                   alt="Kilo What?"
-                  className="h-9 w-auto max-w-[170px] object-contain hidden dark:block"
+                  className="h-11 sm:h-12 w-auto max-w-[195px] object-contain hidden dark:block"
                 />
               </div>
             ) : (
