@@ -4,9 +4,9 @@ from app import create_app
 
 
 @pytest.fixture
-def client(tmp_path):
+def client(seeded_db):
     app = create_app()
-    app.config.update(TESTING=True, USE_SAMPLE_DATA=True, DB_PATH=str(tmp_path / "test.db"))
+    app.config.update(TESTING=True, DATABASE=seeded_db)
     return app.test_client()
 
 
@@ -55,3 +55,37 @@ def test_cloud_energy_not_counted_in_bill():
     daily = [{"kwh": 500, "source": "estimated"}]
     d = bill_impact(daily, 1500, 2500, 12, 12)
     assert d["ai_effect"] == 0 and d["cloud_ai_kwh_estimated"] == 500
+
+
+@pytest.mark.parametrize("window, days", [("7d", 7), ("30d", 30)])
+def test_usage_window_narrows_daily_rows(client, window, days):
+    data = client.get(f"/api/usage?range={window}").json
+    assert data["window"]["id"] == window
+    assert data["window_days"] == days
+    dates = {r["date"] for r in data["daily"]}
+    assert len(dates) == days
+    assert all(data["window"]["start"] <= d <= data["window"]["end"] for d in dates)
+
+
+def test_usage_month_to_date_starts_on_the_first(client):
+    data = client.get("/api/usage?range=month").json
+    assert data["window"]["start"].endswith("-01")
+    assert all(r["date"] >= data["window"]["start"] for r in data["daily"])
+
+
+def test_usage_shorter_window_uses_less_energy(client):
+    week = sum(m["kwh"] for m in client.get("/api/usage?range=7d").json["by_model"])
+    month = sum(m["kwh"] for m in client.get("/api/usage?range=30d").json["by_model"])
+    assert 0 < week < month
+
+
+def test_best_time_follows_the_tariff_setting(client):
+    client.application.config["ELECTRICITYMAPS_TOKEN"] = ""  # no network in tests
+    flat = client.get("/api/best-time?rate=12&current_bill=2500").json
+    assert flat["tariff"] == "flat" and flat["shift"] is None and flat["what_if_pop"]["household_kwh_month"] == 208
+    assert len(flat["schedule"]) == 24 and len(flat["use"]) == 24
+    pop = client.get("/api/best-time?tariff=pop&rate=12&peak_rate=14&offpeak_rate=10").json
+    assert pop["tariff"] == "pop" and pop["what_if_pop"] is None
+    assert {s["rate"] for s in pop["schedule"]} <= {14.0, 10.0}
+    # The seeded readings are at 6 AM, off-peak, so there's nothing to shift.
+    assert pop["ai"]["peak_share"] == 0 and pop["shift"] is None and pop["best"]["label"] == "9 PM – 8 AM"

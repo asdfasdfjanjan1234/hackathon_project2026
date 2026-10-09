@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { peso } from "../format";
-import { PieChart as PieIcon } from "lucide-react";
+import { peso, formatKwh, formatCo2, formatDuration } from "../format";
+import { PieChart as PieIcon, Leaf, Smartphone, Car, Wind } from "lucide-react";
 
 const VERDICT_CONFIG = {
   major: {
@@ -37,20 +37,9 @@ const VERDICT_CONFIG = {
 };
 
 export default function BillImpact({ impact }) {
-  const safeImpact = impact || {
-    baseline_bill: 1500,
-    current_bill: 2500,
-    increase: 1000,
-    ai_effect: 866,
-    rate_effect: 0,
-    other_effect: 134,
-    ai_share: 0.866,
-    verdict: "major",
-    local_ai_kwh: 72.2,
-    cloud_ai_kwh_estimated: 3.6,
-  };
-
-  const verdict = VERDICT_CONFIG[safeImpact.verdict] || VERDICT_CONFIG.major;
+  const safeImpact = impact || {};
+  const verdict = VERDICT_CONFIG[safeImpact.verdict] || VERDICT_CONFIG.none;
+  const eq = safeImpact.equivalents;
 
   const donutData = useMemo(() => {
     const raw = [
@@ -63,6 +52,7 @@ export default function BillImpact({ impact }) {
   }, [safeImpact]);
 
   const totalIncrease = Math.max(1, safeImpact.increase || 1);
+  if (!impact) return <section className="dash-card p-5 h-72 animate-pulse" />;
   const aiSharePct = ((safeImpact.ai_share || 0) * 100).toFixed(1);
 
   const CustomDonutTooltip = ({ active, payload }) => {
@@ -151,7 +141,9 @@ export default function BillImpact({ impact }) {
               {verdict.status}: {aiSharePct}% of Surge
             </div>
             <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
-              {verdict.desc} Local AI processes consumed {safeImpact.local_ai_kwh} kWh (₱{safeImpact.ai_effect}) on this hardware device.
+              {verdict.desc} AI apps and local models used {formatKwh(safeImpact.local_ai_kwh)} on this device
+              ({peso(safeImpact.ai_effect)} of the increase)
+              {eq && ` ≈ ${formatCo2(eq.co2_kg)}, or ${formatDuration(eq.aircon_hours)} of running a 1 HP aircon`}.
             </p>
           </div>
 
@@ -181,10 +173,57 @@ export default function BillImpact({ impact }) {
         </div>
       </div>
 
+      {/* Environmental & Carbon Equivalencies Matrix */}
+      {eq && (
+        <div className="pt-3 border-t border-white/5 space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-mono">
+            <span className="text-slate-300 font-semibold uppercase flex items-center gap-1.5">
+              <Leaf className="w-3.5 h-3.5 text-emerald-400" />
+              Green Computing & Eco Equivalencies
+            </span>
+            <span className="text-[10px] text-slate-400">Grid Factor: 0.70 kg CO₂/kWh</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono">
+            <div className="p-2.5 rounded bg-white/[0.02] border border-white/5 flex flex-col gap-1">
+              <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold uppercase">
+                <Leaf className="w-3 h-3" />
+                <span>Emissions</span>
+              </div>
+              <div className="text-sm font-bold text-white tabular-nums">{formatCo2(eq.co2_kg)}</div>
+              <div className="text-[9px] text-slate-400 font-sans">Carbon Footprint</div>
+            </div>
+            <div className="p-2.5 rounded bg-white/[0.02] border border-white/5 flex flex-col gap-1">
+              <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold uppercase">
+                <Wind className="w-3 h-3" />
+                <span>Offset</span>
+              </div>
+              <div className="text-sm font-bold text-white tabular-nums">{eq.trees_offset || 0} Trees</div>
+              <div className="text-[9px] text-slate-400 font-sans">Monthly Absorption</div>
+            </div>
+            <div className="p-2.5 rounded bg-white/[0.02] border border-white/5 flex flex-col gap-1">
+              <div className="flex items-center gap-1.5 text-[10px] text-sky-400 font-semibold uppercase">
+                <Smartphone className="w-3 h-3" />
+                <span>Phone Draw</span>
+              </div>
+              <div className="text-sm font-bold text-white tabular-nums">{(eq.smartphone_charges || 0).toLocaleString()}x</div>
+              <div className="text-[9px] text-slate-400 font-sans">Full Battery Charges</div>
+            </div>
+            <div className="p-2.5 rounded bg-white/[0.02] border border-white/5 flex flex-col gap-1">
+              <div className="flex items-center gap-1.5 text-[10px] text-sky-400 font-semibold uppercase">
+                <Car className="w-3 h-3" />
+                <span>EV Range</span>
+              </div>
+              <div className="text-sm font-bold text-white tabular-nums">{eq.ev_km || 0} km</div>
+              <div className="text-[9px] text-slate-400 font-sans">EV Highway Equivalent</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Industrial Footnote */}
       <div className="pt-2.5 border-t border-white/5 flex flex-wrap items-center justify-between text-[10px] font-mono text-slate-400 gap-2">
-        <span>Cloud token APIs (~{safeImpact.cloud_ai_kwh_estimated} kWh) operate in provider data centers.</span>
-        <span className="text-slate-400">MATH: OLS DELTA DECOMPOSITION</span>
+        <span>Cloud AI runs in provider data centers, so it isn't counted in your bill.</span>
+        <span className="text-slate-400">MATH: RATE · AI · OTHER USAGE DECOMPOSITION</span>
       </div>
     </section>
   );

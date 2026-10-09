@@ -35,9 +35,10 @@ class FakePlatform:
         return dict(self._measured)
 
 
-def test_linux_has_no_platform_sensors_so_everything_is_estimated():
-    sensors = Sensors(system={"os": "linux", "memory_gb": 8})
-    assert sensors.platform is None
+def test_linux_without_readable_sensors_estimates_everything(tmp_path):
+    from app.services.sensors_linux import LinuxSensors
+    sensors = Sensors(system={"os": "linux", "memory_gb": 8}, platform_sensors=LinuxSensors(root=str(tmp_path)))
+    assert set(sensors.sources().values()) == {None}
     parts = sensors.components(50, 0, PowerModel())
     assert {k: v["source"] for k, v in parts.items()} == dict.fromkeys(("cpu", "gpu", "memory", "disk"), "estimated")
 
@@ -53,6 +54,18 @@ def test_measured_components_keep_their_sensor_and_the_rest_are_estimated():
     assert parts["cpu"]["watts"] + parts["memory"]["watts"] == pytest.approx(4.0 + estimate_memory_watts(8, 0), abs=1e-3)
     explained = sum(parts[k]["watts"] for k in ("cpu", "gpu", "memory", "disk"))
     assert parts["other"]["watts"] == pytest.approx(10.0 - explained, abs=1e-3)
+
+
+def test_estimated_components_never_exceed_the_measured_total():
+    mac = FakePlatform({"system": "battery (ioreg)", "gpu": "IOReport GPU Energy"}, {"gpu": 1.0})
+    model = PowerModel(idle_watts=3, watts_per_cpu_pct=0.2, watts_per_gpu_pct=0.2)
+    # CPU alone is estimated at 0.2 W/% × 80% = 16 W, far above the 5 W the battery measured.
+    parts = Sensors(system=MAC, platform_sensors=mac).components(80, 10, model, system_watts=5.0)
+
+    assert parts["gpu"]["watts"] == 1.0  # measured parts are kept as read
+    estimated = sum(parts[k]["watts"] for k in ("cpu", "memory", "disk"))
+    assert estimated == pytest.approx(4.0, abs=1e-2)  # scaled into the 4 W the measured GPU leaves
+    assert parts["other"]["watts"] == pytest.approx(0.0, abs=1e-2)
 
 
 def test_windows_sources_report_emi_channels():
@@ -143,7 +156,7 @@ def test_system_endpoint_reports_detected_os_and_sensors(tmp_path, monkeypatch):
     fake = Sensors(system=WINDOWS, platform_sensors=FakePlatform({"cpu": "EMI (RAPL)"}, {}))
     monkeypatch.setattr(system_route, "default_sensors", lambda: fake)
     flask_app = create_app()
-    flask_app.config.update(TESTING=True, DB_PATH=str(tmp_path / "t.db"))
+    flask_app.config.update(TESTING=True, DATABASE=str(tmp_path / "t.db"))
     body = flask_app.test_client().get("/api/system").json
     assert body["system"]["os"] == "windows"
     assert body["sensors"]["cpu"] == "EMI (RAPL)" and body["sensors"]["memory"] is None

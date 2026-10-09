@@ -9,7 +9,7 @@ from . import api_bp
 
 @api_bp.get("/live")
 def live():
-    with closing(storage.connect(current_app.config["DB_PATH"])) as conn:
+    with closing(storage.connect(current_app.config["DATABASE"])) as conn:
         latest = storage.latest_sample(conn)
     # Without the collector running, fall back to a direct reading (total watts only).
     return jsonify(latest or read_live_power())

@@ -2,8 +2,10 @@
 __pycache__/
 *.pyc
 .venv/
+env/
 .env
 *.db
+*.log
 
 # Node
 node_modules/
@@ -12,3 +14,6 @@ dist/
 # OS / editor
 .DS_Store
 .vscode/
+
+# Device reader on/off flag
+reader.on

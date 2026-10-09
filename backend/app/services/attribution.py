@@ -8,7 +8,12 @@ minute. We fit
 to those readings with non-negative least squares, which calibrates the
 formula to this specific machine. The formula then gives watts every few
 seconds, and each AI app gets the share matching its CPU use (and GPU use
-for local model runners). Idle power is never assigned to an app.
+for local model runners), kept as separate CPU, GPU and memory watts so each
+can be monitored. Idle power is never assigned to an app.
+
+Where the OS measures CPU or GPU power directly (RAPL, nvidia-smi, IOReport),
+apps get their share of that measured power above idle instead of the formula.
+Until the formula is fitted, defaults for the kind of device are used.
 """
 
 from dataclasses import asdict, dataclass
@@ -18,6 +23,8 @@ import numpy as np
 
 MIN_WINDOWS = 8          # telemetry readings needed before fitting
 MIN_SPREAD_PCT = 3.0     # a resource must vary this much (std dev) to fit its coefficient
+ACTIVE_CPU_PCT = 1.0     # % of one core: a model runner below this isn't generating
+BUSY_CPU_PCT = 10.0      # % of one core: an AI app above this is doing real work, not just staying open
 
 
 def nnls(A, b):
@@ -52,6 +59,22 @@ class PowerModel:
         return asdict(self)
 
 
+def default_power_model(system=None):
+    """Starting coefficients for this kind of device, until enough readings are fitted.
+
+    Order-of-magnitude figures: an Apple M2 laptop (~20 W at full load), a Windows/Linux
+    laptop (~30 W CPU), a desktop (~65 W CPU, ~150 W for a discrete GPU at full load).
+    Everything computed from them is labeled estimated.
+    """
+    system = system or {}
+    if system.get("apple_silicon") or not system:
+        return PowerModel()
+    discrete = any(g.get("type") == "discrete" for g in system.get("gpus") or [])
+    if (system.get("device") or {}).get("type") == "laptop":
+        return PowerModel(idle_watts=6.0, watts_per_cpu_pct=0.30, watts_per_gpu_pct=0.30 if discrete else 0.10)
+    return PowerModel(idle_watts=40.0, watts_per_cpu_pct=0.65, watts_per_gpu_pct=1.5 if discrete else 0.15)
+
+
 def fit_power_model(windows, default=None):
     """Fit from [(avg_watts, avg_cpu_pct, avg_gpu_pct)]. Returns None if the data can't support a fit."""
     default = default or PowerModel()
@@ -73,15 +96,85 @@ def fit_power_model(windows, default=None):
     return PowerModel(float(idle), float(w_cpu), float(w_gpu), fitted_on=len(data))
 
 
-def attribute(model, gpu_pct, apps, ncpu):
-    """Set apps[i]["watts"]. App CPU % is per core (can exceed 100), so divide by core count.
+def activity(app):
+    """What an AI app is doing in this reading, from its CPU and GPU use:
 
-    GPU power goes only to local model runners, which dominate GPU use while running.
+    "working":    a local model generating, or an app streaming a reply, running tools or indexing
+    "background": open and doing light upkeep (timers, syncing, file watching)
+    "loaded":     a local model held in memory but not generating
+    "idle":       open and waiting for a prompt
     """
-    local_cpu = sum(a["cpu_percent"] for a in apps if a["kind"] == "local")
-    gpu_watts = model.watts_per_gpu_pct * gpu_pct
-    for a in apps:
-        cpu_w = model.watts_per_cpu_pct * a["cpu_percent"] / ncpu
-        gpu_w = gpu_watts * a["cpu_percent"] / local_cpu if a["kind"] == "local" and local_cpu > 0 else 0.0
-        a["watts"] = round(cpu_w + gpu_w, 3)
+    cpu = app.get("cpu_percent") or 0.0
+    if app.get("kind") == "local":
+        if cpu >= ACTIVE_CPU_PCT or (app.get("gpu_share") or 0) > 0:
+            return "working"
+        return "loaded" if app.get("model_mb") else "idle"
+    if cpu >= BUSY_CPU_PCT:
+        return "working"
+    return "background" if cpu >= ACTIVE_CPU_PCT else "idle"
+
+
+def _gpu_shares(apps, gpu_by_pid, gpu_pids):
+    """Each app's share of the GPU's power above idle (list aligned with apps)."""
+    pids = [set(a.get("pids") or []) for a in apps]
+    total = sum(gpu_by_pid.values()) if gpu_by_pid else 0
+    if total > 0:
+        # 1. The OS reports GPU use per process (Windows): any AI app gets its own share.
+        return [sum(gpu_by_pid.get(p, 0.0) for p in ps) / total for ps in pids]
+    if gpu_pids:
+        # 2. NVIDIA lists the processes doing GPU compute: only local runners in that list.
+        users = [a["kind"] == "local" and bool(ps & gpu_pids) for a, ps in zip(apps, pids)]
+    else:
+        # 3. Otherwise assume active local model runners are what's using the GPU.
+        users = [a["kind"] == "local" and a["cpu_percent"] >= ACTIVE_CPU_PCT for a in apps]
+    cpu = [a["cpu_percent"] if u else 0.0 for a, u in zip(apps, users)]
+    if sum(cpu) > 0:
+        return [c / sum(cpu) for c in cpu]
+    n = sum(users)
+    return [1 / n if u else 0.0 for u in users] if n else [0.0] * len(apps)
+
+
+def attribute(model, gpu_pct, apps, ncpu, cpu_pct=None, measured=None, gpu_by_pid=None, gpu_pids=None,
+              memory_est=0.0):
+    """Set each app's watts and its parts: cpu_watts, gpu_watts, memory_watts, plus gpu_share.
+    App CPU % is per core (can exceed 100), so divide by core count.
+
+    `measured` = {"cpu": W, "gpu": W, "memory": W} above idle, for components with a power sensor.
+    CPU: with a sensor, the app's share of all CPU use × measured CPU power; else the formula.
+    GPU: measured GPU power (else the formula), split by who used the GPU (_gpu_shares).
+    Memory: traffic follows compute, so the memory power above idle (measured, else `memory_est`)
+    is split by each app's share of the CPU and GPU watts. Holding RAM adds no power (refresh
+    runs either way), so a loaded model that isn't generating gets none. When CPU watts come
+    from the formula, its coefficient already covers the memory traffic CPU work causes, so
+    that part moves from cpu_watts to memory_watts instead of being counted twice.
+    """
+    measured = measured or {}
+    cpu_measured = "cpu" in measured and bool(cpu_pct)
+    gpu_total = measured["gpu"] if "gpu" in measured else model.watts_per_gpu_pct * gpu_pct
+    memory_total = measured.get("memory", memory_est)
+    shares = _gpu_shares(apps, gpu_by_pid, gpu_pids)
+    parts = []
+    for a, share in zip(apps, shares):
+        app_pct = a["cpu_percent"] / ncpu  # % of the whole CPU
+        if cpu_measured:
+            cpu_w = measured["cpu"] * min(app_pct / cpu_pct, 1.0)
+        else:
+            cpu_w = model.watts_per_cpu_pct * app_pct
+        parts.append((cpu_w, gpu_total * share))
+    if cpu_measured:
+        cpu_total = measured["cpu"]
+    elif cpu_pct is not None:
+        cpu_total = model.watts_per_cpu_pct * cpu_pct
+    else:
+        cpu_total = sum(c for c, _ in parts)
+    compute_total = cpu_total + gpu_total
+    for a, share, (cpu_w, gpu_w) in zip(apps, shares, parts):
+        memory_w = memory_total * min((cpu_w + gpu_w) / compute_total, 1.0) if compute_total > 0 else 0.0
+        if not cpu_measured:
+            moved = min(memory_w, cpu_w)
+            cpu_w -= moved
+            if "memory" not in measured:
+                memory_w = moved
+        a.update(cpu_watts=round(cpu_w, 3), gpu_watts=round(gpu_w, 3), memory_watts=round(memory_w, 3),
+                 gpu_share=round(share, 3), watts=round(cpu_w + gpu_w + memory_w, 3))
     return apps

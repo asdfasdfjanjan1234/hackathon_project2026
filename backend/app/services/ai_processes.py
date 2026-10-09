@@ -2,14 +2,47 @@
 
 kind "local":  the model runs on this machine, so inference energy is on the user's bill.
 kind "client": a cloud AI app; only its own CPU use on this machine is on the bill.
+
+Processes started by a coding agent (tests, builds, shells) count toward that agent as
+"tool runs": they use this machine's CPU, so they are on the bill too. Each app also gets
+the host it runs in (VS Code, Terminal, ...), found by walking up its parent processes.
+
+Apps not listed here are found by their network connections: a process talking to an AI
+provider's API is counted as an "unrecognized AI app", so new tools show up without a
+code change.
 """
 
-import json
-import urllib.request
+import os
+import re
+import socket
+import threading
+import time
 
 import psutil
 
-# Checked in order; the first match wins. Arguments are lowercased.
+
+def _is_antigravity(name, exe):
+    # macOS app bundle, Windows (%LOCALAPPDATA%/Programs/Antigravity) and Linux (/usr/share/antigravity).
+    return "/antigravity.app/" in exe or "/antigravity/" in exe or name == "antigravity.exe"
+
+
+def _is_ide(name, exe, app, exe_name=None):
+    """An editor installed as a macOS app bundle (Kiro.app), on Windows (%LOCALAPPDATA%/Programs/Kiro/
+    Kiro.exe) or on Linux (/usr/share/kiro). `app` is lowercase."""
+    return (f"/{app}.app/" in exe or f"/programs/{app}/" in exe or f"/share/{app}/" in exe
+            or name == f"{exe_name or app}.exe")
+
+
+def _is_kiro(name, exe):
+    return _is_ide(name, exe, "kiro")
+
+
+def _is_devin_desktop(name, exe):
+    # Cognition's IDE, formerly Windsurf. macOS app bundle, Windows and Linux installs.
+    return "/devin.app/" in exe or "/programs/devin/" in exe or "/share/devin/" in exe or name == "devin desktop.exe"
+
+
+# Checked in order; the first match wins. Arguments are lowercased, with "/" as path separator.
 AI_APPS = [
     ("Ollama", "local", lambda name, exe, cmd: name.startswith("ollama")),
     ("LM Studio", "local", lambda name, exe, cmd: "/lm studio.app/" in exe or name in ("lms", "llmster")),
@@ -17,65 +50,317 @@ AI_APPS = [
     ("MLX", "local", lambda name, exe, cmd: "mlx_lm" in cmd),
     ("Claude Desktop", "client", lambda name, exe, cmd: "/claude.app/" in exe),
     ("Claude Code", "client", lambda name, exe, cmd: name == "claude" or "@anthropic-ai/claude-code" in cmd),
+    ("Codex", "client", lambda name, exe, cmd: name in ("codex", "codex.exe") or "/openai.chatgpt-" in exe),
+    ("Amazon Q", "client", lambda name, exe, cmd: "/aws/language-servers/" in exe or "amazonq" in name),
     ("ChatGPT", "client", lambda name, exe, cmd: "/chatgpt.app/" in exe),
-    ("Cursor", "client", lambda name, exe, cmd: "/cursor.app/" in exe),
+    ("Cursor", "client", lambda name, exe, cmd: _is_ide(name, exe, "cursor")),
+    ("Windsurf", "client", lambda name, exe, cmd: _is_ide(name, exe, "windsurf")),
+    ("Trae", "client", lambda name, exe, cmd: _is_ide(name, exe, "trae")),
+    # The `devin` agent is the Devin CLI, and Devin Desktop runs the same binary (`devin acp`).
+    # Devin Desktop's own main process is also named Devin.
+    ("Devin", "client", lambda name, exe, cmd: name in ("devin", "devin.exe")
+     and ("/devin/bin/" in exe or not _is_devin_desktop(name, exe))),
+    ("Devin Desktop", "client", lambda name, exe, cmd: _is_devin_desktop(name, exe)),
+    ("Antigravity", "client", lambda name, exe, cmd: _is_antigravity(name, exe)),
+    ("Kiro", "client", lambda name, exe, cmd: _is_kiro(name, exe)),
+    ("Kiro Crew", "client", lambda name, exe, cmd: _is_ide(name, exe, "kirocrew")),
+    ("Gemini CLI", "client", lambda name, exe, cmd: name == "gemini" or "@google/gemini-cli" in cmd),
     ("OpenCode", "client", lambda name, exe, cmd: "/opencode.app/" in exe or name == "opencode"),
+    # Last: VS Code forks bundle VS Code's Copilot runtime, so they must match first.
     ("GitHub Copilot", "client", lambda name, exe, cmd: "copilot" in exe),
 ]
 
+# Agents whose child processes are commands they ran for the user. Not IDEs like
+# Cursor: their children include the user's own terminals.
+TOOL_RUNNERS = {"Claude Code", "Codex", "Gemini CLI", "OpenCode", "Devin"}
+
+# JetBrains IDEs: macOS bundle name, and the program name on Windows (idea64.exe) and in
+# Toolbox installs (~/.local/share/JetBrains/Toolbox/apps/idea-ultimate/...).
+JETBRAINS = {"IntelliJ IDEA": "idea", "PyCharm": "pycharm", "WebStorm": "webstorm", "GoLand": "goland",
+             "PhpStorm": "phpstorm", "RubyMine": "rubymine", "CLion": "clion", "Rider": "rider",
+             "DataGrip": "datagrip", "RustRover": "rustrover", "Android Studio": "studio"}
+
+
+def _is_jetbrains(name, exe, label, program):
+    return ((f"/{label.lower()}" in exe and ".app/" in exe) or name == f"{program}64.exe"
+            or ("/jetbrains/" in exe and f"/{program}" in exe))
+
+
+HOSTS = [
+    ("VS Code", lambda name, exe: "/visual studio code.app/" in exe or name == "code.exe" or "/share/code/" in exe),
+    ("VS Code Insiders", lambda name, exe: "/visual studio code - insiders.app/" in exe
+     or name == "code - insiders.exe" or "/share/code-insiders/" in exe),
+    ("VSCodium", lambda name, exe: _is_ide(name, exe, "vscodium") or name == "codium"),
+    ("Cursor", lambda name, exe: _is_ide(name, exe, "cursor")),
+    ("Windsurf", lambda name, exe: _is_ide(name, exe, "windsurf")),
+    ("Devin Desktop", lambda name, exe: _is_devin_desktop(name, exe)),
+    ("Antigravity", lambda name, exe: _is_antigravity(name, exe)),
+    ("Kiro", lambda name, exe: _is_kiro(name, exe)),
+    ("Kiro Crew", lambda name, exe: _is_ide(name, exe, "kirocrew")),
+    ("Trae", lambda name, exe: _is_ide(name, exe, "trae")),
+    ("Zed", lambda name, exe: "/zed.app/" in exe or "/zed preview.app/" in exe or name in ("zed", "zed.exe", "zed-editor")),
+    ("Orca", lambda name, exe: _is_ide(name, exe, "orca")),
+    ("OpenCode", lambda name, exe: "/opencode.app/" in exe),
+    *[(label, lambda name, exe, label=label, program=program: _is_jetbrains(name, exe, label, program))
+      for label, program in JETBRAINS.items()],
+    ("Xcode", lambda name, exe: "/xcode.app/contents/macos/" in exe),
+    ("Terminal", lambda name, exe: "/terminal.app/" in exe),
+    ("iTerm", lambda name, exe: "/iterm.app/" in exe),
+    ("Warp", lambda name, exe: "/warp.app/" in exe or name in ("warp.exe", "warp-terminal")),
+    ("Ghostty", lambda name, exe: "/ghostty.app/" in exe or name == "ghostty"),
+    ("WezTerm", lambda name, exe: "/wezterm.app/" in exe or name in ("wezterm-gui", "wezterm-gui.exe")),
+    ("Alacritty", lambda name, exe: "/alacritty.app/" in exe or name in ("alacritty", "alacritty.exe")),
+    ("kitty", lambda name, exe: "/kitty.app/" in exe or name == "kitty"),
+    ("Hyper", lambda name, exe: "/hyper.app/" in exe or name == "hyper.exe"),
+    ("Tabby", lambda name, exe: "/tabby.app/" in exe or name == "tabby.exe"),
+    ("GNOME Terminal", lambda name, exe: name == "gnome-terminal-server"),
+    ("Konsole", lambda name, exe: name == "konsole"),
+    ("Windows Terminal", lambda name, exe: name == "windowsterminal.exe"),
+    ("PowerShell", lambda name, exe: name in ("powershell.exe", "pwsh.exe")),
+]
+
+# Editors whose built-in AI runs in the editor's own process, so they are still counted
+# (as unrecognized AI apps) while they talk to an AI API.
+IN_PROCESS_AI_HOSTS = {"Zed", "Xcode"}
+
+MAX_DEPTH = 40  # guards against cycles in the parent chain
+
+
+def _norm(name, exe, cmdline):
+    return (name or "").lower(), (exe or "").lower().replace("\\", "/"), (cmdline or "").lower()
+
 
 def classify(name, exe, cmdline):
-    name, exe, cmd = (name or "").lower(), (exe or "").lower(), (cmdline or "").lower()
+    name, exe, cmd = _norm(name, exe, cmdline)
     for label, kind, match in AI_APPS:
         if match(name, exe, cmd):
             return label, kind
     return None
 
 
+def host_of(name, exe):
+    name, exe, _ = _norm(name, exe, "")
+    for label, match in HOSTS:
+        if match(name, exe):
+            return label
+    return None
+
+
+def _ancestors(pid, procs):
+    seen = set()
+    pid = procs[pid]["ppid"] if pid in procs else None
+    while pid in procs and pid not in seen and len(seen) < MAX_DEPTH:
+        seen.add(pid)
+        yield pid
+        pid = procs[pid]["ppid"]
+
+
+def group_processes(procs, exclude=(), extra=None):
+    """Assign processes to AI apps.
+
+    procs: {pid: {"ppid", "name", "exe", "cmdline"}}. Returns {pid: (app, kind, host, is_tool_run)}.
+    Processes in `exclude` (and their children) are skipped, so this app never measures itself.
+    `extra` = {pid: (app, kind)} for apps found another way (unrecognized_apps).
+    """
+    extra = extra or {}
+    direct = {pid: classify(p["name"], p["exe"], p["cmdline"]) or extra.get(pid) for pid, p in procs.items()}
+    out = {}
+    for pid, p in procs.items():
+        if pid in exclude or any(a in exclude for a in _ancestors(pid, procs)):
+            continue
+        match, tool_run, root = direct[pid], False, pid
+        if not match:
+            # A command run by an agent, e.g. `npm test` started by Claude Code.
+            agent = next((a for a in _ancestors(pid, procs) if direct[a] and direct[a][0] in TOOL_RUNNERS), None)
+            if agent is None:
+                continue
+            match, tool_run, root = direct[agent], True, agent
+        label, kind = match
+        host = next((h for a in _ancestors(root, procs)
+                     if direct[a] is None or direct[a][0] != label
+                     for h in [host_of(procs[a]["name"], procs[a]["exe"])] if h), None)
+        out[pid] = (label, kind, host, tool_run)
+    return out
+
+
+# --- Apps not in AI_APPS --------------------------------------------------------
+
+# AI APIs served from addresses of their own. Most other providers (Google, Mistral,
+# OpenRouter, Groq, ...) sit behind CDN addresses shared with unrelated sites, which
+# would flag apps that never use AI, so they aren't listed.
+AI_API_HOSTS = ("api.anthropic.com", "api.openai.com", "api.githubcopilot.com",
+                "api.individual.githubcopilot.com",
+                # Cognition (Devin, Windsurf), whose clients reach models through its own servers.
+                "server.codeium.com", "inference.codeium.com", "api.devin.ai")
+DNS_EVERY_S = 600   # re-resolve the APIs this often; addresses seen before are kept
+SCAN_EVERY_S = 15   # read every process's connections this often
+STICKY_S = 600      # an app stays counted this long after its last API connection
+UNRECOGNIZED = "unrecognized AI app"
+
+# Browsers reach AI websites but also everything else, so their use isn't counted as AI.
+BROWSERS = {"safari", "google chrome", "chrome", "chromium", "firefox", "microsoft edge", "msedge",
+            "brave browser", "brave", "arc", "opera", "vivaldi", "dia", "comet", "chatgpt atlas"}
+SYSTEM_DIRS = ("/system/", "/usr/libexec/", "/usr/sbin/", "/sbin/", "c:/windows/")
+INTERPRETER = re.compile(r"(python|node|bun|deno|ruby)[\d.]*(\.exe)?$")
+
+_api_ips = {"at": None, "ips": set()}
+_scan = {"at": None}
+_seen = {}  # app key -> last time it had a connection to an AI API
+
+
+def _resolve_api_ips():
+    ips = set()
+    for host in AI_API_HOSTS:
+        try:
+            ips.update(a[4][0] for a in socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP))
+        except OSError:
+            continue
+    _api_ips["ips"] = _api_ips["ips"] | ips  # replaced, not changed, while the sampler may be reading it
+
+
+def ai_api_ips():
+    """Addresses of the AI APIs. Resolved in the background so a slow DNS never stalls sampling."""
+    now = time.monotonic()
+    if _api_ips["at"] is None or now - _api_ips["at"] >= DNS_EVERY_S:
+        _api_ips["at"] = now
+        threading.Thread(target=_resolve_api_ips, daemon=True).start()
+    return _api_ips["ips"]
+
+
+def _bundle(exe):
+    """The outermost macOS app bundle in a path ("/Applications/Zed.app/…" → "/Applications/Zed.app")."""
+    m = re.search(r"^(.*?/([^/]+)\.app)/", exe)
+    return (m.group(1), m.group(2)) if m else None
+
+
+def app_name(name, exe, argv):
+    """What to call an unrecognized app: its macOS bundle, the package or script an
+    interpreter runs (`python /usr/local/bin/aider` → "aider"), else the process name."""
+    if INTERPRETER.match((name or "").lower()):
+        script = next((a for a in argv[1:] if not a.startswith("-")), None)
+        if script:
+            script = script.replace("\\", "/")
+            pkg = re.search(r"node_modules/((?:@[^/]+/)?[^/]+)", script)
+            return pkg.group(1) if pkg else os.path.splitext(os.path.basename(script))[0]
+    bundle = _bundle((exe or "").replace("\\", "/"))
+    return bundle[1] if bundle else re.sub(r"\.exe$", "", name or "", flags=re.I)
+
+
+def app_key(pid, p):
+    """Processes with the same key are one app: a whole macOS bundle (its network helper is
+    often not the process doing the work), or all copies of one program. Interpreters are
+    keyed by process, since every Python script shares the same program (on macOS, even
+    the same Python.app bundle)."""
+    exe = (p["exe"] or "").replace("\\", "/")
+    if INTERPRETER.match((p["name"] or "").lower()) or not exe:
+        return (pid, p["name"])
+    bundle = _bundle(exe)
+    return bundle[0].lower() if bundle else exe.lower()
+
+
+def is_candidate(pid, procs, known):
+    """Could this be an AI app we don't know? Not a known app or a child of one (those are
+    tool runs), not a known editor or terminal (their AI extensions share one process with
+    everything else) unless its AI is built in, not a browser and not part of the OS.
+    known = {pid: classify(...)}."""
+    p = procs[pid]
+    name, exe, _ = _norm(p["name"], p["exe"], "")
+    if known[pid] or host_of(name, exe) not in (None, *IN_PROCESS_AI_HOSTS) or exe.startswith(SYSTEM_DIRS):
+        return False
+    if any(known[a] for a in _ancestors(pid, procs)):
+        return False
+    return app_name(p["name"], p["exe"], []).lower() not in BROWSERS
+
+
+def unrecognized_apps(procs, talks_to_ai, now=None):
+    """{pid: (app name, "client")} for apps not in AI_APPS that recently talked to an AI API.
+
+    talks_to_ai(pid) says whether a process has a connection to one now. It is asked every
+    SCAN_EVERY_S, and an app stays counted for STICKY_S after, so the work it does between
+    requests is counted too.
+    """
+    now = time.monotonic() if now is None else now
+    for key in [k for k, t in _seen.items() if now - t >= STICKY_S]:
+        del _seen[key]
+    scan = _scan["at"] is None or now - _scan["at"] >= SCAN_EVERY_S
+    if not scan and not _seen:
+        return {}
+    known = {pid: classify(p["name"], p["exe"], p["cmdline"]) for pid, p in procs.items()}
+    candidates = [pid for pid in procs if is_candidate(pid, procs, known)]
+    if scan:
+        _scan["at"] = now
+        for pid in candidates:
+            if talks_to_ai(pid):
+                _seen[app_key(pid, procs[pid])] = now
+    return {pid: (app_name(procs[pid]["name"], procs[pid]["exe"], procs[pid].get("argv") or []), "client")
+            for pid in candidates if app_key(pid, procs[pid]) in _seen}
+
+
+def _connected_to(handle, ips):
+    try:
+        return any(c.raddr and c.raddr.ip in ips for c in handle.net_connections(kind="inet"))
+    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError):
+        return False
+
+
+def flag_value(argv, flag):
+    """The value after `flag` in an argument list (`--flag value` or `--flag=value`)."""
+    for i, arg in enumerate(argv):
+        if arg == flag and i + 1 < len(argv):
+            return argv[i + 1]
+        if arg.startswith(flag + "="):
+            return arg[len(flag) + 1:]
+    return None
+
+
 def find_ai_processes():
     """CPU % (of one core, like Activity Monitor) and memory per AI app, summed over its processes.
 
+    One row per app and host, plus a "tool runs" row for commands an agent started. Each
+    Ollama model runner (`ollama runner --model <blob>`) gets its own row with its model
+    path, which local_models.label_local_models turns into the model's name. Rows keep
+    their process IDs so per-process GPU readings can be matched to them.
     psutil caches processes between calls, so CPU % is measured since the previous call.
     """
-    apps = {}
-    for p in psutil.process_iter(["name", "exe", "cmdline", "memory_info"]):
+    handles, procs, argv = {}, {}, {}
+    for p in psutil.process_iter(["ppid", "name", "exe", "cmdline"]):
         try:
-            cmdline = " ".join(p.info["cmdline"] or [])
-            match = classify(p.info["name"], p.info["exe"], cmdline)
-            if not match:
-                continue
-            cpu = p.cpu_percent(None)
-            rss = p.info["memory_info"].rss if p.info["memory_info"] else 0
+            argv[p.pid] = p.info["cmdline"] or []
+            procs[p.pid] = {**p.info, "cmdline": " ".join(argv[p.pid]), "argv": argv[p.pid]}
+            handles[p.pid] = p
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
-        label, kind = match
-        app = apps.setdefault(label, {"app": label, "model": None, "kind": kind, "cpu_percent": 0.0, "rss_mb": 0.0})
+
+    ips = ai_api_ips()
+    extra = unrecognized_apps(procs, lambda pid: _connected_to(handles[pid], ips)) if ips else {}
+    unknown = {label for label, _ in extra.values()}
+
+    apps = {}
+    for pid, (label, kind, host, tool_run) in group_processes(procs, exclude={os.getpid()}, extra=extra).items():
+        p = handles[pid]
+        try:
+            cpu = p.cpu_percent(None)
+            rss = p.memory_info().rss
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+        model_path = flag_value(argv[pid], "--model") if label == "Ollama" and not tool_run else None
+        key = (label, host, tool_run, model_path)
+        model = f"{label} · tool runs" if tool_run else f"{label} · {UNRECOGNIZED}" if label in unknown else None
+        app = apps.setdefault(key, {"app": label, "model": model, "effort": None,
+                                    "kind": kind, "host": host, "cpu_percent": 0.0, "rss_mb": 0.0,
+                                    "pids": [], "model_path": model_path})
         app["cpu_percent"] += cpu
         app["rss_mb"] += rss / 1_048_576
+        app["pids"].append(pid)
     return list(apps.values())
 
 
-def ollama_loaded_models(timeout=0.5):
-    """Models Ollama currently has in memory, as [(name, size_vram_bytes)]."""
-    try:
-        with urllib.request.urlopen("http://127.0.0.1:11434/api/ps", timeout=timeout) as res:
-            data = json.load(res)
-    except (OSError, ValueError):
-        return []
-    return [(m["name"], m.get("size_vram") or m.get("size") or 1) for m in data.get("models", [])]
-
-
-def split_ollama_by_model(apps):
-    """Replace the single Ollama row with one row per loaded model, split by memory size."""
-    out = []
+def label_active_models(apps, active):
+    """Name the cloud model each client app is using, and the reasoning effort it asks for,
+    from `active` = {app: (model id, effort or None)}."""
     for app in apps:
-        models = ollama_loaded_models() if app["app"] == "Ollama" else []
-        if not models:
-            out.append(app)
-            continue
-        total = sum(size for _, size in models)
-        for name, size in models:
-            share = size / total
-            out.append({**app, "model": f"Ollama · {name}",
-                        "cpu_percent": app["cpu_percent"] * share, "rss_mb": app["rss_mb"] * share})
-    return out
+        model, effort = active.get(app["app"]) or (None, None)
+        if app["kind"] == "client" and app["model"] is None and model:
+            app["model"] = f"{app['app']} · {model}"
+            app["effort"] = effort
+    return apps

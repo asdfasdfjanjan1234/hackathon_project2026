@@ -1,54 +1,76 @@
-async function get(path) {
-  const res = await fetch(`/api${path}`);
-  if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
+async function request(path, options) {
+  const res = await fetch(`/api${path}`, options);
+  if (!res.ok) {
+    // The backend explains refused actions ("start the device reader first") in `error`.
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error || `${path} failed: ${res.status}`);
+  }
   return res.json();
 }
 
+const get = (path) => request(path);
+const post = (path, body) =>
+  request(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+const del = (path) => request(path, { method: "DELETE" });
+
+// The user's rate, bills and budget; the backend does all bill math with them.
+function billQuery(params) {
+  if (!params) return "";
+  const q = new URLSearchParams({
+    rate: params.rate,
+    baseline_rate: params.rate,
+    baseline_bill: params.baseline,
+    current_bill: params.currentBill,
+    budget: params.budget,
+  });
+  if (params.cycleStartDay) q.set("cycle_start_day", params.cycleStartDay);
+  if (params.carbonBudget != null) q.set("carbon_budget", params.carbonBudget);
+  if (params.tariff) q.set("tariff", params.tariff);
+  // On a flat rate the backend estimates POP's rates from the regular rate, so they follow it.
+  if (params.tariff === "pop") {
+    q.set("peak_rate", params.peakRate);
+    q.set("offpeak_rate", params.offpeakRate);
+  }
+  return `?${q}`;
+}
+
 export const api = {
-  usage: () => get("/usage"),
-  forecast: () => get("/forecast"),
-  recommendations: () => get("/recommendations"),
-
-  // Live / measurement endpoint: try /measurement first, fallback to /live
-  live: async () => {
-    try {
-      return await get("/measurement");
-    } catch {
-      return await get("/live");
-    }
+  // range: "7d", "30d" or "month" (month to date).
+  usage: (params, range = "30d") => {
+    const q = billQuery(params);
+    return get(`/usage${q ? `${q}&` : "?"}range=${range}`);
   },
-
-  // Impact endpoint: try /impact; if 404/fails, compute fallback impact from forecast & usage
-  impact: async (forecastData, usageData) => {
-    try {
-      return await get("/impact");
-    } catch (e) {
-      // Compute safe client-side decomposition if backend endpoint is not yet mounted
-      const baseline = forecastData?.baseline_bill || 1500;
-      const forecastBill = forecastData?.forecast_bill || 2650;
-      const increase = Math.max(0, forecastBill - baseline);
-      const aiCost = forecastData?.ai_cost || 1150;
-      const aiEffect = Math.min(increase, aiCost);
-      const otherEffect = Math.max(0, increase - aiEffect);
-      const aiShare = increase > 0 ? aiEffect / increase : 0;
-      
-      let verdict = "minor";
-      if (increase <= 0) verdict = "no_increase";
-      else if (aiShare >= 0.5) verdict = "major";
-      else if (aiShare >= 0.2) verdict = "contributing";
-
-      return {
-        baseline_bill: baseline,
-        current_bill: forecastBill,
-        increase,
-        ai_effect: aiEffect,
-        rate_effect: 0,
-        other_effect: otherEffect,
-        ai_share: aiShare,
-        verdict,
-        local_ai_kwh: usageData?.by_model?.filter(m => m.kind === 'local').reduce((s, m) => s + m.kwh, 0) || 72.4,
-        cloud_ai_kwh_estimated: usageData?.by_model?.filter(m => m.kind === 'cloud').reduce((s, m) => s + m.kwh, 0) || 3.6,
-      };
-    }
+  forecast: (params) => get(`/forecast${billQuery(params)}`),
+  recommendations: (params) => get(`/recommendations${billQuery(params)}`),
+  impact: (params) => get(`/impact${billQuery(params)}`),
+  // CO₂ on this device and in cloud data centers, for the same windows as usage.
+  carbon: (params, range = "30d") => {
+    const q = billQuery(params);
+    return get(`/carbon${q ? `${q}&` : "?"}range=${range}`);
   },
+  models: (params) => get(`/models${billQuery(params)}`),
+  // Cheapest hours on the tariff, cleanest on the grid, and the best window for batch AI jobs.
+  bestTime: (params) => get(`/best-time${billQuery(params)}`),
+
+  live: () => get("/live"),
+  system: () => get("/system"),
+
+  // "Start reading my device": the local backend detects the OS, hardware and AI apps.
+  startDevice: () => post("/device/start"),
+  stopDevice: () => post("/device/stop"),
+  deviceStatus: () => get("/device/status"),
+
+  // Apply a recommendation to Ollama (unload, or switch to the smaller model).
+  applyRecommendation: (rec) => post("/actions/apply", rec),
+
+  // Wall-meter checks of the whole-machine reading.
+  validation: () => get("/validation"),
+  meterWatts: (value) => post("/validation/watts", { value }),
+  meterStart: (value) => post("/validation/start", { value }),
+  meterFinish: (value) => post("/validation/finish", { value }),
+  deleteMeterCheck: (id) => del(`/validation/${id}`),
 };

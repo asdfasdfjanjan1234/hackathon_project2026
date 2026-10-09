@@ -4,27 +4,36 @@ import {
   AlertOctagon,
   ArrowRightLeft,
   CheckCircle2,
-  Terminal,
+  Loader2,
+  Zap,
 } from "lucide-react";
-import { peso } from "../format";
+import { api } from "../api/client";
+import { peso, formatWh, formatWatts, formatCo2 } from "../format";
 
-export default function Recommendations({ recs, onApplyDirective }) {
-  const [appliedActions, setAppliedActions] = useState({});
+const keyOf = (rec) => `${rec.rule}|${rec.model}`;
+
+export default function Recommendations({ recs, liveReading, onApplied }) {
+  // Advice the user has marked as done by hand (it can't be applied from here).
+  const [markedDone, setMarkedDone] = useState({});
+  // Recommendations applied to Ollama: {key: {busy, done, error, beforeWatts}}.
+  const [applied, setApplied] = useState({});
 
   const recommendationsList = recs?.recommendations || [];
-  const totalPotentialSavings = recommendationsList.reduce(
-    (sum, r) => sum + (r.monthly_savings || 0),
-    0
-  );
+  // Combined by the backend: savings on the same model compound, and alternatives aren't added.
+  const totalPotentialSavings = recs?.monthly_savings ?? 0;
+  const aiWattsNow = liveReading?.source === "collector" ? liveReading.ai_watts : null;
 
-  const handleApply = (idx) => {
-    const isNowApplied = !appliedActions[idx];
-    setAppliedActions((prev) => ({
-      ...prev,
-      [idx]: isNowApplied,
-    }));
-    if (onApplyDirective) {
-      onApplyDirective(recommendationsList[idx], isNowApplied);
+  const toggleDone = (rec) => setMarkedDone((prev) => ({ ...prev, [keyOf(rec)]: !prev[keyOf(rec)] }));
+
+  const applyNow = async (rec) => {
+    const key = keyOf(rec);
+    setApplied((prev) => ({ ...prev, [key]: { busy: true, beforeWatts: aiWattsNow } }));
+    try {
+      const res = await api.applyRecommendation(rec);
+      setApplied((prev) => ({ ...prev, [key]: { ...prev[key], busy: false, done: res.done } }));
+      onApplied?.();
+    } catch (e) {
+      setApplied((prev) => ({ ...prev, [key]: { ...prev[key], busy: false, error: e.message } }));
     }
   };
 
@@ -34,14 +43,12 @@ export default function Recommendations({ recs, onApplyDirective }) {
         return {
           icon: AlertOctagon,
           badgeColor: "bg-rose-500/10 text-rose-400 border-rose-500/25",
-          buttonLabel: "EXECUTE TERMINATE",
           code: "DIRECTIVE: STOP",
         };
       case "SWITCH":
         return {
           icon: ArrowRightLeft,
           badgeColor: "bg-amber-500/10 text-amber-400 border-amber-500/25",
-          buttonLabel: "APPLY RUNTIME SHIFT",
           code: "DIRECTIVE: SHIFT",
         };
       case "REDUCE":
@@ -49,7 +56,6 @@ export default function Recommendations({ recs, onApplyDirective }) {
         return {
           icon: Sliders,
           badgeColor: "bg-sky-500/10 text-sky-400 border-sky-500/25", // Precision Cyan, NO GREEN
-          buttonLabel: "ENFORCE THROTTLE",
           code: "DIRECTIVE: THROTTLE",
         };
     }
@@ -79,6 +85,9 @@ export default function Recommendations({ recs, onApplyDirective }) {
           <span className="text-sky-300 font-bold tabular-nums">
             {peso(totalPotentialSavings)} / mo
           </span>
+          {recs?.monthly_co2_saved_kg > 0 && (
+            <span className="text-emerald-300 font-bold tabular-nums">· -{formatCo2(recs.monthly_co2_saved_kg)}</span>
+          )}
         </div>
       </div>
 
@@ -92,11 +101,12 @@ export default function Recommendations({ recs, onApplyDirective }) {
           recommendationsList.map((rec, i) => {
             const config = getActionConfig(rec.action);
             const Icon = config.icon;
-            const isApplied = !!appliedActions[i];
+            const result = applied[keyOf(rec)];
+            const isApplied = !!result?.done || !!markedDone[keyOf(rec)];
 
             return (
               <div
-                key={i}
+                key={keyOf(rec)}
                 className={`p-3 rounded border transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                   isApplied
                     ? "border-sky-500/35 bg-sky-950/20"
@@ -121,6 +131,17 @@ export default function Recommendations({ recs, onApplyDirective }) {
                     <p className="text-xs text-slate-400 mt-0.5 font-sans leading-relaxed">
                       {rec.message}
                     </p>
+                    {result?.done && (
+                      <p className="text-[11px] text-sky-300 mt-1 font-sans flex items-center gap-1.5">
+                        <Zap className="w-3 h-3 shrink-0" />
+                        <span>
+                          {result.done}
+                          {result.beforeWatts != null && aiWattsNow != null &&
+                            ` AI draw: ${formatWatts(result.beforeWatts)} before → ${formatWatts(aiWattsNow)} now.`}
+                        </span>
+                      </p>
+                    )}
+                    {result?.error && <p className="text-[11px] text-rose-300 mt-1 font-sans">{result.error}</p>}
                   </div>
                 </div>
 
@@ -128,30 +149,66 @@ export default function Recommendations({ recs, onApplyDirective }) {
                 <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/5">
                   <div className="text-right">
                     <span className="text-[9px] text-slate-400 uppercase tracking-wider block">
-                      RECOVERABLE
+                      {rec.scope === "datacenter"
+                        ? "DATA CENTER · NOT ON BILL"
+                        : rec.scope === "carbon"
+                        ? "CO₂ ONLY · BILL UNCHANGED"
+                        : rec.alternative
+                        ? "ALTERNATIVE"
+                        : rec.rule === "budget" && !rec.monthly_savings
+                        ? "BUDGET ALERT"
+                        : "RECOVERABLE"}
                     </span>
                     <span className="text-xs font-bold text-sky-300 tabular-nums">
-                      -{peso(rec.monthly_savings)} / mo
+                      {rec.scope === "datacenter"
+                        ? `-${formatWh(rec.wh_saved)} / mo`
+                        : rec.scope === "carbon"
+                        ? `-${formatCo2(rec.co2_saved_kg)} / mo`
+                        : rec.rule === "budget" && !rec.monthly_savings
+                        ? "—"
+                        : `-${peso(rec.monthly_savings)} / mo`}
                     </span>
+                    {rec.co2_saved_kg > 0 && rec.scope !== "carbon" && (
+                      <span className="text-[10px] text-emerald-300 tabular-nums block">
+                        -{formatCo2(rec.co2_saved_kg)} / mo
+                      </span>
+                    )}
+                    {rec.co2_shifted_kg > 0 && (
+                      <span className="text-[10px] text-slate-400 tabular-nums block" title="Moves CO₂ to the data center's grid; doesn't avoid it">
+                        {formatCo2(rec.co2_shifted_kg)} shifted
+                      </span>
+                    )}
                   </div>
 
-                  <button
-                    onClick={() => handleApply(i)}
-                    className={`px-3 py-1.5 rounded text-[11px] font-bold transition-colors flex items-center gap-1.5 shrink-0 border ${
-                      isApplied
-                        ? "bg-sky-600 text-white border-sky-500 shadow-sm"
-                        : "bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border-white/10"
-                    }`}
-                  >
-                    {isApplied ? (
-                      <>
-                        <CheckCircle2 className="w-3 h-3 text-sky-200" />
-                        <span>COMMITTED</span>
-                      </>
-                    ) : (
-                      <span>{config.buttonLabel}</span>
-                    )}
-                  </button>
+                  {rec.apply && !result?.done ? (
+                    <button
+                      onClick={() => applyNow(rec)}
+                      disabled={result?.busy}
+                      title={rec.apply.label}
+                      className="px-3 py-1.5 rounded text-[11px] font-bold transition-colors flex items-center gap-1.5 shrink-0 border bg-sky-600 hover:bg-sky-500 disabled:opacity-60 text-white border-sky-500"
+                    >
+                      {result?.busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                      <span>{rec.apply.kind === "switch" ? "SWITCH NOW" : "UNLOAD NOW"}</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => !result?.done && toggleDone(rec)}
+                      className={`px-3 py-1.5 rounded text-[11px] font-bold transition-colors flex items-center gap-1.5 shrink-0 border ${
+                        isApplied
+                          ? "bg-sky-600 text-white border-sky-500 shadow-sm"
+                          : "bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border-white/10"
+                      }`}
+                    >
+                      {isApplied ? (
+                        <>
+                          <CheckCircle2 className="w-3 h-3 text-sky-200" />
+                          <span>{result?.done ? "APPLIED" : "DONE"}</span>
+                        </>
+                      ) : (
+                        <span>MARK DONE</span>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -161,8 +218,12 @@ export default function Recommendations({ recs, onApplyDirective }) {
 
       {/* Footer */}
       <div className="pt-2 border-t border-white/5 flex flex-wrap items-center justify-between text-[10px] text-slate-400 gap-2">
-        <span>POLICIES EVALUATED: KILOWATT TARIFF THRESHOLD & RUNAWAY LEAST-SQUARES SLOPE</span>
-        <span>STATUS: EVALUATION NOMINAL</span>
+        <span>
+          RULES: BUDGET · SMALLER MODEL · QUANTIZATION · IDLE LOADED · COST PER HOUR · TOOL RUNS · CLOUD · GROWTH · CLEAN HOURS
+        </span>
+        <span>
+          {recs?.bill_with_recommendations != null && `THIS CYCLE WITH RECS: ${peso(recs.bill_with_recommendations)}`}
+        </span>
       </div>
     </section>
   );
