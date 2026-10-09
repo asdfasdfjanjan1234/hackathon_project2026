@@ -1,12 +1,8 @@
 import { useState } from "react";
 import {
   Bell,
-  RefreshCw,
   Menu,
   SlidersHorizontal,
-  HardDrive,
-  Cpu,
-  Zap,
 } from "lucide-react";
 import { peso } from "../format";
 
@@ -29,8 +25,6 @@ function sensorStatus(reading) {
 export default function TopBar({
   dateRange = "30d",
   setDateRange,
-  onRefresh,
-  isRefreshing = false,
   electricityRate,
   monthlyBudget,
   onOpenMobileMenu,
@@ -38,8 +32,6 @@ export default function TopBar({
   system,
   liveReading,
   alerts = [],
-  demoSpike = false,
-  onToggleDemoSpike,
 }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const status = sensorStatus(liveReading);
@@ -129,35 +121,6 @@ export default function TopBar({
             </button>
           ))}
         </div>
-
-        {/* Sync Telemetry Button */}
-        <button
-          onClick={onRefresh}
-          disabled={isRefreshing}
-          className="h-7 sm:h-8 px-2 sm:px-2.5 rounded-md bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors text-xs font-mono"
-          title="Resample hardware telemetry"
-        >
-          <RefreshCw
-            className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-sky-400" : "text-slate-400"}`}
-          />
-          <span className="hidden sm:inline text-[10px] sm:text-[11px]">RESAMPLE</span>
-        </button>
-
-        {/* Hackathon Demo: Pulse Load Spike */}
-        <button
-          onClick={onToggleDemoSpike}
-          className={`h-7 sm:h-8 px-2 sm:px-2.5 rounded-md border flex items-center gap-1.5 transition-all text-xs font-mono font-bold ${
-            demoSpike
-              ? "bg-rose-500/20 border-rose-500/50 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.35)] animate-pulse"
-              : "bg-white/[0.03] hover:bg-white/[0.06] border-white/10 text-slate-300 hover:text-white"
-          }`}
-          title="Simulate 485W GPU local AI inference load"
-        >
-          <Zap className={`w-3.5 h-3.5 ${demoSpike ? "text-rose-400 fill-rose-400" : "text-amber-400"}`} />
-          <span className="hidden sm:inline text-[10px] sm:text-[11px]">
-            {demoSpike ? "SURGE ACTIVE" : "DEMO SPIKE"}
-          </span>
-        </button>
 
         {/* Telemetry Alert Log */}
         <div className="relative">

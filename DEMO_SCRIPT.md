@@ -10,19 +10,37 @@ Numbers marked **[fill in]** come from rehearsal. Never say a number on stage th
 
 ## Before demo day
 
-- [ ] **Install Ollama on the demo Mac** (it isn't installed yet) and pull a big and a small model of the same family. For example: `ollama pull llama3.1:8b` and `ollama pull llama3.2:3b`. On a gaming PC: `llama3:70b` and `llama3:8b`.
+The demo runs on the **Windows laptop with the NVIDIA GPU**, plugged in. Gaming laptops cut GPU power on battery, so stay on AC: GPU (nvidia-smi) and CPU (Energy Meter Interface, if the laptop has it) are still measured, but Windows only reports whole-machine watts on battery. The wall meter covers the whole machine.
+
+### Windows laptop setup (PowerShell)
+
+1. Install **Python 3.10+** (python.org, tick "Add to PATH"), **Node.js 18+**, **Git**, and **Ollama** (ollama.com). Update the NVIDIA driver; `nvidia-smi` should print the GPU.
+2. Clone the repo, then:
+   ```powershell
+   cd backend
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1      # if blocked: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+   pip install -r requirements.txt
+   copy .env.example .env             # leave DATABASE_URL unset: SQLite needs no setup
+   ```
+3. Pull a big and a small model of the same family that fit the GPU. On a 6–8 GB laptop GPU: `ollama pull llama3.1:8b` and `ollama pull llama3.2:3b`. (70B models don't fit a laptop GPU.)
+4. **Run `python preflight.py`.** It reads every sensor, nvidia-smi, Ollama and the database with the app's own code and prints PASS / WARN / FAIL with the fix. Fix every FAIL. Also try it once from an **Administrator** PowerShell: if the EMI channels only show up there, run the backend as Administrator on stage.
+5. `cd ..\frontend; npm install`
+
+### Checklist
+
+- [ ] `python preflight.py` shows **0 to fix**, including "runs on GPU" and a "switch pair".
 - [ ] **Record some usage of the big model on the demo day,** so the dashboard has a "SWITCH" recommendation for it. With `demo_load.py`, 20–30 minutes is enough.
 - [ ] **Plug-in power meter.** Do at least 5 spot checks and one energy check of an hour or more (This Device → Wall-Meter Check). Quote the average difference it shows: **[fill in] %**.
-- [ ] **Gaming PC with an NVIDIA GPU.** If we get one, run the demo on it so the big-GPU case is measured live. Run it once beforehand to test the Windows sensors.
 - [ ] **Rehearse with a timer** at least three times. Write down the real watt jump: idle **[fill in] W** → big model **[fill in] W** → small model **[fill in] W**.
 - [ ] **Record a video** of a full run-through as a fallback.
 
 ## 30 minutes before
 
-1. Laptop at 100% battery, plugged in through the power meter, with the meter visible to the audience or on camera.
-2. Terminal 1: `cd backend && python run.py`. Terminal 2: `cd frontend && npm run dev`. Open http://localhost:5173.
+1. Laptop plugged in through the power meter, on the **Best performance** power mode, with the meter visible to the audience or on camera.
+2. Terminal 1: `cd backend; .\.venv\Scripts\Activate.ps1; python preflight.py --no-load`, then `python run.py`. Terminal 2: `cd frontend; npm run dev`. Open http://localhost:5173.
 3. Click **This Device → Start reading my device**, so the reader has run for more than 30 s before any spot check.
-4. Terminal 3, ready but **not started**: `cd backend && .venv/bin/python demo_load.py --model llama3.1:8b`
+4. Terminal 3, ready but **not started**: `cd backend; .\.venv\Scripts\python demo_load.py --model llama3.1:8b`
 5. Close other heavy apps (browsers with many tabs, Docker) so the jump is clean.
 6. Set the tariff (Tariff & Hardware) to the local rate.
 
@@ -72,7 +90,7 @@ Dev shops, schools and labs running local models on several machines, where the 
 Everything runs on the user's own computer. From app logs we read only model names and token counts, never prompts or code.
 
 **"Does it work on Windows?"**
-The Windows sensors (Energy Meter Interface, GPU counters, nvidia-smi) are written and unit-tested. **[Update after testing on a real PC.]**
+This demo is running on Windows: nvidia-smi for the GPU, the Energy Meter Interface for the CPU **[confirm with preflight]**, and Windows' per-process GPU counters to split the GPU between apps.
 
 **"Why not just use a smart plug?"**
 A smart plug shows the whole machine's power. It can't tell which app or model used it, or what to change. We use one only to prove our numbers.

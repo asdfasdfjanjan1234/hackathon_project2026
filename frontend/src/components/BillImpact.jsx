@@ -41,15 +41,16 @@ export default function BillImpact({ impact }) {
   const verdict = VERDICT_CONFIG[safeImpact.verdict] || VERDICT_CONFIG.none;
   const eq = safeImpact.equivalents;
 
-  const donutData = useMemo(() => {
-    const raw = [
+  const donutData = useMemo(
+    () => [
       { name: "Local AI Metal/CUDA Draw", value: safeImpact.ai_effect, color: "#F43F5E" },
       { name: "Utility Rate Hike", value: safeImpact.rate_effect, color: "#64748B" },
       { name: "Base Non-AI Household", value: safeImpact.other_effect, color: "#0284C7" },
-    ].filter((item) => item.value > 0);
-
-    return raw.length > 0 ? raw : [{ name: "Stable Load", value: 1, color: "#38BDF8" }];
-  }, [safeImpact]);
+    ].filter((item) => item.value > 0),
+    [safeImpact]
+  );
+  // No increase over the baseline: an empty ring, not a made-up slice.
+  const ringData = donutData.length > 0 ? donutData : [{ name: "No increase", value: 1, color: "#1E293B", empty: true }];
 
   const totalIncrease = Math.max(1, safeImpact.increase || 1);
   if (!impact) return <section className="dash-card p-5 h-72 animate-pulse" />;
@@ -104,9 +105,9 @@ export default function BillImpact({ impact }) {
         <div className="md:col-span-5 relative flex items-center justify-center h-44 sm:h-48 min-w-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Tooltip content={<CustomDonutTooltip />} />
+              {donutData.length > 0 && <Tooltip content={<CustomDonutTooltip />} />}
               <Pie
-                data={donutData}
+                data={ringData}
                 cx="50%"
                 cy="50%"
                 innerRadius={52}
@@ -116,7 +117,7 @@ export default function BillImpact({ impact }) {
                 stroke="#101624"
                 strokeWidth={2}
               >
-                {donutData.map((entry, index) => (
+                {ringData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
@@ -143,12 +144,17 @@ export default function BillImpact({ impact }) {
             <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
               {verdict.desc} AI apps and local models used {formatKwh(safeImpact.local_ai_kwh)} on this device
               ({peso(safeImpact.ai_effect)} of the increase)
-              {eq && ` ≈ ${formatCo2(eq.co2_kg)}, or ${formatDuration(eq.aircon_hours)} of running a 1 HP aircon`}.
+              {eq && ` ≈ ${formatCo2(eq.co2_kg)}, or ${formatDuration(eq.aircon_hours)} of running a ${safeImpact.factors?.aircon_watts ?? "—"} W aircon`}.
             </p>
           </div>
 
           {/* Attribution Items */}
           <div className="space-y-1.5 font-mono text-xs">
+            {donutData.length === 0 && (
+              <div className="p-1.5 rounded bg-white/[0.02] border border-white/5 text-[11px] text-slate-400">
+                This cycle's bill is not above the baseline, so there is nothing to attribute.
+              </div>
+            )}
             {donutData.map((item, idx) => (
               <div
                 key={idx}
@@ -181,7 +187,11 @@ export default function BillImpact({ impact }) {
               <Leaf className="w-3.5 h-3.5 text-emerald-400" />
               Green Computing & Eco Equivalencies
             </span>
-            <span className="text-[10px] text-slate-400">Grid Factor: 0.70 kg CO₂/kWh</span>
+            {safeImpact.factors && (
+              <span className="text-[10px] text-slate-400" title={safeImpact.factors.co2_source}>
+                Grid Factor: {safeImpact.factors.co2_kg_per_kwh} kg CO₂/kWh
+              </span>
+            )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono">
             <div className="p-2.5 rounded bg-white/[0.02] border border-white/5 flex flex-col gap-1">

@@ -12,6 +12,7 @@ backend/                  Flask API (port 5001)
   run.py                  Entry point
   collect.py              Device collector (run while using AI tools)
   demo_load.py            Keeps an Ollama model busy for the live demo; follows applied switches
+  preflight.py            Checks a machine is demo-ready: sensors, nvidia-smi, Ollama, database (PASS/WARN/FAIL)
   migrate_to_mysql.py     Copies readings from the SQLite file into MySQL
   db/setup_mysql.sql      Creates the MySQL database and user
   app/
