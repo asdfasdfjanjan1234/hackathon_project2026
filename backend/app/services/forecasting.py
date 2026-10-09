@@ -25,7 +25,9 @@ def forecast_bill(daily, rate, baseline_bill, today=None):
 
     by_model = defaultdict(list)
     for row in sorted(daily, key=lambda r: r["date"]):
-        by_model[row["model"]].append(row["kwh"])
+        # Only energy used on this device is on the bill; cloud data-center energy isn't.
+        if row.get("source", "measured") == "measured":
+            by_model[row["model"]].append(row["kwh"])
 
     models = []
     for model, values in by_model.items():

@@ -132,7 +132,7 @@ export default function UsageBreakdown({ usage }) {
                         {m.model}
                       </span>
                       <span className="text-[9px] text-slate-400 uppercase">
-                        {m.kind === "local" ? "LOCAL GPU/NPU" : "CLOUD API"}
+                        {m.kind === "local" ? "LOCAL GPU/NPU" : m.kind === "client" ? "AI APP · THIS DEVICE" : "CLOUD API"}
                       </span>
                     </div>
                   </div>
@@ -140,7 +140,7 @@ export default function UsageBreakdown({ usage }) {
 
                 {/* Host Bus */}
                 <td className="py-2.5 px-2 text-[11px] text-slate-400">
-                  {m.kind === "local" ? "Metal / MPS" : "Data Center"}
+                  {m.kind === "local" ? "Metal / MPS" : m.kind === "client" ? "This device" : "Data Center"}
                 </td>
 
                 {/* Energy with Progress Bar */}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X, SlidersHorizontal, RotateCcw, Check, Zap } from "lucide-react";
 import { peso } from "../format";
 
@@ -8,11 +8,22 @@ export default function TariffSettingsModal({
   currentRate,
   currentBudget,
   currentBaseline,
+  currentBill,
   onSave,
 }) {
   const [rate, setRate] = useState(currentRate || 12.0);
   const [budget, setBudget] = useState(currentBudget || 2000);
   const [baseline, setBaseline] = useState(currentBaseline || 1500);
+  const [bill, setBill] = useState(currentBill || 2500);
+
+  // Start from the values in use each time the modal opens.
+  useEffect(() => {
+    if (!isOpen) return;
+    setRate(currentRate || 12.0);
+    setBudget(currentBudget || 2000);
+    setBaseline(currentBaseline || 1500);
+    setBill(currentBill || 2500);
+  }, [isOpen, currentRate, currentBudget, currentBaseline, currentBill]);
 
   if (!isOpen) return null;
 
@@ -20,6 +31,7 @@ export default function TariffSettingsModal({
     setRate(12.0);
     setBudget(2000);
     setBaseline(1500);
+    setBill(2500);
   };
 
   const handleApply = () => {
@@ -28,6 +40,7 @@ export default function TariffSettingsModal({
         rate: Number(rate),
         budget: Number(budget),
         baseline: Number(baseline),
+        currentBill: Number(bill),
       });
     }
     onClose();
@@ -136,6 +149,29 @@ export default function TariffSettingsModal({
               <span>₱500</span>
               <span>₱1,500 (John's Pre-AI)</span>
               <span>₱4,000</span>
+            </div>
+          </div>
+          {/* 4. This month's bill */}
+          <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-300 font-bold uppercase text-[11px]">
+                THIS MONTH'S BILL
+              </span>
+              <span className="text-rose-300 font-bold text-sm tabular-nums">
+                {peso(bill, 0)}
+              </span>
+            </div>
+            <input
+              type="range"
+              min="500"
+              max="8000"
+              step="50"
+              value={bill}
+              onChange={(e) => setBill(parseFloat(e.target.value))}
+              className="w-full accent-rose-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
+            />
+            <div className="text-[10px] text-slate-400 font-sans">
+              Used to answer "did AI raise my bill?": the increase over the baseline is split into rate change, AI and other usage.
             </div>
           </div>
         </div>

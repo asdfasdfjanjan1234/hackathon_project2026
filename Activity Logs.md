@@ -31,6 +31,22 @@ This document tracks development sessions, features implemented, refactoring eff
 
 ## Session History
 
+### [2026-10-09] - Session 8: "Start Reading My Device" and Per-Model Tracking
+**Branch:** `main`  
+**Goal:** Make the system dynamic: each user clicks one button and the app detects their OS, hardware, AI apps and models (PROJECT_PLAN.md §3).
+
+#### Completed Tasks
+- [x] Background device reader (`device_reader.py`) started from the dashboard; `POST /api/device/start|stop`, `GET /api/device/status`, `POST /api/device/source` (this device / sample data).
+- [x] Model discovery from local logs (`model_usage.py`): Claude Code transcripts (exact tokens, deduped per response), Codex sessions (token deltas), Copilot logs (requests per model), installed AI extensions. `GET /api/models`.
+- [x] Cloud catalog with list prices and data-center Wh estimate, calibrated to Epoch AI's 0.3 Wh per typical query (open decision in §8; change `REFERENCE` in `models_catalog.py`).
+- [x] App detection: Codex, Amazon Q, Windsurf; agent child processes counted as "tool runs"; host app (VS Code, Terminal, …) stored per sample (`host` column, auto-migrated).
+- [x] Client apps are labeled with their active model (e.g. `Claude Code · claude-opus-5-5`).
+- [x] Forecast leaves cloud data-center energy off the bill; bill endpoints accept the user's rate/bills/budget as query parameters.
+- [x] Frontend: `<DeviceReader />` panel; App.jsx uses backend bill math instead of recomputing it (the old recompute blamed all AI kWh for the increase); settings modal gains "this month's bill".
+- [x] 13 new backend tests (55 total, all passing); checked end-to-end in a headless browser on the M2.
+
+---
+
 ### [2026-10-09] - Session 7: Diagnosed and Re-engineered Broken Radial Arc Gauge
 **Branch:** `TA-01`  
 **Goal:** Fix the distorted SVG arc, ghost arc artifact, badge text collision, and container clipping in `<LiveWattage />` identified from user UI inspection.

@@ -5,12 +5,14 @@ import time
 import psutil
 
 from . import storage
-from .ai_processes import find_ai_processes, split_ollama_by_model
+from .ai_processes import find_ai_processes, label_active_models, split_ollama_by_model
 from .attribution import PowerModel, attribute, fit_power_model
 from .measurement import Sensors
+from .model_usage import latest_models
 
 REFIT_EVERY = 5  # refit the power model after this many new telemetry readings
 WINDOW_S = 60    # Windows battery gives instant readings, so average them over this long
+MODELS_EVERY_S = 15  # how often to re-read which cloud model each app is using
 
 
 class Collector:
@@ -26,6 +28,8 @@ class Collector:
         self._window = []  # (cpu, gpu, watts) since the last telemetry window
         self._window_start = time.time()
         self._new_windows = 0
+        self.active_models = {}
+        self._models_checked = 0.0
         # Prime CPU counters: the first reading of each is always 0.
         psutil.cpu_percent(None)
         find_ai_processes()
@@ -37,7 +41,11 @@ class Collector:
 
         cpu = psutil.cpu_percent(None)
         gpu = self.sensors.gpu_percent() or 0.0
-        apps = attribute(self.model, gpu, split_ollama_by_model(find_ai_processes()), self.ncpu)
+        if ts - self._models_checked >= MODELS_EVERY_S:
+            self._models_checked = ts
+            self.active_models = latest_models()
+        apps = label_active_models(split_ollama_by_model(find_ai_processes()), self.active_models)
+        apps = attribute(self.model, gpu, apps, self.ncpu)
         measured = self._update_telemetry(ts, cpu, gpu, self.sensors.system_power())
         est = self.model.total(cpu, gpu)
         components = self.sensors.components(cpu, gpu, self.model, measured)

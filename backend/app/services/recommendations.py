@@ -1,6 +1,6 @@
 """Rule-based recommendations: STOP, SWITCH or REDUCE, each with expected savings."""
 
-from .models_catalog import MODELS
+from .models_catalog import LOCAL_MODELS
 
 
 def build_recommendations(daily, forecast, rate, budget):
@@ -9,10 +9,10 @@ def build_recommendations(daily, forecast, rate, budget):
 
     # SWITCH: a big local model that has a smaller alternative.
     for model, m in by_model.items():
-        alt = MODELS.get(model, {}).get("smaller_alternative")
+        alt = LOCAL_MODELS.get(model, {}).get("smaller_alternative")
         if not alt:
             continue
-        ratio = MODELS[alt]["avg_watts"] / MODELS[model]["avg_watts"]
+        ratio = LOCAL_MODELS[alt]["avg_watts"] / LOCAL_MODELS[model]["avg_watts"]
         # Assume half of this model's use could move to the smaller one.
         savings = m["monthly_cost"] * 0.5 * (1 - ratio)
         recs.append({

@@ -1,5 +1,4 @@
 import { useEffect, useState, useMemo } from "react";
-import { api } from "../api/client";
 import {
   Activity,
   Cpu,
@@ -10,33 +9,15 @@ import {
 } from "lucide-react";
 import { formatWatts } from "../format";
 
-export default function LiveWattage({ onReadingChange }) {
-  const [reading, setReading] = useState(null);
+// The reading is polled once in App so it stays live whichever view is open.
+export default function LiveWattage({ reading }) {
   const [history, setHistory] = useState([24, 28, 35, 42, 38, 45, 52, 48, 42, 47]);
 
   useEffect(() => {
-    let isMounted = true;
-    const poll = async () => {
-      try {
-        const data = await api.live();
-        if (!isMounted) return;
-        setReading(data);
-        if (onReadingChange) onReadingChange(data);
-        if (data?.watts != null) {
-          setHistory((prev) => [...prev.slice(-15), data.watts]);
-        }
-      } catch (err) {
-        // Silently preserve state
-      }
-    };
-
-    poll();
-    const interval = setInterval(poll, 2000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [onReadingChange]);
+    if (reading?.watts != null) {
+      setHistory((prev) => [...prev.slice(-15), reading.watts]);
+    }
+  }, [reading]);
 
   const currentWatts = reading?.watts ?? 47.7;
   const isSimulated = reading?.simulated ?? true;
@@ -114,7 +95,7 @@ export default function LiveWattage({ onReadingChange }) {
     ];
   }, [reading, currentWatts]);
 
-  if (!reading) return <section className="card"><h2>Live power</h2><p className="big">—</p></section>;
+  if (!reading) return <section className="dash-card p-5 h-80 animate-pulse" />;
 
   const model = reading.power_model;
   return (

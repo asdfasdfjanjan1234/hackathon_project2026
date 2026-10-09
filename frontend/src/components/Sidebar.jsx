@@ -1,31 +1,17 @@
 import { useState } from "react";
-import {
-  Activity,
-  BarChart2,
-  Cpu,
-  Sliders,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-  Zap,
-  X,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Zap, X } from "lucide-react";
+import { NAV_GROUPS } from "../navigation";
 
 export default function Sidebar({
   activeTab = "dashboard",
   setActiveTab,
   mobileOpen = false,
   setMobileOpen,
+  badges = {},
 }) {
   const [collapsed, setCollapsed] = useState(false);
 
-  const navItems = [
-    { id: "dashboard", label: "Telemetry Console", icon: Activity },
-    { id: "analytics", label: "Billing Projection", icon: BarChart2 },
-    { id: "models", label: "Model Runtimes", icon: Cpu },
-    { id: "recommendations", label: "Load Directives", icon: Sliders, badge: "3" },
-    { id: "settings", label: "Tariff & Hardware", icon: Settings },
-  ];
+  const expanded = !collapsed || mobileOpen;
 
   const handleNavClick = (id) => {
     if (setActiveTab) setActiveTab(id);
@@ -54,7 +40,7 @@ export default function Sidebar({
             <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/25 flex items-center justify-center text-sky-400 shrink-0">
               <Zap className="w-4 h-4" />
             </div>
-            {(!collapsed || mobileOpen) && (
+            {expanded && (
               <div className="flex flex-col overflow-hidden min-w-0">
                 <div className="font-mono font-bold text-sm tracking-wider text-slate-100 flex items-center gap-1.5 whitespace-nowrap">
                   <span>WATT<span className="text-sky-400">TRACE</span></span>
@@ -80,53 +66,67 @@ export default function Sidebar({
           )}
         </div>
 
-        {/* Navigation Items */}
-        <nav className="flex-1 px-2.5 py-4 space-y-1 overflow-y-auto">
-          <div className="text-[10px] font-mono tracking-widest uppercase text-slate-400 px-2.5 mb-2">
-            {!collapsed || mobileOpen ? "SYSTEM MODULES" : "••"}
-          </div>
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleNavClick(item.id)}
-                className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-xs font-medium transition-colors group relative ${
-                  isActive
-                    ? "bg-sky-500/10 text-sky-300 border border-sky-500/20 shadow-sm"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.03] border border-transparent"
-                }`}
-                title={collapsed && !mobileOpen ? item.label : undefined}
-              >
-                <Icon
-                  className={`w-4 h-4 shrink-0 ${
-                    isActive ? "text-sky-400" : "text-slate-400 group-hover:text-slate-300"
-                  }`}
-                />
-                {(!collapsed || mobileOpen) && (
-                  <span className="flex-1 text-left truncate font-sans">{item.label}</span>
-                )}
-                {(!collapsed || mobileOpen) && item.badge && (
-                  <span className="px-1.5 py-0.2 text-[9px] font-mono font-bold rounded bg-amber-500/10 text-amber-400 border border-amber-500/25">
-                    {item.badge}
-                  </span>
-                )}
-                {collapsed && !mobileOpen && (
-                  <div className="absolute left-full ml-2 px-2 py-1 rounded bg-slate-900 text-slate-200 text-xs font-mono whitespace-nowrap shadow-xl border border-white/10 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
-                    {item.label}
-                  </div>
-                )}
-              </button>
-            );
-          })}
+        {/* Navigation Groups */}
+        <nav className="flex-1 px-2.5 py-4 space-y-5 overflow-y-auto">
+          {NAV_GROUPS.map((group, gi) => (
+            <div key={group.label} className="space-y-1">
+              {expanded ? (
+                <div className="text-[10px] font-mono tracking-widest uppercase text-slate-500 px-2.5 mb-2">
+                  {group.label}
+                </div>
+              ) : (
+                gi > 0 && <div className="mx-2.5 mb-2 border-t border-white/5" />
+              )}
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                const badge = badges[item.id];
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleNavClick(item.id)}
+                    aria-current={isActive ? "page" : undefined}
+                    className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-xs font-medium transition-colors group relative ${
+                      isActive
+                        ? "bg-sky-500/10 text-sky-300 border border-sky-500/20 shadow-sm"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.03] border border-transparent"
+                    }`}
+                    title={!expanded ? item.label : undefined}
+                  >
+                    {isActive && (
+                      <span className="absolute -left-2.5 top-1.5 bottom-1.5 w-0.5 rounded-r bg-sky-400" />
+                    )}
+                    <Icon
+                      className={`w-4 h-4 shrink-0 ${
+                        isActive ? "text-sky-400" : "text-slate-400 group-hover:text-slate-300"
+                      }`}
+                    />
+                    {expanded && <span className="flex-1 text-left truncate font-sans">{item.label}</span>}
+                    {expanded && badge > 0 && (
+                      <span className="px-1.5 py-0.2 text-[9px] font-mono font-bold rounded bg-amber-500/10 text-amber-400 border border-amber-500/25">
+                        {badge}
+                      </span>
+                    )}
+                    {!expanded && badge > 0 && (
+                      <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    )}
+                    {!expanded && (
+                      <div className="absolute left-full ml-2 px-2 py-1 rounded bg-slate-900 text-slate-200 text-xs font-mono whitespace-nowrap shadow-xl border border-white/10 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                        {item.label}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         {/* Hardware Sensor Bus Status (CYAN, NO GREEN) */}
         <div className="p-2.5 border-t border-white/5">
           <div
             className={`rounded-lg p-2.5 bg-black/40 border border-white/5 flex items-center gap-2.5 ${
-              collapsed && !mobileOpen ? "justify-center" : ""
+              !expanded ? "justify-center" : ""
             }`}
           >
             {/* Precision Instrument Cyan Pulsing Indicator */}
@@ -136,7 +136,7 @@ export default function Sidebar({
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-400"></span>
               </span>
             </div>
-            {(!collapsed || mobileOpen) && (
+            {expanded && (
               <div className="flex-1 min-w-0 font-mono text-[10px]">
                 <div className="flex items-center justify-between text-slate-300 font-semibold">
                   <span>SOC SENSORS</span>
