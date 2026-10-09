@@ -1,0 +1,73 @@
+time,app,name,kind,wh
+2026-10-09 18:45:00,GitHub Copilot,GitHub Copilot,client,0.0005276996145645777
+2026-10-09 19:00:00,GitHub Copilot,GitHub Copilot,client,0.001844929527507888
+2026-10-09 19:15:00,GitHub Copilot,GitHub Copilot,client,0.0002122521232234107
+2026-10-09 19:30:00,GitHub Copilot,GitHub Copilot,client,0.00011751601020495097
+2026-10-09 19:45:00,GitHub Copilot,GitHub Copilot,client,0.00020773564689689214
+2026-10-09 20:00:00,GitHub Copilot,GitHub Copilot,client,0.0001702264850669437
+2026-10-09 20:15:00,Devin,Devin,client,9.582989474137625e-05
+2026-10-09 20:15:00,Devin Desktop,Devin Desktop,client,0.004145740933153365
+2026-10-09 20:15:00,GitHub Copilot,GitHub Copilot,client,0.00029282364514138964
+2026-10-09 20:30:00,Devin,Devin,client,5.439318444993761e-05
+2026-10-09 20:30:00,Devin Desktop,Devin Desktop,client,0.0022906949033339816
+2026-10-09 20:30:00,GitHub Copilot,GitHub Copilot,client,0.0005165900562206904
+2026-10-09 20:45:00,Devin,Devin,client,0.0
+2026-10-09 20:45:00,Devin Desktop,Devin Desktop,client,8.093632625208962e-05
+2026-10-09 20:45:00,GitHub Copilot,GitHub Copilot,client,1.1555100149578519e-06
+2026-10-09 21:00:00,Devin,Devin,client,0.0
+2026-10-09 21:00:00,Devin Desktop,Devin Desktop,client,0.0
+2026-10-09 21:00:00,GitHub Copilot,GitHub Copilot,client,0.0
+2026-10-09 21:15:00,Devin,Devin,client,0.0
+2026-10-09 21:15:00,Devin Desktop,Devin Desktop,client,0.0
+2026-10-09 21:15:00,GitHub Copilot,GitHub Copilot,client,0.0
+2026-10-09 21:15:00,GitHub Copilot,GitHub Copilot · nes-prod-elara-310,client,0.0
+2026-10-09 21:30:00,GitHub Copilot,GitHub Copilot · nes-prod-elara-310,client,0.0
+2026-10-09 21:45:00,Devin Desktop,Devin Desktop,client,0.0
+2026-10-09 21:45:00,GitHub Copilot,GitHub Copilot · nes-prod-elara-310,client,0.0
+2026-10-09 22:00:00,Devin,Devin,client,0.0
+2026-10-09 22:00:00,Devin Desktop,Devin Desktop,client,0.0
+2026-10-09 22:00:00,GitHub Copilot,GitHub Copilot · nes-prod-elara-310,client,0.0
+2026-10-09 23:00:00,Codex,Codex,client,0.0
+2026-10-09 23:00:00,Devin,Devin · claude-opus-5-5-high,client,0.0
+2026-10-09 23:00:00,Devin,Devin · tool runs,client,0.0
+2026-10-09 23:00:00,Devin Desktop,Devin Desktop,client,0.0
+2026-10-09 23:15:00,Codex,Codex,client,0.0
+2026-10-09 23:15:00,Devin,Devin · claude-opus-5-5-high,client,0.0
+2026-10-09 23:15:00,Devin,Devin · tool runs,client,0.0
+2026-10-09 23:15:00,Devin Desktop,Devin Desktop,client,0.0
+2026-10-09 23:30:00,Codex,Codex,client,0.0
+2026-10-09 23:30:00,Devin,Devin · claude-opus-5-5-high,client,0.0
+2026-10-09 23:30:00,Devin,Devin · tool runs,client,0.0
+2026-10-09 23:30:00,Devin Desktop,Devin Desktop,client,0.0
+2026-10-09 23:45:00,Codex,Codex,client,0.00012142717540264129
+2026-10-09 23:45:00,Devin,Devin · claude-opus-5-5-high,client,0.0006008754652738572
+2026-10-09 23:45:00,Devin,Devin · tool runs,client,0.0
+2026-10-09 23:45:00,Devin Desktop,Devin Desktop,client,0.036505720313125184
+2026-10-09 23:45:00,GitHub Copilot,GitHub Copilot · copilot-suggestions-prod-euporie-03,client,2.6422532267040676e-05
+2026-10-10 00:00:00,Codex,Codex,client,7.824959655602774e-05
+2026-10-10 00:00:00,Devin,Devin · claude-opus-5-5-high,client,0.0006705429612265693
+2026-10-10 00:00:00,Devin,Devin · tool runs,client,0.0016871194520261554
+2026-10-10 00:00:00,Devin Desktop,Devin Desktop,client,0.042674205598036447
+2026-10-10 00:00:00,GitHub Copilot,GitHub Copilot · copilot-suggestions-prod-euporie-03,client,0.00015054043028089734
+2026-10-10 00:15:00,Claude Code,Claude Code,client,0.0
+2026-10-10 00:15:00,Codex,Codex,client,0.0
+2026-10-10 00:15:00,Codex,Codex · tool runs,client,0.0
+2026-10-10 00:15:00,Devin,Devin · claude-opus-5-5-high,client,0.0
+2026-10-10 00:15:00,Devin Desktop,Devin Desktop,client,0.0
+2026-10-10 00:15:00,GitHub Copilot,GitHub Copilot · copilot-suggestions-prod-euporie-03,client,0.0
+2026-10-10 00:30:00,GitHub Copilot,GitHub Copilot · copilot-suggestions-prod-euporie-03,client,0.0
+2026-10-10 00:45:00,GitHub Copilot,GitHub Copilot · copilot-suggestions-prod-euporie-03,client,0.0
+2026-10-10 01:00:00,GitHub Copilot,GitHub Copilot · copilot-suggestions-prod-euporie-03,client,0.0
+2026-10-10 01:15:00,GitHub Copilot,GitHub Copilot · copilot-suggestions-prod-euporie-03,client,0.0
+2026-10-10 01:30:00,GitHub Copilot,GitHub Copilot · copilot-suggestions-prod-euporie-03,client,4.047786990801494e-06
+2026-10-10 01:45:00,Codex,Codex,client,3.634194089306726e-05
+2026-10-10 01:45:00,Devin,Devin · claude-opus-5-5-high,client,0.00010099089324474334
+2026-10-10 01:45:00,Devin Desktop,Devin Desktop,client,0.004604467063678635
+2026-10-10 01:45:00,GitHub Copilot,GitHub Copilot · copilot-suggestions-prod-euporie-03,client,0.00011950391332308452
+2026-10-10 01:45:00,GitHub Copilot,GitHub Copilot · nes-prod-elara-310,client,1.3301656776004367e-05
+2026-10-10 02:00:00,Codex,Codex,client,0.00015025595002704197
+2026-10-10 02:00:00,Devin,Devin · claude-opus-5-5-high,client,0.00010573573821120792
+2026-10-10 02:00:00,Devin Desktop,Devin Desktop,client,0.0075837569506963095
+2026-10-10 02:00:00,GitHub Copilot,GitHub Copilot · nes-prod-elara-310,client,6.522254308064779e-05
+2026-10-10 02:15:00,GitHub Copilot,GitHub Copilot · nes-prod-elara-310,client,0.00012377148860030706
+2026-10-10 02:30:00,GitHub Copilot,GitHub Copilot · nes-prod-elara-310,client,3.217356337441338e-05
