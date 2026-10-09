@@ -29,6 +29,7 @@ def generate_daily_usage(days=30, seed=42):
                 "date": day.isoformat(),
                 "model": model,
                 "kwh": round(kwh, 4),
+                "kind": info["kind"],
                 "source": info["source"],
             })
     return rows

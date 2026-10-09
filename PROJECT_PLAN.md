@@ -4,6 +4,24 @@ Software that measures how much electricity AI models (coding agents, chatbots, 
 
 **Example:** John's bill was ₱1,500 before he used AI. After he started using different AI models, it rose to ₱2,500. Our app shows how much each model contributed, what his next bills will be if he keeps going, and what he can change.
 
+## Core question: did AI increase the bill?
+
+The app doesn't assume AI caused a bill increase. It measures how much of the increase AI explains:
+
+| Part of the increase | How it's calculated |
+|---|---|
+| Rate effect | baseline kWh × (current rate − baseline rate). Not caused by usage. |
+| AI effect | measured local-model kWh × current rate (capped at the consumption increase) |
+| Other usage | consumption increase that AI doesn't explain (aircon, appliances, etc.) |
+
+Cloud AI energy is shown separately but never counted in the bill, because the provider's data center pays for it.
+
+**Verdict** (AI share of the increase): ≥50% *major* · 20–50% *contributing* · under 20% *minor* · 0 *none*.
+
+**With the current sample data:** John's bill went from ₱1,500 to ₱2,500. Local AI used 72 kWh (≈ ₱866), so AI explains about 87% of the increase. Verdict: *major*. These figures come from synthetic data and will change once real measurements are in.
+
+**Ways to strengthen the evidence later:** an "AI-off week" vs. "AI-on week" experiment, or daily meter readings compared with daily AI kWh.
+
 ---
 
 ## 1. Where the electricity is actually used
@@ -21,21 +39,178 @@ The app keeps **measured** and **estimated** values separate and labels them cle
 
 ---
 
-## 2. Measurement
+## 2. Measurement (from device resources)
 
-### Local models: real watts
-- **Mac (Apple Silicon):** `sudo powermetrics` gives live CPU/GPU/Neural Engine power.
-- **NVIDIA GPU:** `nvidia-smi --query-gpu=power.draw --format=csv`
-- **Intel/AMD on Linux:** RAPL counters in `/sys/class/powercap`
-- **Per-model attribution:** record idle power first, then record power while each model runs. The difference is that model's usage.
+All values come from the device's own resource readings while AI apps run. `backend/collect.py` does the sampling, every 2 s.
 
-### Cloud models: estimates
-- Count tokens from API responses, a local proxy, or tool logs (for example, Claude Code stores token usage in `~/.claude/projects/*.jsonl`).
-- Multiply by a published energy-per-token or energy-per-prompt estimate for each model (for example, Google's ~0.24 Wh per median Gemini text prompt, or Hugging Face AI Energy Score benchmarks). Published estimates vary a lot, so these values are labeled as estimates.
+### 2.1 Detecting the OS and devices
+
+Before taking any reading, the collector works out which OS it's on and what hardware the computer has (`backend/app/services/system_info.py`). This runs once at startup and takes about 0.2 s on our M2. Python libraries handle the parts that work on every OS. Each OS's own hardware report fills in the rest, read once with `subprocess` and parsed as JSON. No extra packages are needed.
+
+| What | Python library (any OS) | macOS: `system_profiler -json` | Windows: PowerShell CIM queries |
+|---|---|---|---|
+| OS, version, architecture | `platform` | | |
+| Device type and model | `psutil` (has a battery → laptop) | Model name, e.g. "MacBook Air (Mac14,2)" | `Win32_ComputerSystem` (form factor, maker, model) |
+| CPU | `psutil` (cores, max clock) | Chip, e.g. "Apple M2" | `Win32_Processor` (full name) |
+| RAM | `psutil` (total GB) | | |
+| GPUs | `shutil` + `nvidia-smi` (NVIDIA, any OS) | Name, cores, built-in or discrete | `Win32_VideoController` (name, integrated or discrete) |
+| NPU (AI accelerator) | | Apple Neural Engine on Apple Silicon | `Win32_PnPEntity`, "ComputeAccelerator" class (e.g. Intel AI Boost, AMD Ryzen AI) |
+| Disks | | NVMe SSDs, size | `Get-PhysicalDisk` (NVMe / SATA SSD / HDD, size, USB) |
+| Displays | | Built-in or external, resolution | `WmiMonitorConnectionParams` (built-in or external) |
+| Battery | `psutil` (percent, plugged in) | Health: max capacity, cycles | |
+
+**What the results are used for:**
+- **Choosing sensors:** OS and Apple Silicon pick the macOS or Windows readers below; an NVIDIA GPU adds `nvidia-smi`; a desktop has no battery, so there's no whole-machine reading.
+- **Sizing estimates:** RAM size drives the memory estimate. Disk type drives the disk estimate: an NVMe SSD idles at about 0.05 W, a desktop hard drive at about 4 W.
+- **Context in the app:** an NPU or discrete GPU tells us which local AI hardware is available. Displays are the biggest part of "other" on laptops.
+
+The collector prints the detected devices at startup, and `GET /api/system` returns them:
+
+```text
+Detected macos 27.0.1 (arm64) on a laptop: MacBook Air (Mac14,2)
+  CPU       Apple M2, 8 cores, 16.0 GB RAM
+  GPU       Apple M2 (integrated)
+  NPU       Apple Neural Engine
+  Disks     APPLE SSD AP0256Z (nvme, 251 GB)
+  Displays  Color LCD (built-in)
+  Battery   66%, on battery
+```
+
+Mac detection is tested on our M2. The Windows parser is tested against sample output but **still needs a run on a real Windows PC**. If PowerShell fails, the basics from `platform` and `psutil` still come through.
+
+### 2.2 Watts per part of the computer
+
+Using what 2.1 detected, the collector picks that OS's sensors once (`measurement.py`). Each part is *measured* where the OS exposes a sensor, otherwise *estimated*, and every value is labeled with its source. `GET /api/system` shows which sensor each part uses.
+
+| Part | macOS (Apple Silicon) | Windows | Fallback (estimated) |
+|---|---|---|---|
+| Whole machine | Battery controller, `ioreg -rn AppleSmartBattery` | Battery discharge rate, `CallNtPowerInformation` (on battery only) | None: desktops and plugged-in PCs need a smart plug |
+| CPU | `powermetrics`, only with passwordless sudo | Energy Meter Interface (EMI): RAPL cores or package, Intel and AMD | Fitted formula: `a · CPU%` |
+| GPU | IOReport `GPU Energy` channel, **no sudo** | EMI RAPL PP1 (Intel integrated GPU); `nvidia-smi` for NVIDIA on any OS | Fitted formula: `b · GPU%` |
+| RAM | Not available without root | EMI RAPL DRAM (mostly server CPUs) | RAM GB × (0.03 W idle + 0.15 W × load) |
+| Disk | Not available | Not available | By detected disk type × busy time: NVMe 0.05–3 W, SATA SSD 0.05–2 W, HDD 4–6 W |
+| Other (display, Wi-Fi, …) | Whole machine − the four parts | Same | |
+
+Tested on our M2 (macOS 27, Oct 9, 2026): GPU measured 0.01–0.33 W. The IOReport CPU and DRAM channels exist but don't update without root, so CPU and RAM are estimated there. The Windows readers follow Microsoft's EMI documentation and the same approach Chromium and Firefox use, but **still need a test on a Windows PC**. If EMI is missing or access is denied, they fall back to estimates.
+
+### 2.3 Other readings and watts per app
+
+
+| Reading | macOS | Windows |
+|---|---|---|
+| CPU % (system) | `psutil` | `psutil` |
+| GPU % | `ioreg -c IOAccelerator` | Performance counter `\GPU Engine(*engtype_3D)\Utilization Percentage` |
+| CPU % and memory per AI app | `psutil`, matched by process name/path | Same |
+| Which Ollama model is loaded | Ollama API `/api/ps` | Same |
+
+**Turning readings into watts per app:**
+1. Each time the battery reports a new average, store it with the average CPU % and GPU % for that window. On Mac, the battery controller keeps running totals that update about once a minute. On Windows, the instant readings are averaged over 60 s.
+2. Fit `watts ≈ idle + a·CPU% + b·GPU%` with non-negative least squares. This calibrates the formula to this specific device. Until there are about 8 readings, rough M2 defaults are used.
+3. Each AI app gets `a × its CPU share`, plus `b × GPU%` for local model runners. Idle power is never assigned to AI.
+4. Energy = watts × seconds, summed per app per day → kWh.
+
+**App types:** *local* (Ollama, LM Studio, llama.cpp, MLX): the model runs on the device, so inference energy is on the bill. *client* (Claude Code, Claude Desktop, ChatGPT, Cursor, Copilot, OpenCode): only the app's own device energy is on the bill; the model's energy is used in the provider's data center.
+
+**First real reading (M2 MacBook Air, Oct 9, 2026):** whole laptop ~4.5 W; Claude Code + Copilot clients 0.01–0.18 W.
+
+**Upgrades:** passwordless `sudo powermetrics` for measured CPU watts on Mac; per-process GPU % on Windows (the GPU Engine counters include each process ID) to give GPU power to the right local model runner; desktops have no battery sensor, so they rely on the fitted defaults or a smart plug.
 
 ---
 
-## 3. Bill forecasting
+## 3. Which AI apps, and which models
+
+Section 2 measures energy per **app**. This section goes one level deeper: which AI tools are installed or running (including inside VS Code), and which **model** each one is using (Opus 5.5, Sonnet 5.5, `gpt-5.3-codex`, `llama3:8b`, …).
+
+### 3.1 Finding AI apps, including VS Code extensions
+
+VS Code runs most extensions inside one shared process (`Code Helper (Plugin)`, the extension host). An extension can only be measured on its own if it starts its own program. Checked on our M2 on Oct 9, 2026:
+
+| AI tool | Runs as | Measurable on its own? | Detection rule |
+|---|---|---|---|
+| Claude Code (CLI and VS Code extension) | its own `claude` binary | Yes | name `claude` (already in `ai_processes.py`) |
+| GitHub Copilot (built into VS Code) | `copilot-runtime` inside `Visual Studio Code.app` | Yes | `copilot` in path (already) |
+| OpenAI Codex extension | its own `codex` binary in `~/.vscode/extensions/openai.chatgpt-*/bin/` | Yes | **new:** name `codex` |
+| Amazon Q | a language server under `~/Library/Caches/aws/language-servers/` | Probably; confirm while it's running | **new:** path match |
+| Extensions that run inside the extension host (e.g. `kodu-ai.claude-dev`) | the shared extension host | No | **new:** list from `~/.vscode/extensions`; show as "installed, can't be measured separately" |
+| Cursor, Windsurf | their own app (VS Code forks) | Yes, as a whole app | `/cursor.app/` (already); **new:** Windsurf |
+
+Two more detection rules:
+- **Child processes count toward the agent.** When Claude Code or Codex runs `npm test`, `pytest` or a build, that work uses the laptop's CPU and *is* on the bill. Today those processes aren't matched to any app. Add each AI app's child processes (`psutil.Process.children(recursive=True)`) to that app as "tool runs". These can use far more power than the agent's own process (0.01–0.18 W in our first reading).
+- **Host.** Walk up the parent processes to record what started the app (VS Code, Terminal, iTerm), so the dashboard can show "Claude Code in VS Code" vs. "Claude Code in Terminal".
+
+### 3.2 Finding which model each app uses
+
+| App | Where the model name comes from | Token counts? |
+|---|---|---|
+| Claude Code | `~/.claude/projects/*/*.jsonl`: every response has `message.model` and `message.usage` | **Yes, exact:** input, output, cache read, cache write |
+| Copilot Chat, Codex (in VS Code) | VS Code logs: `~/Library/Application Support/Code/logs/*/window*/exthost/{GitHub.copilot-chat,openai.chatgpt}/*.log` | No, model name only |
+| Ollama | `/api/ps` (already); `eval_count` in each response | Yes |
+| LM Studio | `lms ps` lists loaded models | To check |
+| Claude Desktop, ChatGPT app, Cursor | nothing readable stored locally | No; shown as "unknown model" |
+
+Only `model`, `usage` and timestamps are read from these files, never prompts or code.
+
+**Real data from our M2 (all Claude Code sessions so far):**
+
+| Model | Responses | Output tokens | Cache-read tokens |
+|---|---|---|---|
+| `claude-opus-5-5` | 405 | 690,345 | 30.7 M |
+| `claude-opus-5` | 367 | 387,439 | 22.1 M |
+| `claude-sonnet-5-5` | 7 | 18,779 | 0.3 M |
+
+The VS Code logs on the same laptop also name `gpt-5.3-codex` (Codex) and `gpt-4o-mini` (Copilot).
+
+### 3.3 Watts per model
+
+The device readings (CPU %, GPU %, memory, and total system watts from section 2) work differently for local and cloud models.
+
+**Local models (Ollama, LM Studio, MLX):** the model runs on the laptop, so the readings measure it directly.
+- CPU and GPU: the runner's share of the fitted power formula (section 2), split between the loaded models.
+- Memory: a loaded model holds gigabytes of RAM, but RAM adds little power on its own, and Apple Silicon doesn't report it separately without `sudo powermetrics`. Memory size is used to tell which model is loaded and to flag idle models that are still loaded.
+- Improvement: today Ollama's power is split between loaded models by memory size. Give it instead to the model that's actually generating (from Ollama's responses).
+
+**Cloud models (Opus, Sonnet, Haiku, GPT):** the model runs in the provider's data center. The laptop's CPU, GPU and memory look almost the same whether Claude Code is using Opus or Sonnet, so **device readings can't show the difference between cloud models.** Each cloud model gets two separate numbers:
+
+| Number | What it covers | On the bill? | How we get it |
+|---|---|---|---|
+| Device energy | the app and its tool runs on this laptop while using that model | Yes | **Measured** (section 2). Each 2-second sample goes to the model of the app's most recent response, using the transcript timestamps. |
+| Data-center energy | the provider's servers running the model | No | **Estimated:** tokens × energy per token for that model |
+
+**Estimating data-center energy per model.** Providers don't publish energy per model, so we combine two inputs:
+1. **A reference figure** from published estimates, for example: Google, median Gemini text prompt ≈ 0.24 Wh (Aug 2025); OpenAI, average ChatGPT query ≈ 0.34 Wh (June 2025); Epoch AI, ≈ 0.3 Wh per GPT-4o query (Feb 2025). Pick one, cite it, and show it in the app.
+2. **How models compare**, using list price per token as a stand-in for compute. Price is the only public number that exists for every model and every token type, and it already charges much more for output tokens than for cache reads.
+
+Current Claude list prices (USD per 1M tokens, as of Sep 25, 2026):
+
+| Model | Input | Output | Data-center energy per output token, relative to Sonnet 5.5 |
+|---|---|---|---|
+| Fable 5.1 | $10 | $50 | 5× |
+| Opus 5 | $5 | $25 | 2.5× |
+| Opus 5.5 | $4 | $20 | 2× |
+| Sonnet 5.5 | $2 | $10 | 1× |
+| Haiku 4.5 | $1 | $5 | 0.5× |
+
+```
+list_cost      = Σ tokens of each type × that type's price   (input, output, cache read, cache write)
+datacenter_Wh  = list_cost × k
+k              = Wh per dollar, set once so that a typical query on the reference model = the reference figure
+```
+
+**Limitations, shown in the app:** price includes the provider's margin and business choices (Opus 5.5 costs less than Opus 5, so it's estimated lower). These numbers rank models; they don't measure them. They're always labeled *estimated*.
+
+### 3.4 Code changes
+
+| File | Change |
+|---|---|
+| `backend/app/services/ai_processes.py` | Add Codex, Amazon Q and Windsurf rules; add child processes to their parent app; record the host |
+| new `backend/app/services/model_usage.py` | Read Claude Code transcripts and VS Code logs → tokens per model per day |
+| `backend/app/services/models_catalog.py` | Replace `"claude (cloud)"` with one entry per model: provider, prices, relative energy |
+| `backend/app/services/collector.py`, `storage.py` | Store the active model with each client-app sample; new `model_usage` table |
+| `backend/app/routes/usage.py` | Add breakdowns by model and by host |
+
+---
+
+## 4. Bill forecasting
 
 **Simple version:**
 
@@ -55,7 +230,7 @@ projected_kWh = kWh used so far + average daily kWh × days left in billing cycl
 
 ---
 
-## 4. Recommendations
+## 5. Recommendations
 
 Rule-based logic, driven by the measured data. Each recommendation is **Stop**, **Switch** or **Reduce**, and shows the expected savings.
 
@@ -67,6 +242,8 @@ Rule-based logic, driven by the measured data. Each recommendation is **Stop**, 
 | A smaller (quantized) version exists | "Use the Q4 version: about the same quality, less power." |
 | Local use is heavy and cloud would be lighter on the bill | "Running this locally costs you ₱X/month; a cloud model would barely affect your bill." |
 | Model has the worst energy per task | "Stop using `model X`. It costs ₱X per 1,000 tokens, the highest of your models." |
+| An agent's tool runs (tests, builds) use a lot of power | "Claude Code's test runs used 1.2 kWh this week (₱14). Run only the affected tests." |
+| A large cloud model is used for most work | "90% of your Claude Code tokens went to Opus 5.5, estimated at 2× Sonnet 5.5's data-center energy. Not on your bill, but ~X Wh less if you switch for simple tasks." |
 
 **Example output:**
 
@@ -84,7 +261,7 @@ Rule-based logic, driven by the measured data. Each recommendation is **Stop**, 
 
 ---
 
-## 5. Architecture
+## 6. Architecture
 
 ```
 Measure (watts per model) → Store (daily kWh per model)
@@ -92,7 +269,8 @@ Measure (watts per model) → Store (daily kWh per model)
 ```
 
 **Dashboard shows:**
-- Watts and kWh per model, per day and per month
+- Watts and kWh per app, per model and per host (VS Code, Terminal), per day and per month
+- For cloud models: device energy (measured, on the bill) next to data-center energy (estimated, not on the bill)
 - Cost in pesos, using the user's own electricity rate
 - "Bill without AI vs. with AI"
 - Bill forecast (current path vs. with recommendations)
@@ -102,21 +280,22 @@ Measure (watts per model) → Store (daily kWh per model)
 **Suggested stack:**
 - Python backend: `psutil`, `powermetrics`/`nvidia-smi` parsing, FastAPI
 - Web dashboard with live charts
-- Small proxy or log reader for cloud token counts
+- Log reader for cloud token counts (Claude Code transcripts, VS Code logs); no proxy needed
 - Sample-data generator, so the forecast and recommendations still work in the demo if live measurement isn't ready
 
 ---
 
-## 6. Demo plan
+## 7. Demo plan
 
 1. Run a local model on stage and show the live wattage graph climb.
-2. Show the per-model breakdown and the "without AI vs. with AI" bill.
+2. Show the per-app and per-model breakdown (e.g. Claude Code in VS Code: Opus 5.5 vs. Sonnet 5.5) and the "without AI vs. with AI" bill.
 3. Show the forecast chart: current path vs. following recommendations.
 4. Show the recommendations and how much they save.
 
-## 7. Open decisions
+## 8. Open decisions
 
 - [x] Hardware for the demo: Mac with Apple Silicon
 - [x] Stack: Flask backend + React (Vite) frontend
-- [ ] Which AI tools does the team actually use (for the cloud estimates)?
+- [x] Which AI tools the team uses: detected automatically (section 3)
+- [ ] Reference figure for cloud data-center energy (Google 0.24 Wh, OpenAI 0.34 Wh or Epoch AI 0.3 Wh per query)
 - [ ] Electricity rate and billing cycle to use as defaults

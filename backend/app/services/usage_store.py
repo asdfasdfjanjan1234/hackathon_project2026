@@ -1,38 +1,31 @@
-"""Access to daily per-model energy usage.
-
-For now this returns sample data. Replace with a database (e.g. SQLite)
-that the measurement collector writes to.
-"""
+"""Access to daily per-model energy usage: sample data, or what collect.py recorded."""
 
 from collections import defaultdict
+from contextlib import closing
 
 from flask import current_app
 
-from .models_catalog import MODELS
+from . import storage
 from .sample_data import generate_daily_usage
 
 
 def get_daily_usage():
-    if current_app.config["USE_SAMPLE_DATA"]:
+    cfg = current_app.config
+    if cfg["USE_SAMPLE_DATA"]:
         return generate_daily_usage()
-    raise NotImplementedError("Real usage storage is not built yet. Set USE_SAMPLE_DATA=true.")
+    with closing(storage.connect(cfg["DB_PATH"])) as conn:
+        return storage.daily_usage(conn)
 
 
 def summarize_by_model(daily, rate):
     totals = defaultdict(float)
+    meta = {}
     for row in daily:
         totals[row["model"]] += row["kwh"]
+        meta[row["model"]] = {"kind": row["kind"], "source": row["source"]}
     return sorted(
-        (
-            {
-                "model": model,
-                "kwh": round(kwh, 2),
-                "cost": round(kwh * rate, 2),
-                "kind": MODELS[model]["kind"],
-                "source": MODELS[model]["source"],
-            }
-            for model, kwh in totals.items()
-        ),
+        ({"model": model, "kwh": round(kwh, 4), "cost": round(kwh * rate, 2), **meta[model]}
+         for model, kwh in totals.items()),
         key=lambda m: m["kwh"],
         reverse=True,
     )

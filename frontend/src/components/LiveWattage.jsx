@@ -114,6 +114,9 @@ export default function LiveWattage({ onReadingChange }) {
     ];
   }, [reading, currentWatts]);
 
+  if (!reading) return <section className="card"><h2>Live power</h2><p className="big">—</p></section>;
+
+  const model = reading.power_model;
   return (
     <section className="dash-card p-4 sm:p-5 flex flex-col justify-between select-none min-w-0">
       {/* Instrumentation Header */}
