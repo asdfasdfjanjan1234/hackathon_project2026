@@ -5,7 +5,6 @@ import {
   Play,
   Square,
   Loader2,
-  Cpu,
   Bot,
   Cloud,
   ShieldCheck,
@@ -17,19 +16,19 @@ const SENSOR_LABELS = { system: "Whole machine", cpu: "CPU", gpu: "GPU", memory:
 
 function Row({ label, children }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-1 border-b border-white/[0.04] last:border-0">
-      <span className="text-[10px] font-mono uppercase text-slate-500 shrink-0">{label}</span>
-      <span className="text-[11px] text-slate-200 text-right min-w-0 break-words">{children}</span>
+    <div className="flex items-start justify-between gap-3 py-1.5 border-b border-line last:border-0">
+      <span className="text-xs text-ink-muted shrink-0">{label}</span>
+      <span className="text-xs text-ink text-right min-w-0 break-words">{children}</span>
     </div>
   );
 }
 
 function Panel({ icon: Icon, title, children }) {
   return (
-    <div className="rounded-lg bg-black/30 border border-white/5 p-3 min-w-0">
+    <div className="inset-panel p-4 min-w-0">
       <div className="flex items-center gap-1.5 mb-2">
-        <Icon className="w-3.5 h-3.5 text-sky-400" />
-        <h3 className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300">{title}</h3>
+        <Icon className="w-4 h-4 text-ink-muted" />
+        <h3 className="text-sm font-semibold text-ink">{title}</h3>
       </div>
       {children}
     </div>
@@ -53,11 +52,11 @@ function DevicePanel({ system, sensors }) {
         {battery ? `${battery.percent}%, ${battery.plugged_in ? "plugged in" : "on battery"}` : "none (desktop)"}
       </Row>
       {sensors && (
-        <div className="mt-2 pt-2 border-t border-white/5 space-y-1">
-          <div className="text-[10px] font-mono uppercase text-slate-500">Power readings</div>
+        <div className="mt-3 pt-3 border-t border-line space-y-1.5">
+          <div className="text-xs font-medium text-ink-muted">Power readings</div>
           {Object.entries(sensors).map(([part, sensor]) => (
-            <div key={part} className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-300">{SENSOR_LABELS[part] || part}</span>
+            <div key={part} className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-ink-soft">{SENSOR_LABELS[part] || part}</span>
               <span className={`tech-tag ${sensor ? "tech-tag-live" : "tech-tag-sim"}`}>
                 {sensor ? `measured · ${sensor}` : "estimated"}
               </span>
@@ -78,31 +77,31 @@ function AppsPanel({ status }) {
       {latest ? (
         <>
           <Row label="Machine">
-            {formatWatts(latest.measured_watts ?? latest.est_watts)}{" "}
-            <span className="text-slate-500">{latest.measured_watts != null ? "measured" : "estimated"}</span>
+            <span className="tabular-nums">{formatWatts(latest.measured_watts ?? latest.est_watts)}</span>{" "}
+            <span className="text-ink-muted">{latest.measured_watts != null ? "measured" : "estimated"}</span>
           </Row>
           <Row label="AI apps">
-            {formatWatts(aiWatts)} <span className="text-slate-500">calculated share</span>
+            <span className="tabular-nums">{formatWatts(aiWatts)}</span> <span className="text-ink-muted">calculated share</span>
           </Row>
-          <div className="mt-2 space-y-1.5">
-            {apps.length === 0 && <div className="text-[11px] text-slate-400">No AI apps running.</div>}
+          <div className="mt-3 space-y-2.5">
+            {apps.length === 0 && <div className="text-xs text-ink-muted">No AI apps running.</div>}
             {apps.map((a, i) => (
-              <div key={`${a.model || a.app}-${a.host}-${i}`} className="flex items-start justify-between gap-2 text-[11px]">
+              <div key={`${a.model || a.app}-${a.host}-${i}`} className="flex items-start justify-between gap-2 text-xs">
                 <div className="min-w-0 flex-1">
-                  <div className="text-slate-100 truncate">{a.model || a.app}</div>
-                  <div className="text-[10px] text-slate-500">
+                  <div className="text-sm text-ink truncate">{a.model || a.app}</div>
+                  <div className="text-xs text-ink-muted tabular-nums">
                     {a.kind === "local" ? "local model" : "cloud client"}
                     {a.host ? ` · in ${a.host}` : ""}{a.effort ? ` · ${a.effort} effort` : ""} · {(a.cpu_percent || 0).toFixed(1)}% CPU
                   </div>
                   <AppPowerParts app={a} />
                 </div>
-                <span className="font-mono tabular-nums text-sky-300 shrink-0">{formatAppWatts(a.watts || 0)}</span>
+                <span className="text-sm font-semibold tabular-nums text-ink shrink-0">{formatAppWatts(a.watts || 0)}</span>
               </div>
             ))}
           </div>
         </>
       ) : (
-        <div className="text-[11px] text-slate-400 flex items-center gap-2">
+        <div className="text-xs text-ink-muted flex items-center gap-2">
           <Loader2 className="w-3.5 h-3.5 animate-spin" /> Taking the first reading…
         </div>
       )}
@@ -114,7 +113,7 @@ function ModelsPanel({ models }) {
   if (!models) {
     return (
       <Panel icon={Cloud} title="Models found">
-        <div className="text-[11px] text-slate-400 flex items-center gap-2">
+        <div className="text-xs text-ink-muted flex items-center gap-2">
           <Loader2 className="w-3.5 h-3.5 animate-spin" /> Reading app logs…
         </div>
       </Panel>
@@ -124,16 +123,16 @@ function ModelsPanel({ models }) {
   return (
     <Panel icon={Cloud} title={`Models found (last ${models.days} days)`}>
       {models.models.length === 0 && (
-        <div className="text-[11px] text-slate-400">No AI model usage found in Claude Code, Codex, Copilot, Kiro, Amazon Q, OpenCode or Gemini CLI.</div>
+        <div className="text-xs text-ink-muted">No AI model usage found in Claude Code, Codex, Copilot, Kiro, Amazon Q, OpenCode or Gemini CLI.</div>
       )}
-      <div className="space-y-1.5">
+      <div className="space-y-2.5">
         {models.models.map((m) => (
-          <div key={`${m.app}-${m.model}`} className="flex items-center justify-between gap-2 text-[11px]">
+          <div key={`${m.app}-${m.model}`} className="flex items-start justify-between gap-2 text-xs">
             <div className="min-w-0">
-              <div className="text-slate-100 truncate">
-                {m.name} <span className="text-slate-500">· {m.app}</span>
+              <div className="text-sm text-ink truncate">
+                {m.name} <span className="text-ink-muted">· {m.app}</span>
               </div>
-              <div className="text-[10px] text-slate-500">
+              <div className="text-xs text-ink-muted tabular-nums">
                 {m.requests} requests
                 {m.tokens.output ? ` · ${formatTokens(m.tokens.output)} output tokens` : " · no token counts"}
                 {m.relative_energy ? ` · ${m.priced_as ? "≈" : ""}${m.relative_energy}× Sonnet` : ""}
@@ -142,11 +141,11 @@ function ModelsPanel({ models }) {
               </div>
             </div>
             <div className="text-right shrink-0">
-              <div className="font-mono tabular-nums text-amber-300">{formatWh(m.datacenter_wh)}</div>
-              <div className="text-[9px] text-slate-500 uppercase">data center · est.</div>
+              <div className="text-sm font-semibold tabular-nums text-ink">{formatWh(m.datacenter_wh)}</div>
+              <div className="text-[11px] text-ink-muted">data center · est.</div>
               {m.device_kwh != null && (
-                <div className="font-mono tabular-nums text-[10px] text-sky-300 mt-0.5">
-                  {formatWh(m.device_kwh * 1000)} · {peso(m.device_cost)} <span className="text-slate-500">on this device</span>
+                <div className="tabular-nums text-xs text-accent mt-0.5">
+                  {formatWh(m.device_kwh * 1000)} · {peso(m.device_cost)} <span className="text-ink-muted">on this device</span>
                 </div>
               )}
             </div>
@@ -154,16 +153,16 @@ function ModelsPanel({ models }) {
         ))}
       </div>
       {models.switch_hint && (
-        <div className="mt-2 p-2 rounded bg-amber-500/5 border border-amber-500/20 text-[11px] text-amber-200">
+        <div className="mt-3 p-2.5 rounded-lg bg-warn/[0.08] border border-warn/25 text-xs text-ink-soft">
           {models.switch_hint.message}
         </div>
       )}
       {unmeasurable.length > 0 && (
-        <div className="mt-2 text-[10px] text-slate-500">
+        <div className="mt-3 text-xs text-ink-muted">
           Installed, can't be measured separately: {unmeasurable.map((e) => e.name).join(", ")}
         </div>
       )}
-      <div className="mt-2 text-[10px] text-slate-500">
+      <div className="mt-2 text-xs text-ink-muted">
         Estimated from list prices; {models.reference.source}. Not on your bill.
       </div>
     </Panel>
@@ -230,61 +229,48 @@ export default function DeviceReader({ params, onDataChanged }) {
   const showDetails = running || system;
 
   return (
-    <section className="dash-card p-4 sm:p-5 min-w-0">
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/5">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="w-7 h-7 rounded bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 shrink-0">
-            <Cpu className="w-3.5 h-3.5" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-xs font-mono font-bold text-slate-100 uppercase tracking-wider">Device Reader</h2>
-            <div className="text-[10px] font-mono text-slate-400">
-              {running
-                ? `Reading every 2 s · ${status.samples || status.stored_samples} samples${status.external_collector ? " (collect.py)" : ""}`
-                : "Measures the AI apps on this computer"}
-            </div>
+    <section className="dash-card p-5 min-w-0">
+      <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-line">
+        <div className="min-w-0">
+          <h2 className="card-title">Device reader</h2>
+          <div className="card-sub mt-0.5 flex items-center gap-1.5">
+            {running && <span className="w-2 h-2 rounded-full bg-pos shrink-0" />}
+            {running
+              ? `Reading every 2 s · ${status.samples || status.stored_samples} samples${status.external_collector ? " (collect.py)" : ""}`
+              : "Measures the AI apps on this computer"}
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {running && !status.external_collector ? (
-            <button
-              onClick={stop}
-              className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 text-xs font-bold flex items-center gap-1.5"
-            >
-              <Square className="w-3 h-3" /> Stop reading
-            </button>
-          ) : null}
-        </div>
+        {running && !status.external_collector ? (
+          <button onClick={stop} className="btn">
+            <Square className="w-3 h-3" /> Stop reading
+          </button>
+        ) : null}
       </div>
 
       {error && (
-        <div className="mt-3 p-2.5 rounded bg-rose-500/10 border border-rose-500/25 text-rose-300 text-[11px]">{error}</div>
+        <div className="mt-4 p-3 rounded-lg bg-neg/[0.08] border border-neg/25 text-neg text-xs">{error}</div>
       )}
       {status?.error && (
-        <div className="mt-3 p-2.5 rounded bg-amber-500/10 border border-amber-500/25 text-amber-300 text-[11px]">
+        <div className="mt-4 p-3 rounded-lg bg-warn/[0.08] border border-warn/25 text-warn text-xs">
           Last reading failed: {status.error}
         </div>
       )}
 
       {!running && (
         <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="flex-1 space-y-1.5 text-[12px] text-slate-300">
+          <div className="flex-1 space-y-2 text-sm text-ink-soft leading-relaxed">
             <p>
               Detects your OS, CPU, GPU, NPU and battery, finds the AI apps and models on this computer, then
               measures how many watts they use every 2 seconds.
             </p>
-            <p className="flex items-center gap-1.5 text-[11px] text-slate-500">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <p className="flex items-center gap-1.5 text-xs text-ink-muted">
+              <ShieldCheck className="w-4 h-4 text-pos shrink-0" />
               Everything stays on this computer. Only model names and token counts are read from app logs, never
               prompts or code.
             </p>
           </div>
-          <button
-            onClick={start}
-            disabled={starting}
-            className="px-5 py-3 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-60 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm shrink-0"
-          >
+          <button onClick={start} disabled={starting} className="btn-primary px-5 py-2.5 text-sm shrink-0">
             {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
             {starting ? "Detecting your device…" : system ? "Start reading again" : "Start reading my device"}
           </button>
@@ -296,7 +282,7 @@ export default function DeviceReader({ params, onDataChanged }) {
           <DevicePanel system={system} sensors={sensors} />
           {running ? <AppsPanel status={status} /> : (
             <Panel icon={Bot} title="AI apps running now">
-              <div className="text-[11px] text-slate-400">Reading stopped. {status?.stored_samples || 0} samples saved.</div>
+              <div className="text-xs text-ink-muted">Reading stopped. {status?.stored_samples || 0} samples saved.</div>
             </Panel>
           )}
           <ModelsPanel models={models} />

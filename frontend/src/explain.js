@@ -9,19 +9,19 @@ import { formatWatts } from "./format";
 export const ACTIVITY = {
   working: {
     label: "Working",
-    chip: "text-emerald-300 bg-emerald-500/10 border-emerald-500/25",
+    chip: "text-pos bg-pos/10 border-pos/25",
   },
   background: {
     label: "Background",
-    chip: "text-sky-300 bg-sky-500/10 border-sky-500/25",
+    chip: "text-accent bg-accent/10 border-accent/25",
   },
   loaded: {
     label: "Loaded",
-    chip: "text-amber-300 bg-amber-500/10 border-amber-500/25",
+    chip: "text-warn bg-warn/10 border-warn/25",
   },
   idle: {
     label: "Idle",
-    chip: "text-slate-400 bg-slate-500/10 border-slate-500/25",
+    chip: "text-ink-muted bg-sunken border-line",
   },
 };
 

@@ -1,40 +1,49 @@
 import { useMemo } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { peso, formatKwh, formatCo2, formatDuration } from "../format";
-import { PieChart as PieIcon, Leaf, Smartphone, Car, Wind } from "lucide-react";
+import { color } from "../theme";
+import { Leaf, Smartphone, Car, Wind } from "lucide-react";
 
 const VERDICT_CONFIG = {
   major: {
-    status: "MAJOR DRIVER",
+    status: "Major driver",
     desc: "Empirical telemetry confirms AI local GPU/CPU workload accounts for ≥50% of the bill increase.",
-    badgeClass: "bg-rose-500/10 text-rose-400 border-rose-500/25",
-    color: "#F43F5E",
+    badgeClass: "tech-tag-alert",
   },
   contributing: {
-    status: "PARTIAL DRIVER",
+    status: "Partial driver",
     desc: "AI explains 20% to 50% of monthly variance; baseline appliances share attribution.",
-    badgeClass: "bg-amber-500/10 text-amber-400 border-amber-500/25",
-    color: "#F59E0B",
+    badgeClass: "tech-tag-sim",
   },
   minor: {
-    status: "NEGLIGIBLE",
+    status: "Negligible",
     desc: "AI workload accounts for <20% of bill increase. Primary surge is non-AI appliances.",
-    badgeClass: "bg-sky-500/10 text-sky-400 border-sky-500/25", // Cyan, NO GREEN
-    color: "#38BDF8",
+    badgeClass: "tech-tag-neutral",
   },
   none: {
-    status: "ZERO IMPACT",
+    status: "Zero impact",
     desc: "Zero local hardware energy increase detected for AI processes.",
-    badgeClass: "bg-sky-500/10 text-sky-400 border-sky-500/25",
-    color: "#38BDF8",
+    badgeClass: "tech-tag-pos",
   },
   no_increase: {
-    status: "STABLE CYCLE",
+    status: "Stable cycle",
     desc: "Current billing cycle does not exceed baseline consumption.",
-    badgeClass: "bg-sky-500/10 text-sky-400 border-sky-500/25",
-    color: "#38BDF8",
+    badgeClass: "tech-tag-pos",
   },
 };
+
+function EqTile({ icon: Icon, label, value, sub }) {
+  return (
+    <div className="p-3 inset-panel flex flex-col gap-1">
+      <div className="flex items-center gap-1.5 text-xs text-ink-muted">
+        <Icon className="w-3.5 h-3.5" />
+        <span>{label}</span>
+      </div>
+      <div className="text-base font-semibold text-ink tabular-nums">{value}</div>
+      <div className="text-[11px] text-ink-muted">{sub}</div>
+    </div>
+  );
+}
 
 export default function BillImpact({ impact }) {
   const safeImpact = impact || {};
@@ -43,12 +52,12 @@ export default function BillImpact({ impact }) {
 
   const donutData = useMemo(() => {
     const raw = [
-      { name: "Local AI Metal/CUDA Draw", value: safeImpact.ai_effect, color: "#F43F5E" },
-      { name: "Utility Rate Hike", value: safeImpact.rate_effect, color: "#64748B" },
-      { name: "Base Non-AI Household", value: safeImpact.other_effect, color: "#0284C7" },
+      { name: "Local AI Metal/CUDA Draw", value: safeImpact.ai_effect, color: color("accent") },
+      { name: "Utility Rate Hike", value: safeImpact.rate_effect, color: color("viz-grey") },
+      { name: "Base Non-AI Household", value: safeImpact.other_effect, color: color("viz-amber") },
     ].filter((item) => item.value > 0);
 
-    return raw.length > 0 ? raw : [{ name: "Stable Load", value: 1, color: "#38BDF8" }];
+    return raw.length > 0 ? raw : [{ name: "Stable Load", value: 1, color: color("line-strong") }];
   }, [safeImpact]);
 
   const totalIncrease = Math.max(1, safeImpact.increase || 1);
@@ -60,48 +69,33 @@ export default function BillImpact({ impact }) {
     const item = payload[0];
     const pct = ((item.value / totalIncrease) * 100).toFixed(1);
     return (
-      <div className="rounded bg-slate-950 border border-white/10 p-2 shadow-xl text-xs font-mono">
-        <div className="flex items-center gap-1.5 mb-1 text-slate-300">
-          <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: item.payload.color }} />
+      <div className="rounded-lg bg-surface border border-line p-2.5 shadow-pop text-xs">
+        <div className="flex items-center gap-1.5 mb-1 text-ink-soft">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.payload.color }} />
           <span>{item.name}</span>
         </div>
-        <div className="text-slate-400">
-          Surcharge: <strong className="text-white tabular-nums">{peso(item.value)}</strong> ({pct}%)
+        <div className="text-ink-muted">
+          Surcharge: <strong className="text-ink tabular-nums">{peso(item.value)}</strong> ({pct}%)
         </div>
       </div>
     );
   };
 
   return (
-    <section className="dash-card p-4 sm:p-5 flex flex-col justify-between select-none min-w-0">
+    <section className="dash-card p-5 flex flex-col justify-between min-w-0">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between pb-3 border-b border-white/5 gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="w-7 h-7 rounded bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 shrink-0">
-            <PieIcon className="w-3.5 h-3.5" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-xs font-mono font-bold text-slate-100 uppercase tracking-wider truncate">
-              Causal Tariff Decomposition
-            </h2>
-            <div className="text-[10px] font-mono text-slate-400 truncate">
-              Factor Analysis: +{peso(safeImpact.increase)} Total Variance
-            </div>
-          </div>
+      <div className="flex flex-wrap items-start justify-between pb-4 border-b border-line gap-2">
+        <div className="min-w-0">
+          <h2 className="card-title">Causal tariff decomposition</h2>
+          <div className="card-sub mt-0.5 tabular-nums">Factor analysis: +{peso(safeImpact.increase)} total variance</div>
         </div>
-
-        {/* Verdict Badge */}
-        <span
-          className={`tech-tag shrink-0 ${verdict.badgeClass}`}
-        >
-          {verdict.status}
-        </span>
+        <span className={`tech-tag shrink-0 ${verdict.badgeClass}`}>{verdict.status}</span>
       </div>
 
       {/* Main Grid: Donut + Causal Breakdown */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center my-3 min-w-0">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center my-4 min-w-0">
         {/* Left: Donut Chart */}
-        <div className="md:col-span-5 relative flex items-center justify-center h-44 sm:h-48 min-w-0">
+        <div className="md:col-span-5 relative flex items-center justify-center h-48 min-w-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Tooltip content={<CustomDonutTooltip />} />
@@ -109,11 +103,11 @@ export default function BillImpact({ impact }) {
                 data={donutData}
                 cx="50%"
                 cy="50%"
-                innerRadius={52}
-                outerRadius={74}
-                paddingAngle={3}
+                innerRadius={56}
+                outerRadius={76}
+                paddingAngle={2}
                 dataKey="value"
-                stroke="#101624"
+                stroke={color("surface")}
                 strokeWidth={2}
               >
                 {donutData.map((entry, index) => (
@@ -125,22 +119,18 @@ export default function BillImpact({ impact }) {
 
           {/* Center Callout */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-2xl font-mono font-extrabold text-white tabular-nums tracking-tight">
-              {aiSharePct}%
-            </span>
-            <span className="text-[9px] font-mono uppercase tracking-widest text-slate-400">
-              AI ATTRIBUTED
-            </span>
+            <span className="text-2xl font-semibold text-ink tabular-nums tracking-tight">{aiSharePct}%</span>
+            <span className="text-xs text-ink-muted">AI attributed</span>
           </div>
         </div>
 
-        {/* Right: Telemetry Analysis Panel */}
-        <div className="md:col-span-7 space-y-2.5 min-w-0">
-          <div className="p-2.5 rounded bg-black/30 border border-white/5 space-y-1 font-mono text-xs">
-            <div className="text-[11px] font-bold text-slate-200">
-              {verdict.status}: {aiSharePct}% of Surge
+        {/* Right: Analysis */}
+        <div className="md:col-span-7 space-y-3 min-w-0">
+          <div className="p-3 inset-panel space-y-1">
+            <div className="text-sm font-semibold text-ink">
+              {verdict.status}: {aiSharePct}% of surge
             </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
+            <p className="text-xs text-ink-soft leading-relaxed">
               {verdict.desc} AI apps and local models used {formatKwh(safeImpact.local_ai_kwh)} on this device
               ({peso(safeImpact.ai_effect)} of the increase)
               {eq && ` ≈ ${formatCo2(eq.co2_kg)}, or ${formatDuration(eq.aircon_hours)} of running a 1 HP aircon`}.
@@ -148,24 +138,16 @@ export default function BillImpact({ impact }) {
           </div>
 
           {/* Attribution Items */}
-          <div className="space-y-1.5 font-mono text-xs">
+          <div className="divide-y divide-line">
             {donutData.map((item, idx) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between p-1.5 rounded bg-white/[0.02] border border-white/5"
-              >
+              <div key={idx} className="flex items-center justify-between py-2 text-sm">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className="w-2 h-2 rounded-sm shrink-0"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className="text-slate-300 text-[11px] truncate">{item.name}</span>
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                  <span className="text-ink-soft truncate">{item.name}</span>
                 </div>
-                <div className="flex items-center gap-2 text-[11px] tabular-nums shrink-0 ml-2">
-                  <span className="text-slate-400">
-                    ({((item.value / totalIncrease) * 100).toFixed(0)}%)
-                  </span>
-                  <span className="font-bold text-slate-100">{peso(item.value)}</span>
+                <div className="flex items-center gap-2 tabular-nums shrink-0 ml-2">
+                  <span className="text-ink-muted text-xs">{((item.value / totalIncrease) * 100).toFixed(0)}%</span>
+                  <span className="font-semibold text-ink">{peso(item.value)}</span>
                 </div>
               </div>
             ))}
@@ -173,57 +155,28 @@ export default function BillImpact({ impact }) {
         </div>
       </div>
 
-      {/* Environmental & Carbon Equivalencies Matrix */}
+      {/* Environmental & Carbon Equivalencies */}
       {eq && (
-        <div className="pt-3 border-t border-white/5 space-y-2">
-          <div className="flex items-center justify-between text-[11px] font-mono">
-            <span className="text-slate-300 font-semibold uppercase flex items-center gap-1.5">
-              <Leaf className="w-3.5 h-3.5 text-emerald-400" />
-              Green Computing & Eco Equivalencies
+        <div className="pt-4 border-t border-line space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <span className="font-semibold text-ink flex items-center gap-1.5">
+              <Leaf className="w-4 h-4 text-pos" />
+              Green computing & eco equivalencies
             </span>
-            <span className="text-[10px] text-slate-400">Grid Factor: 0.70 kg CO₂/kWh</span>
+            <span className="text-xs text-ink-muted">Grid factor: 0.70 kg CO₂/kWh</span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono">
-            <div className="p-2.5 rounded bg-white/[0.02] border border-white/5 flex flex-col gap-1">
-              <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold uppercase">
-                <Leaf className="w-3 h-3" />
-                <span>Emissions</span>
-              </div>
-              <div className="text-sm font-bold text-white tabular-nums">{formatCo2(eq.co2_kg)}</div>
-              <div className="text-[9px] text-slate-400 font-sans">Carbon Footprint</div>
-            </div>
-            <div className="p-2.5 rounded bg-white/[0.02] border border-white/5 flex flex-col gap-1">
-              <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold uppercase">
-                <Wind className="w-3 h-3" />
-                <span>Offset</span>
-              </div>
-              <div className="text-sm font-bold text-white tabular-nums">{eq.trees_offset || 0} Trees</div>
-              <div className="text-[9px] text-slate-400 font-sans">Monthly Absorption</div>
-            </div>
-            <div className="p-2.5 rounded bg-white/[0.02] border border-white/5 flex flex-col gap-1">
-              <div className="flex items-center gap-1.5 text-[10px] text-sky-400 font-semibold uppercase">
-                <Smartphone className="w-3 h-3" />
-                <span>Phone Draw</span>
-              </div>
-              <div className="text-sm font-bold text-white tabular-nums">{(eq.smartphone_charges || 0).toLocaleString()}x</div>
-              <div className="text-[9px] text-slate-400 font-sans">Full Battery Charges</div>
-            </div>
-            <div className="p-2.5 rounded bg-white/[0.02] border border-white/5 flex flex-col gap-1">
-              <div className="flex items-center gap-1.5 text-[10px] text-sky-400 font-semibold uppercase">
-                <Car className="w-3 h-3" />
-                <span>EV Range</span>
-              </div>
-              <div className="text-sm font-bold text-white tabular-nums">{eq.ev_km || 0} km</div>
-              <div className="text-[9px] text-slate-400 font-sans">EV Highway Equivalent</div>
-            </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <EqTile icon={Leaf} label="Emissions" value={formatCo2(eq.co2_kg)} sub="Carbon footprint" />
+            <EqTile icon={Wind} label="Offset" value={`${eq.trees_offset || 0} Trees`} sub="Monthly absorption" />
+            <EqTile icon={Smartphone} label="Phone draw" value={`${(eq.smartphone_charges || 0).toLocaleString()}x`} sub="Full battery charges" />
+            <EqTile icon={Car} label="EV range" value={`${eq.ev_km || 0} km`} sub="EV highway equivalent" />
           </div>
         </div>
       )}
 
-      {/* Industrial Footnote */}
-      <div className="pt-2.5 border-t border-white/5 flex flex-wrap items-center justify-between text-[10px] font-mono text-slate-400 gap-2">
+      <div className="mt-4 pt-3 border-t border-line flex flex-wrap items-center justify-between text-xs text-ink-muted gap-2">
         <span>Cloud AI runs in provider data centers, so it isn't counted in your bill.</span>
-        <span className="text-slate-400">MATH: RATE · AI · OTHER USAGE DECOMPOSITION</span>
+        <span>Math: rate · AI · other usage decomposition</span>
       </div>
     </section>
   );

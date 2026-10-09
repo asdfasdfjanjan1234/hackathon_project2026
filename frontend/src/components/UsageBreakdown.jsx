@@ -1,7 +1,5 @@
 import { useState, useMemo } from "react";
 import {
-  Cpu,
-  ArrowUpDown,
   HardDrive,
   Cloud,
 } from "lucide-react";
@@ -10,14 +8,14 @@ import { PARTS } from "./AppPowerParts";
 
 // Power class from the average watts while the model was doing work (measured, not a rating).
 const POWER_CLASSES = [
-  { max: 30, grade: "CLASS A", color: "text-sky-400 border-sky-500/25 bg-sky-500/10" },
-  { max: 100, grade: "CLASS B", color: "text-slate-200 border-white/15 bg-white/5" },
-  { max: 250, grade: "CLASS C", color: "text-amber-400 border-amber-500/25 bg-amber-500/10" },
-  { max: Infinity, grade: "CLASS D", color: "text-rose-400 border-rose-500/25 bg-rose-500/10" },
+  { max: 30, grade: "Class A", tag: "tech-tag-pos" },
+  { max: 100, grade: "Class B", tag: "tech-tag-neutral" },
+  { max: 250, grade: "Class C", tag: "tech-tag-sim" },
+  { max: Infinity, grade: "Class D", tag: "tech-tag-alert" },
 ];
 
 function powerClass(watts) {
-  if (watts == null) return { grade: "—", label: "No active time yet", color: "text-slate-400 border-white/10 bg-white/5" };
+  if (watts == null) return { grade: "—", label: "No active time yet", tag: "tech-tag-neutral" };
   const c = POWER_CLASSES.find((p) => watts < p.max);
   return { ...c, label: `${formatWatts(watts)} while running` };
 }
@@ -70,157 +68,128 @@ export default function UsageBreakdown({ usage }) {
   };
 
   return (
-    <section className="dash-card p-4 sm:p-5 flex flex-col justify-between select-none font-mono min-w-0">
+    <section className="dash-card p-5 flex flex-col justify-between min-w-0">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between pb-3 border-b border-white/5 gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="w-7 h-7 rounded bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 shrink-0">
-            <Cpu className="w-3.5 h-3.5" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-xs font-bold text-slate-100 uppercase tracking-wider truncate">
-              Runtime Inventory & Power Profiles
-            </h2>
-            <div className="text-[10px] text-slate-400 font-sans truncate">
-              Model execution benchmarks & cost attribution
-              {usage?.window && ` · ${shortDate(usage.window.start)} – ${shortDate(usage.window.end)}`}
-            </div>
+      <div className="flex flex-wrap items-start justify-between pb-4 border-b border-line gap-3">
+        <div className="min-w-0">
+          <h2 className="card-title">Runtime inventory & power profiles</h2>
+          <div className="card-sub mt-0.5">
+            Model execution benchmarks & cost attribution
+            {usage?.window && ` · ${shortDate(usage.window.start)} – ${shortDate(usage.window.end)}`}
           </div>
         </div>
 
         {/* Sort Controls */}
-        <div className="flex items-center gap-1 text-[11px] shrink-0">
-          <span className="text-slate-400 mr-1 text-[10px]">SORT:</span>
-          {[
-            { id: "kwh", label: "ENERGY" },
-            { id: "cost", label: "TARIFF" },
-            { id: "name", label: "ID" },
-          ].map((s) => (
-            <button
-              key={s.id}
-              onClick={() => toggleSort(s.id)}
-              className={`px-2 py-0.5 rounded border text-[10px] transition-colors ${
-                sortBy === s.id
-                  ? "bg-slate-700 text-sky-300 border-slate-600 font-bold"
-                  : "bg-white/[0.02] text-slate-400 border-white/5 hover:text-white"
-              }`}
-            >
-              {s.label} {sortBy === s.id && (sortOrder === "desc" ? "↓" : "↑")}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-ink-muted">Sort:</span>
+          <div className="seg" role="group" aria-label="Sort by">
+            {[
+              { id: "kwh", label: "Energy" },
+              { id: "cost", label: "Tariff" },
+              { id: "name", label: "ID" },
+            ].map((s) => (
+              <button
+                key={s.id}
+                onClick={() => toggleSort(s.id)}
+                aria-pressed={sortBy === s.id}
+                className={`seg-item ${sortBy === s.id ? "seg-item-active" : ""}`}
+              >
+                {s.label} {sortBy === s.id && (sortOrder === "desc" ? "↓" : "↑")}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Model Table List - Smooth Horizontal Scroll on Mobile */}
-      <div className="overflow-x-auto my-2 -mx-4 sm:mx-0 px-4 sm:px-0">
-        <table className="w-full text-left text-xs border-collapse min-w-[500px]">
+      {/* Model table: scrolls sideways on small screens */}
+      <div className="overflow-x-auto my-2 -mx-5 sm:mx-0 px-5 sm:px-0">
+        <table className="w-full text-left text-sm border-collapse min-w-[640px]">
           <thead>
-            <tr className="border-b border-white/5 text-slate-400 uppercase tracking-wider text-[10px]">
-              <th className="py-2.5 px-2 font-bold">MODEL RUNTIME</th>
-              <th className="py-2.5 px-2 font-bold">HOST BUS</th>
-              <th className="py-2.5 px-2 font-bold">{usage?.window?.short || `${usage?.window_days || 30}D`} ENERGY</th>
-              <th className="py-2.5 px-2 font-bold">ATTRIBUTED TARIFF</th>
-              <th className="py-2.5 px-2 font-bold text-center">POWER CLASS</th>
-              <th className="py-2.5 px-2 font-bold text-right">TELEMETRY</th>
+            <tr className="border-b border-line">
+              <th className="th">Model runtime</th>
+              <th className="th">Host bus</th>
+              <th className="th">{usage?.window?.short || `${usage?.window_days || 30}D`} energy</th>
+              <th className="th">Attributed tariff</th>
+              <th className="th text-center">Power class</th>
+              <th className="th text-right">Telemetry</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody className="divide-y divide-line">
             {models.map((m) => (
-              <tr
-                key={m.model}
-                className="hover:bg-white/[0.02] transition-colors"
-              >
+              <tr key={m.model} className="hover:bg-sunken transition-colors">
                 {/* Model ID */}
-                <td className="py-2.5 px-2">
-                  <div className="flex items-center gap-2">
+                <td className="py-3 px-2">
+                  <div className="flex items-center gap-2.5">
                     {m.kind === "local" ? (
-                      <HardDrive className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <HardDrive className="w-4 h-4 text-ink-muted shrink-0" />
                     ) : (
-                      <Cloud className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <Cloud className="w-4 h-4 text-ink-muted shrink-0" />
                     )}
                     <div>
-                      <span className="font-bold text-slate-100 block text-xs">
-                        {m.model}
-                      </span>
-                      <span className="text-[9px] text-slate-400 uppercase">
-                        {m.kind === "local" ? "LOCAL MODEL" : m.kind === "client" ? "AI APP · THIS DEVICE" : "CLOUD API"}
+                      <span className="font-medium text-ink block">{m.model}</span>
+                      <span className="text-xs text-ink-muted">
+                        {m.kind === "local" ? "Local model" : m.kind === "client" ? "AI app · this device" : "Cloud API"}
                       </span>
                     </div>
                   </div>
                 </td>
 
                 {/* Host Bus */}
-                <td className="py-2.5 px-2 text-[11px] text-slate-400">
+                <td className="py-3 px-2 text-xs text-ink-soft">
                   {m.kind === "local" ? "This device (CPU/GPU)" : m.kind === "client" ? "This device" : "Data center"}
                 </td>
 
                 {/* Energy with Progress Bar */}
-                <td className="py-2.5 px-2 min-w-[120px]">
-                  <div className="space-y-1">
-                    <div className="font-bold text-slate-200 tabular-nums text-xs">
-                      {formatKwh(m.kwh, 2)}
-                    </div>
+                <td className="py-3 px-2 min-w-[140px]">
+                  <div className="space-y-1.5">
+                    <div className="font-medium text-ink tabular-nums">{formatKwh(m.kwh, 2)}</div>
                     {m.partKwh ? (
                       <>
-                        <div className="w-full bg-slate-800 rounded-sm h-1 overflow-hidden">
+                        <div className="w-full bg-line rounded-full h-1.5 overflow-hidden">
                           <div className="h-full flex" style={{ width: `${m.percentage}%` }}>
                             {PARTS.map((p, i) => (
                               <div key={p.key} className={p.bar} style={{ width: `${(m.partKwh[i] / m.splitKwh) * 100}%` }} />
                             ))}
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-x-1.5 text-[9px] font-mono tabular-nums">
+                        <div className="flex flex-wrap gap-x-2 text-[11px] tabular-nums text-ink-muted">
                           {PARTS.map((p, i) => (
-                            <span key={p.key} className={p.text}>
+                            <span key={p.key} className="inline-flex items-center gap-1">
+                              <span className={`w-1.5 h-1.5 rounded-full ${p.bar}`} />
                               {p.label} {formatKwh(m.partKwh[i], 2)}
                             </span>
                           ))}
                         </div>
                       </>
                     ) : (
-                    <div className="w-full bg-slate-800 rounded-sm h-1 overflow-hidden">
-                      <div
-                        className={`h-full ${
-                          m.kind === "cloud"
-                            ? "bg-slate-600"
-                            : m.percentage > 50
-                            ? "bg-rose-500"
-                            : "bg-sky-500"
-                        }`}
-                        style={{ width: `${m.percentage}%` }}
-                      />
-                    </div>
+                      <div className="w-full bg-line rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${m.kind === "cloud" ? "bg-viz-grey" : "bg-accent"}`}
+                          style={{ width: `${m.percentage}%` }}
+                        />
+                      </div>
                     )}
                   </div>
                 </td>
 
                 {/* Tariff */}
-                <td className="py-2.5 px-2">
-                  <div className="font-bold text-slate-100 tabular-nums text-xs">
-                    {peso(m.cost)}
-                  </div>
-                  <div className="text-[9px] text-slate-400">
-                    {m.kind === "cloud" ? "ESTIMATED" : "DIRECT BILL"}
-                  </div>
+                <td className="py-3 px-2">
+                  <div className="font-medium text-ink tabular-nums">{peso(m.cost)}</div>
+                  <div className="text-xs text-ink-muted">{m.kind === "cloud" ? "Estimated" : "Direct bill"}</div>
                 </td>
 
-                {/* Efficiency Grade (Cyan / Amber / Rose - NO GREEN) */}
-                <td className="py-2.5 px-2 text-center">
-                  <span
-                    className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold border ${m.efficiency.color}`}
-                    title={m.efficiency.label}
-                  >
+                {/* Power class */}
+                <td className="py-3 px-2 text-center">
+                  <span className={`tech-tag ${m.efficiency.tag}`} title={m.efficiency.label}>
                     {m.efficiency.grade}
                   </span>
-                  <div className="text-[9px] text-slate-500 mt-0.5 whitespace-nowrap">{m.efficiency.label}</div>
+                  <div className="text-[11px] text-ink-muted mt-1 whitespace-nowrap tabular-nums">{m.efficiency.label}</div>
                 </td>
 
-                {/* Source Badge (Cyan, NO GREEN) */}
-                <td className="py-2.5 px-2 text-right">
+                {/* Source badge */}
+                <td className="py-3 px-2 text-right">
                   <span
-                    className={`tech-tag ${
-                      m.source === "measured" ? "tech-tag-live" : "tech-tag-sim"
-                    }`}
+                    className={`tech-tag ${m.source === "measured" ? "tech-tag-live" : "tech-tag-sim"}`}
                     title={
                       m.source === "measured"
                         ? "Measured at the device, split per model by CPU and GPU share"
@@ -238,18 +207,18 @@ export default function UsageBreakdown({ usage }) {
 
       {/* Energy per host app (VS Code, Terminal, ...), from the device reader */}
       {usage?.by_host?.length > 0 && (
-        <div className="mt-2 pt-3 border-t border-white/5">
-          <div className="text-[10px] uppercase tracking-wider text-slate-400 mb-1.5">By host ({(usage.window?.label || "Last 30 days").toLowerCase()})</div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+        <div className="mt-2 pt-4 border-t border-line">
+          <div className="text-xs font-medium text-ink-muted mb-2">By host ({(usage.window?.label || "Last 30 days").toLowerCase()})</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {usage.by_host.map((h) => (
               <div
                 key={`${h.app}-${h.host}`}
-                className="flex items-center justify-between gap-2 p-1.5 rounded bg-white/[0.02] border border-white/5 text-[11px]"
+                className="flex items-center justify-between gap-2 px-3 py-2 inset-panel text-sm"
               >
-                <span className="text-slate-200 truncate">
-                  {h.app} <span className="text-slate-500">in {h.host}</span>
+                <span className="text-ink truncate">
+                  {h.app} <span className="text-ink-muted">in {h.host}</span>
                 </span>
-                <span className="text-slate-300 tabular-nums shrink-0">
+                <span className="text-ink-soft tabular-nums shrink-0 text-xs">
                   {formatKwh(h.kwh)} · {peso(h.cost)}
                 </span>
               </div>
@@ -258,13 +227,12 @@ export default function UsageBreakdown({ usage }) {
         </div>
       )}
 
-      {/* Industrial Footer */}
-      <div className="pt-2 border-t border-white/5 flex flex-wrap items-center justify-between text-[10px] text-slate-400 gap-2">
+      <div className="mt-4 pt-3 border-t border-line flex flex-wrap items-center justify-between text-xs text-ink-muted gap-2">
         <span>
           * Power class: average watts while running (A under 30 W, B under 100 W, C under 250 W, D above). Cloud
           model inference runs in the provider's data center.
         </span>
-        <span>INDEX: {models.length} RUNTIMES</span>
+        <span className="tabular-nums">Index: {models.length} runtimes</span>
       </div>
     </section>
   );

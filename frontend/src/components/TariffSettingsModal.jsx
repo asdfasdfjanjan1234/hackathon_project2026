@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
-import { X, SlidersHorizontal, RotateCcw, Check } from "lucide-react";
+import { X, RotateCcw, Check } from "lucide-react";
 import { peso } from "../format";
 
 // One setting: a slider for quick changes plus a number box for any exact value,
 // so bills and rates outside the slider's range still work.
 function Field({ label, value, onChange, min, max, step, format, accent, hint, children }) {
   return (
-    <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-2">
+    <div className="p-4 inset-panel space-y-2.5">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-slate-300 font-bold uppercase text-[11px]">{label}</span>
-        <span className={`font-bold text-sm tabular-nums ${accent}`}>{format(value)}</span>
+        <span className="text-sm font-medium text-ink">{label}</span>
+        <span className={`font-semibold text-sm tabular-nums ${accent}`}>{format(value)}</span>
       </div>
       <div className="flex items-center gap-3">
         <input
@@ -19,7 +19,8 @@ function Field({ label, value, onChange, min, max, step, format, accent, hint, c
           step={step}
           value={value}
           onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="flex-1 accent-sky-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
+          className="flex-1 accent-accent cursor-pointer"
+          aria-label={`${label} slider`}
         />
         <input
           type="number"
@@ -27,11 +28,11 @@ function Field({ label, value, onChange, min, max, step, format, accent, hint, c
           step={step}
           value={value}
           onChange={(e) => onChange(e.target.value === "" ? 0 : parseFloat(e.target.value))}
-          className="w-24 px-2 py-1 rounded bg-slate-950 border border-white/10 text-right text-slate-100 tabular-nums"
+          className="field-input w-24"
           aria-label={label}
         />
       </div>
-      {hint && <div className="text-[10px] text-slate-400 font-sans">{hint}</div>}
+      {hint && <div className="text-xs text-ink-muted leading-snug">{hint}</div>}
       {children}
     </div>
   );
@@ -77,6 +78,14 @@ export default function TariffSettingsModal({
   }, [isOpen, currentRate, currentBudget, currentBaseline, currentBill, currentCycleStartDay, currentCarbonBudget,
       currentTariff, currentPeakRate, currentOffpeakRate]);
 
+  // Escape closes without saving.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   // Back to the backend's .env values.
@@ -111,27 +120,30 @@ export default function TariffSettingsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm select-none font-mono">
-      <div className="relative w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl bg-slate-900 border border-white/10 shadow-2xl p-5 sm:p-6 space-y-5">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-[2px]"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tariff-settings-title"
+        className="relative w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl bg-surface border border-line shadow-pop p-6 space-y-5"
+      >
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-white/10">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded bg-sky-500/10 border border-sky-500/25 flex items-center justify-center text-sky-400">
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-white uppercase tracking-wider">Your Tariff & Bill</h2>
-              <div className="text-[10px] text-slate-400 font-sans">
-                From your electricity bill. Every projection is recalculated with these values.
-              </div>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 id="tariff-settings-title" className="text-lg font-semibold text-ink">Your tariff & bill</h2>
+            <div className="text-sm text-ink-muted mt-0.5">
+              From your electricity bill. Every projection is recalculated with these values.
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.04]">
+          <button onClick={onClose} className="btn-icon shrink-0" aria-label="Close settings" autoFocus>
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="space-y-3 text-xs">
+        <div className="space-y-3">
           <Field
             label="Rate (₱ per kWh)"
             value={rate}
@@ -140,11 +152,11 @@ export default function TariffSettingsModal({
             max={30}
             step={0.01}
             format={(v) => `${peso(v, 2)} / kWh`}
-            accent="text-sky-300"
+            accent="text-accent"
             hint="The total ₱/kWh on your bill (generation, transmission, distribution and taxes)."
           />
-          <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-2">
-            <div className="text-slate-300 font-bold uppercase text-[11px]">Tariff</div>
+          <div className="p-4 inset-panel space-y-2.5">
+            <div className="text-sm font-medium text-ink">Tariff</div>
             <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tariff">
               {[
                 ["flat", "Same rate all day", "Regular Meralco residential rate"],
@@ -155,14 +167,14 @@ export default function TariffSettingsModal({
                   role="radio"
                   aria-checked={tariff === id}
                   onClick={() => setTariff(id)}
-                  className={`p-2 rounded border text-left transition-colors ${
+                  className={`p-3 rounded-lg border text-left transition-colors ${
                     tariff === id
-                      ? "border-sky-500 bg-sky-500/10 text-white"
-                      : "border-white/10 bg-slate-950 text-slate-400 hover:text-white"
+                      ? "border-accent bg-accent/[0.08] ring-1 ring-accent"
+                      : "border-line bg-surface hover:border-line-strong"
                   }`}
                 >
-                  <div className="font-bold text-[11px] uppercase">{title}</div>
-                  <div className="text-[10px] font-sans text-slate-400">{hint}</div>
+                  <div className={`font-medium text-sm ${tariff === id ? "text-accent" : "text-ink"}`}>{title}</div>
+                  <div className="text-xs text-ink-muted mt-0.5 leading-snug">{hint}</div>
                 </button>
               ))}
             </div>
@@ -172,7 +184,7 @@ export default function TariffSettingsModal({
                   ["Peak ₱/kWh", peakRate, setPeakRate],
                   ["Off-peak ₱/kWh", offpeakRate, setOffpeakRate],
                 ].map(([label, value, set]) => (
-                  <label key={label} className="flex items-center justify-between gap-2 text-[11px] text-slate-300">
+                  <label key={label} className="flex items-center justify-between gap-2 text-sm text-ink-soft">
                     <span>{label}</span>
                     <input
                       type="number"
@@ -180,11 +192,11 @@ export default function TariffSettingsModal({
                       step={0.01}
                       value={value}
                       onChange={(e) => set(e.target.value === "" ? 0 : parseFloat(e.target.value))}
-                      className="w-24 px-2 py-1 rounded bg-slate-950 border border-white/10 text-right text-slate-100 tabular-nums"
+                      className="field-input w-24"
                     />
                   </label>
                 ))}
-                <div className="sm:col-span-2 text-[10px] text-slate-400 font-sans">
+                <div className="sm:col-span-2 text-xs text-ink-muted">
                   The all-in peak and off-peak rates on your POP bill. They change monthly with the generation charge.
                 </div>
               </div>
@@ -198,7 +210,7 @@ export default function TariffSettingsModal({
             max={20000}
             step={50}
             format={(v) => `${peso(v, 0)} / mo`}
-            accent="text-amber-400"
+            accent="text-warn"
           />
           <Field
             label="Bill before AI (baseline)"
@@ -208,7 +220,7 @@ export default function TariffSettingsModal({
             max={20000}
             step={50}
             format={(v) => peso(v, 0)}
-            accent="text-slate-200"
+            accent="text-ink"
             hint="A typical month before you started using AI on this computer."
           />
           <Field
@@ -219,7 +231,7 @@ export default function TariffSettingsModal({
             max={20000}
             step={50}
             format={(v) => peso(v, 0)}
-            accent="text-rose-300"
+            accent="text-ink"
             hint={'Used to answer "did AI raise my bill?": the increase over the baseline is split into rate change, AI and other usage.'}
           />
           <Field
@@ -230,13 +242,13 @@ export default function TariffSettingsModal({
             max={100}
             step={0.5}
             format={(v) => (v > 0 ? `${v} kg CO₂ / mo` : "Off")}
-            accent="text-emerald-300"
+            accent="text-pos"
             hint="CO₂ from AI on this device plus cloud data centers. 0 turns the budget off."
           />
-          <div className="p-3 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between gap-3">
+          <div className="p-4 inset-panel flex items-center justify-between gap-3">
             <div>
-              <div className="text-slate-300 font-bold uppercase text-[11px]">Billing cycle starts on day</div>
-              <div className="text-[10px] text-slate-400 font-sans">The meter reading day on your bill (1–31).</div>
+              <div className="text-sm font-medium text-ink">Billing cycle starts on day</div>
+              <div className="text-xs text-ink-muted">The meter reading day on your bill (1–31).</div>
             </div>
             <input
               type="number"
@@ -245,36 +257,26 @@ export default function TariffSettingsModal({
               step={1}
               value={cycleDay}
               onChange={(e) => setCycleDay(e.target.value === "" ? "" : parseInt(e.target.value, 10))}
-              className="w-20 px-2 py-1 rounded bg-slate-950 border border-white/10 text-right text-slate-100 tabular-nums"
+              className="field-input w-20"
               aria-label="Billing cycle start day"
             />
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-between pt-3 border-t border-white/10 gap-3 text-xs">
-          <button
-            onClick={handleReset}
-            disabled={!defaults}
-            className="px-3 py-2 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] disabled:opacity-50 text-slate-400 hover:text-white transition-colors flex items-center gap-1.5"
-          >
+        <div className="flex items-center justify-between pt-4 border-t border-line gap-3">
+          <button onClick={handleReset} disabled={!defaults} className="btn border-transparent">
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>RESET DEFAULTS</span>
+            <span>Reset defaults</span>
           </button>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="px-3 py-2 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] text-slate-300 hover:text-white transition-colors"
-            >
-              CANCEL
+            <button onClick={onClose} className="btn">
+              Cancel
             </button>
-            <button
-              onClick={handleApply}
-              className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold transition-colors flex items-center gap-1.5 shadow-sm"
-            >
+            <button onClick={handleApply} className="btn-primary px-4">
               <Check className="w-3.5 h-3.5" />
-              <span>APPLY</span>
+              <span>Apply</span>
             </button>
           </div>
         </div>

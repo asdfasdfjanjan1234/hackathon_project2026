@@ -182,7 +182,7 @@ export default function App() {
     if (demoSpike) {
       list.push({
         level: "warn",
-        title: "CRITICAL LOAD SURGE: +485.4W",
+        title: "Critical load surge: +485.4 W",
         text: "Local Ollama Llama-3-70B + Stable Diffusion active on GPU. Projected cost: +₱5.82 / hr at ₱12/kWh.",
       });
     }
@@ -196,7 +196,7 @@ export default function App() {
   // Loading Skeleton State
   if (loading) {
     return (
-      <div className="flex h-screen bg-darkBg text-slate-100 overflow-hidden font-sans">
+      <div className="flex h-screen bg-canvas text-ink overflow-hidden font-sans">
         <Sidebar activeTab={activeTab} setActiveTab={handleSelectTab} badges={badges} />
         <div className="flex-1 flex flex-col h-screen overflow-hidden">
           <TopBar
@@ -206,15 +206,15 @@ export default function App() {
             onOpenMobileMenu={() => setMobileMenuOpen(true)}
             onOpenSettings={() => setSettingsOpen(true)}
           />
-          <main className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="stat-card h-32 animate-pulse bg-white/[0.02]" />
+                <div key={i} className="stat-card h-36 animate-pulse" />
               ))}
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-              <div className="lg:col-span-5 h-80 rounded-lg bg-white/[0.02] border border-white/5 animate-pulse" />
-              <div className="lg:col-span-7 h-80 rounded-lg bg-white/[0.02] border border-white/5 animate-pulse" />
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="lg:col-span-5 h-80 dash-card animate-pulse" />
+              <div className="lg:col-span-7 h-80 dash-card animate-pulse" />
             </div>
           </main>
         </div>
@@ -225,7 +225,7 @@ export default function App() {
   // Error State with Retry
   if (error) {
     return (
-      <div className="flex h-screen bg-darkBg text-slate-100 overflow-hidden font-sans">
+      <div className="flex h-screen bg-canvas text-ink overflow-hidden font-sans">
         <Sidebar activeTab={activeTab} setActiveTab={handleSelectTab} badges={badges} />
         <div className="flex-1 flex flex-col h-screen overflow-hidden">
           <TopBar
@@ -236,23 +236,18 @@ export default function App() {
             onOpenSettings={() => setSettingsOpen(true)}
           />
           <main className="flex-1 flex items-center justify-center p-6">
-            <div className="max-w-md w-full p-6 rounded-lg bg-slate-900 border border-rose-500/30 text-center space-y-4 shadow-2xl font-mono">
-              <div className="w-10 h-10 rounded bg-rose-500/10 border border-rose-500/25 text-rose-400 flex items-center justify-center mx-auto">
+            <div className="dash-card max-w-md w-full p-6 text-center space-y-4">
+              <div className="w-10 h-10 rounded-full bg-neg/10 text-neg flex items-center justify-center mx-auto">
                 <AlertTriangle className="w-5 h-5" />
               </div>
-              <h2 className="text-sm font-bold text-white uppercase tracking-wider">Telemetry Link Failure</h2>
-              <p className="text-xs text-slate-400 leading-relaxed font-sans">
-                Could not connect to localhost:5001 telemetry daemon. Verify that the Python backend process is listening.
+              <h2 className="card-title">Telemetry link failure</h2>
+              <p className="text-sm text-ink-soft leading-relaxed">
+                Could not connect to localhost:5000 telemetry daemon. Verify that the Python backend process is listening.
               </p>
-              <div className="p-2.5 rounded bg-black/50 text-rose-300 text-[11px] break-all border border-white/5">
-                {error}
-              </div>
-              <button
-                onClick={() => fetchData(customParams, true)}
-                className="w-full py-2 px-4 rounded bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors uppercase tracking-wider"
-              >
+              <div className="inset-panel p-2.5 text-neg text-xs font-mono break-all text-left">{error}</div>
+              <button onClick={() => fetchData(customParams, true)} className="btn-primary w-full py-2">
                 <RefreshCw className="w-3.5 h-3.5" />
-                <span>Re-establish Telemetry Link</span>
+                <span>Re-establish telemetry link</span>
               </button>
             </div>
           </main>
@@ -294,7 +289,7 @@ export default function App() {
               usage={rawData.usage}
               rate={customParams?.rate}
             />
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-w-0">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-w-0">
               <div className="lg:col-span-5 flex flex-col min-w-0">
                 <LiveWattage reading={effectiveLiveReading} />
               </div>
@@ -315,7 +310,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-darkBg text-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen bg-canvas text-ink overflow-hidden font-sans">
       {/* 1. Left Sidebar (With responsive mobile drawer support) */}
       <Sidebar
         activeTab={activeTab}
@@ -346,23 +341,25 @@ export default function App() {
         />
 
         {/* Scrollable View */}
-        <main ref={mainRef} className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6 space-y-5 min-w-0">
-          <ViewHeader view={VIEWS[activeTab]} />
+        <main ref={mainRef} className="flex-1 overflow-y-auto px-4 py-5 sm:p-6 lg:p-8 space-y-6 min-w-0">
+          <div className="mx-auto w-full max-w-[1400px] space-y-6 min-w-0">
+            <ViewHeader view={VIEWS[activeTab]} />
 
-          <div key={activeTab} className="space-y-5 min-w-0 animate-view-in">
-            {renderView()}
+            <div key={activeTab} className="space-y-6 min-w-0 animate-view-in">
+              {renderView()}
+            </div>
+
+            {/* Dashboard Footer */}
+            <footer className="pt-4 pb-2 border-t border-line flex flex-wrap items-center justify-between text-xs text-ink-muted gap-2">
+              <div className="flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-accent" />
+                <span className="font-medium text-ink-soft">WattTrace</span>
+              </div>
+              <div className="tabular-nums">
+                This device · Sampling: 2000 ms · Tariff: ₱{customParams?.rate?.toFixed(2)} / kWh · Cap: ₱{customParams?.budget} · Cycle starts day {customParams?.cycleStartDay ?? 1}
+              </div>
+            </footer>
           </div>
-
-          {/* Dashboard Footer */}
-          <footer className="pt-3 pb-2 border-t border-white/5 flex flex-wrap items-center justify-between text-[11px] font-mono text-slate-400 gap-2 select-none">
-            <div className="flex items-center gap-2">
-              <Zap className="w-3.5 h-3.5 text-sky-400" />
-              <span>WATT-TELEMETRY SCADA CONSOLE // ENGINE V1.4</span>
-            </div>
-            <div>
-              THIS DEVICE · SAMPLING: 2000MS · TARIFF: ₱{customParams?.rate?.toFixed(2)} / KWH · CAP: ₱{customParams?.budget} · CYCLE STARTS DAY {customParams?.cycleStartDay ?? 1}
-            </div>
-          </footer>
         </main>
       </div>
 
@@ -391,18 +388,10 @@ export default function App() {
 
 function ViewHeader({ view }) {
   if (!view) return null;
-  const Icon = view.icon;
   return (
-    <div className="flex items-center gap-3 min-w-0">
-      <div className="w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/25 flex items-center justify-center text-sky-400 shrink-0">
-        <Icon className="w-4 h-4" />
-      </div>
-      <div className="min-w-0">
-        <h2 className="text-base sm:text-lg font-bold font-mono tracking-tight text-white uppercase truncate">
-          {view.title}
-        </h2>
-        <p className="text-xs text-slate-400 truncate">{view.description}</p>
-      </div>
+    <div className="min-w-0">
+      <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-ink">{view.title}</h2>
+      <p className="mt-1 text-sm text-ink-muted">{view.description}</p>
     </div>
   );
 }
