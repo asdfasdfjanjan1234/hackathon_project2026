@@ -322,7 +322,8 @@ export default function App() {
             {/* Dashboard Footer */}
             <footer className="pt-4 pb-2 border-t border-line flex flex-wrap items-center justify-between text-xs text-ink-muted gap-2">
               <div className="flex items-center gap-1.5">
-                <img src="/logo-mark.png" alt="Kilo What?" className="h-3.5 w-auto object-contain" />
+                <img src="/logo-collapse.png" alt="Kilo What?" className="h-4 w-auto object-contain dark:hidden" />
+                <img src="/logo-collapse-dark.png" alt="Kilo What?" className="h-4 w-auto object-contain hidden dark:block" />
                 <span className="font-medium text-ink-soft">Kilo What?</span>
               </div>
               <div className="tabular-nums">

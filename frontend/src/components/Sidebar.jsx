@@ -39,27 +39,36 @@ export default function Sidebar({
         } ${collapsed ? "md:w-16" : "md:w-60"}`}
       >
         {/* Brand */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-line">
+        <div
+          className={`h-16 flex items-center border-b border-line transition-all ${
+            collapsed ? "justify-center px-2" : "justify-between px-4"
+          }`}
+        >
           <div className="flex items-center min-w-0">
             {expanded ? (
               <div className="flex items-center h-10">
                 <img
-                  src="/logo-vert.png"
+                  src="/logo.png"
                   alt="Kilo What?"
                   className="h-9 w-auto max-w-[170px] object-contain dark:hidden"
                 />
                 <img
-                  src="/logo-vert-dark.png"
+                  src="/logo-dark.png"
                   alt="Kilo What?"
                   className="h-9 w-auto max-w-[170px] object-contain hidden dark:block"
                 />
               </div>
             ) : (
-              <div className="w-8 h-8 flex items-center justify-center">
+              <div className="w-10 h-10 flex items-center justify-center">
                 <img
-                  src="/logo-mark.png"
+                  src="/logo-collapse.png"
                   alt="Kilo What?"
-                  className="h-7 w-auto object-contain"
+                  className="h-9 w-9 object-contain dark:hidden"
+                />
+                <img
+                  src="/logo-collapse-dark.png"
+                  alt="Kilo What?"
+                  className="h-9 w-9 object-contain hidden dark:block"
                 />
               </div>
             )}
