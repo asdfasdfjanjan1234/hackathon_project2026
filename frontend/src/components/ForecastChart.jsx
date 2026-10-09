@@ -87,12 +87,7 @@ export default function ForecastChart({ forecast }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 font-mono text-xs shrink-0">
-          <div className="px-2.5 py-1 rounded bg-sky-500/10 border border-sky-500/20 text-[11px] flex items-center gap-1.5">
-            <span className="text-slate-300">SAVINGS WITH RECS:</span>
-            <span className="text-sky-300 font-bold tabular-nums">{peso(totalSavings)}</span>
-          </div>
-        </div>
+        <span className="tech-tag tech-tag-pos tabular-nums">Savings with recs: {peso(totalSavings)}</span>
       </div>
 
       <div className="pt-4 pb-1 h-64 sm:h-80 w-full min-w-0 overflow-hidden">
