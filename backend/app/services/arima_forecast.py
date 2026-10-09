@@ -145,3 +145,36 @@ def _remember(key, result):
         _cache.clear()
     _cache[key] = result
     return result
+
+
+_accuracy_cache = {}
+
+
+def accuracy(device_id):
+    """The fine-tuned models scored as an "in use / idle" classifier on their held-out windows
+    (accuracy, precision, recall, F1; wattcast/classify.py), at a few "in use" thresholds, next to
+    simple baselines. {"available": False, "reason"} when there is nothing to score yet."""
+    if device_id is None:
+        return {"available": False, "reason": "No readings from this device yet"}
+    try:
+        _wattcast()
+        from wattcast import classify, settings
+    except (ImportError, OSError) as e:
+        return {"available": False, "reason": f"Can't load the ARIMA code ({e}): pip install -r backend/requirements.txt"}
+
+    # Re-scored when fine-tuning or an export changes these files.
+    files = [os.path.join(settings.device_checkpoints(device_id), "config.json"),
+             settings.device_artifact(device_id, "model.json"),
+             settings.device_data(device_id, "energy.csv"), settings.device_data(device_id, "by_app.csv")]
+    key = (device_id, tuple(os.path.getmtime(f) if os.path.exists(f) else None for f in files))
+    if key not in _accuracy_cache:
+        try:
+            result = {"available": True, **classify.report(device_id)}
+        except (FileNotFoundError, ValueError) as e:
+            result = {"available": False, "reason": str(e)}
+        except Exception as e:  # a failed score shows as a note instead of failing the dashboard
+            log.exception("Scoring the ARIMA models of device %s failed", device_id)
+            result = {"available": False, "reason": f"Scoring failed: {e}"}
+        _accuracy_cache.clear()
+        _accuracy_cache[key] = result
+    return _accuracy_cache[key]

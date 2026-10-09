@@ -69,6 +69,7 @@ In VS Code, open the notebook and pick the kernel at `training/arima_forecast/.v
 | 4 | `03_study_patterns.py` | Usage levels (idle / light / moderate / heavy), and when and how heavily each agent is used | `artifacts/devices/device_<id>_patterns.md` |
 | 5 | `05_finetune_device.py` | Fits one model per agent on its weekly routine, warm-started from Luzon, and checks the summed forecast on held-out windows | `artifacts/devices/device_<id>_model.json` |
 | 6 | `06_forecast_bill.py` | Projected bill for the cycle, kWh and pesos per step and agent, with 80% ranges | `artifacts/devices/device_<id>_forecast.csv` / `.json` |
+| 7 | `08_classification_metrics.py` | Scores the held-out forecasts as "AI in use / idle": accuracy, precision, recall and F1, next to the baselines. Fits nothing. The dashboard shows the same under **Forecast Accuracy** | printed |
 
 Every script has `--help`.
 

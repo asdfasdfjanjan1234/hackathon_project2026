@@ -244,97 +244,100 @@ export default function LiveWattage({ reading }) {
       </section>
 
       {/* 2. Right Card: Active AI Workload Breakdown (Scrollable Process List) */}
-      <section className="dash-card p-5 flex flex-col justify-between min-w-0 h-full">
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Header */}
-          <div className="flex items-start justify-between pb-4 border-b border-line gap-2">
-            <div className="min-w-0">
-              <h2 className="card-title truncate">Active AI workload breakdown</h2>
-              <div className="card-sub truncate mt-0.5">Attributed machine draw per AI process</div>
-            </div>
-            <span className="tech-tag tech-tag-neutral shrink-0 tabular-nums">
-              {processList.length} {processList.length === 1 ? "runtime" : "runtimes"}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between text-xs font-medium text-ink-muted py-2.5">
-            <span>Process / runtime</span>
-            <span>Attributed draw</span>
-          </div>
-
-          {/* Scrollable process list container */}
-          <div className="flex-1 max-h-[360px] overflow-y-auto space-y-1.5 pr-1 min-h-[140px]">
-            {processList.length === 0 && (
-              <div className="p-3 inset-panel text-xs text-ink-muted">
-                {collecting
-                  ? "No AI apps running right now."
-                  : "Start the device reader (This Device) to measure watts per AI app."}
+      {/* On wide screens the left card sets the row height; this card is pinned to it so the list scrolls instead of stretching the row */}
+      <section className="dash-card min-w-0 h-full">
+        <div className="p-5 flex flex-col min-w-0 h-full lg:absolute lg:inset-0">
+          <div className="flex-1 min-h-0 flex flex-col min-w-0">
+            {/* Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-line gap-2 shrink-0">
+              <div className="min-w-0">
+                <h2 className="card-title truncate">Active AI workload breakdown</h2>
+                <div className="card-sub truncate mt-0.5">Attributed machine draw per AI process</div>
               </div>
-            )}
-            {processList.map((proc, i) => {
-              const { host, effort } = proc.app;
-              return (
-                <div
-                  key={i}
-                  className={`flex items-start justify-between p-2.5 inset-panel ${proc.app.activity === "idle" ? "opacity-70" : ""}`}
-                >
-                  <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                    <BrandIcon name={proc.app.app} fallback={proc.icon} className="w-5 h-5" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-sm font-semibold text-ink truncate">{proc.name}</span>
-                        {proc.activity && (
-                          <span className={`tech-tag shrink-0 font-medium ${proc.activity.chip}`}>
-                            {proc.activity.label}
-                          </span>
-                        )}
+              <span className="tech-tag tech-tag-neutral shrink-0 tabular-nums">
+                {processList.length} {processList.length === 1 ? "runtime" : "runtimes"}
+              </span>
+            </div>
+  
+            <div className="flex items-center justify-between text-xs font-medium text-ink-muted py-2.5 shrink-0">
+              <span>Process / runtime</span>
+              <span>Attributed draw</span>
+            </div>
+  
+            {/* Scrollable process list: capped on narrow screens, fills the card on wide ones */}
+            <div className="flex-1 min-h-[140px] max-h-[360px] lg:max-h-none overflow-y-auto overscroll-contain space-y-1.5 pr-1">
+              {processList.length === 0 && (
+                <div className="p-3 inset-panel text-xs text-ink-muted">
+                  {collecting
+                    ? "No AI apps running right now."
+                    : "Start the device reader (This Device) to measure watts per AI app."}
+                </div>
+              )}
+              {processList.map((proc, i) => {
+                const { host, effort } = proc.app;
+                return (
+                  <div
+                    key={i}
+                    className={`flex items-start justify-between p-2.5 inset-panel ${proc.app.activity === "idle" ? "opacity-70" : ""}`}
+                  >
+                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                      <BrandIcon name={proc.app.app} fallback={proc.icon} className="w-5 h-5" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-sm font-semibold text-ink truncate">{proc.name}</span>
+                          {proc.activity && (
+                            <span className={`tech-tag shrink-0 font-medium ${proc.activity.chip}`}>
+                              {proc.activity.label}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-ink-muted truncate tabular-nums">
+                          {proc.kind}
+                          {host && <> · in <BrandName name={host} /></>}
+                          {effort && ` · ${effort} effort`} · CPU {proc.cpu}
+                        </div>
+                        {proc.why && <div className="text-xs text-ink-soft leading-snug mt-1">{proc.why}</div>}
+                        <AppPowerParts app={proc.app} />
                       </div>
-                      <div className="text-xs text-ink-muted truncate tabular-nums">
-                        {proc.kind}
-                        {host && <> · in <BrandName name={host} /></>}
-                        {effort && ` · ${effort} effort`} · CPU {proc.cpu}
-                      </div>
-                      {proc.why && <div className="text-xs text-ink-soft leading-snug mt-1">{proc.why}</div>}
-                      <AppPowerParts app={proc.app} />
+                    </div>
+  
+                    <div className="text-right shrink-0 font-bold text-ink tabular-nums text-sm ml-2">
+                      {formatWatts(proc.watts)}
                     </div>
                   </div>
-
-                  <div className="text-right shrink-0 font-bold text-ink tabular-nums text-sm ml-2">
-                    {formatWatts(proc.watts)}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {processList.length > 0 && (
-            <div className="text-xs text-ink-muted mt-2">
-              Machine total {estimated ? "estimated" : "measured"} · per-app split calculated from CPU/GPU share
+                );
+              })}
             </div>
-          )}
-        </div>
-
-        {/* Footnote / Explanation accordion */}
-        <div className="pt-3 border-t border-line mt-3">
-          <button
-            type="button"
-            onClick={() => setShowMetrics((v) => !v)}
-            aria-expanded={showMetrics}
-            className="link"
-          >
-            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showMetrics ? "rotate-180" : ""}`} />
-            What do these numbers mean?
-          </button>
-          {showMetrics && (
-            <dl className="space-y-2 p-3 inset-panel text-xs leading-snug mt-2">
-              {METRICS.map((m) => (
-                <div key={m.term}>
-                  <dt className="font-semibold text-ink">{m.term}</dt>
-                  <dd className="text-ink-soft">{m.text}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
+  
+            {processList.length > 0 && (
+              <div className="text-xs text-ink-muted mt-2 shrink-0">
+                Machine total {estimated ? "estimated" : "measured"} · per-app split calculated from CPU/GPU share
+              </div>
+            )}
+          </div>
+  
+          {/* Footnote / Explanation accordion */}
+          <div className="pt-3 border-t border-line mt-3 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowMetrics((v) => !v)}
+              aria-expanded={showMetrics}
+              className="link"
+            >
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showMetrics ? "rotate-180" : ""}`} />
+              What do these numbers mean?
+            </button>
+            {showMetrics && (
+              <dl className="space-y-2 p-3 inset-panel text-xs leading-snug mt-2">
+                {METRICS.map((m) => (
+                  <div key={m.term}>
+                    <dt className="font-semibold text-ink">{m.term}</dt>
+                    <dd className="text-ink-soft">{m.text}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </div>
         </div>
       </section>
     </div>

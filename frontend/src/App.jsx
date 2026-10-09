@@ -7,6 +7,7 @@ import LiveWattage from "./components/LiveWattage";
 import { TrajectoryBanner, BillMetricsGrid } from "./components/BillSummary";
 import UsageBreakdown from "./components/UsageBreakdown";
 import ForecastChart from "./components/ForecastChart";
+import ForecastAccuracy from "./components/ForecastAccuracy";
 import Recommendations from "./components/Recommendations";
 import BillImpact from "./components/BillImpact";
 import TariffSettingsModal from "./components/TariffSettingsModal";
@@ -236,6 +237,8 @@ export default function App() {
             <BillImpact impact={rawData.impact} />
           </>
         );
+      case "accuracy":
+        return <ForecastAccuracy />;
       case "models":
         return <UsageBreakdown usage={rawData.usage} />;
       case "carbon":

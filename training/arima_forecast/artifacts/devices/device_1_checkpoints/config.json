@@ -94,16 +94,16 @@
       "min_coverage": 0.5,
       "min_day_hours": 1.0,
       "folds": 6,
-      "horizon_hours": 2,
-      "min_train_hours": 4,
+      "horizon_hours": 0.5,
+      "min_train_hours": 1,
       "top_structures": 2,
       "allow_routine_only": true,
-      "min_hours": 6,
+      "min_hours": 2,
       "min_days": 1
     },
     "agents": {
       "used_wh": 0.05,
-      "min_used_hours": 2,
+      "min_used_hours": 1,
       "min_share": 0.02,
       "max_agents": 6
     },
@@ -122,7 +122,7 @@
     }
   },
   "versions": {
-    "python": "3.11.17",
+    "python": "3.10.11",
     "numpy": "2.2.1",
     "pandas": "2.2.3",
     "scipy": "1.14.1",
@@ -132,13 +132,17 @@
   "step": "finetune",
   "device_id": 1,
   "data": {
-    "start": "2026-10-09 18:45:00",
-    "end": "2026-10-10 02:30:00",
+    "start": "2026-09-25 18:30:00",
+    "end": "2026-10-10 03:45:00",
     "step_minutes": 15,
-    "hours": 8.0,
-    "known_hours": 8.0
+    "hours": 345.5,
+    "known_hours": 345.5
   },
   "agents": [
+    "Ollama",
+    "Claude Code",
+    "Kiro",
+    "Devin Desktop",
     "Other AI apps"
   ],
   "bill_settings": {

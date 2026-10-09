@@ -75,6 +75,8 @@ export const api = {
     return get(`/usage${q ? `${q}&` : "?"}range=${range}`);
   },
   forecast: (params) => get(`/forecast${billQuery(params)}`),
+  // The fine-tuned ARIMA models scored as an "in use / idle" classifier on held-out windows.
+  forecastAccuracy: () => get("/forecast/accuracy"),
   recommendations: (params) => get(`/recommendations${billQuery(params)}`),
   impact: (params) => get(`/impact${billQuery(params)}`),
   // CO₂ on this device and in cloud data centers, for the same windows as usage.
