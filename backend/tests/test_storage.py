@@ -120,6 +120,7 @@ def test_app_parts_are_stored_and_summed(database):
     assert row == {"model": "Ollama · llama3:8b", "cpu_kwh": 0.002, "gpu_kwh": 0.006, "memory_kwh": 0.001,
                    "unsplit_kwh": 0.005}
     assert {k: latest["apps"][0][k] for k in parts} == parts
+    assert latest["apps"][0]["activity"] == "working"
     assert stored[0]["apps"][0]["gpu_watts"] == 6.0 and stored[1]["apps"][0]["gpu_watts"] is None
 
 

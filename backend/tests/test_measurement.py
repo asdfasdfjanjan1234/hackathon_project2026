@@ -5,7 +5,7 @@ import pytest
 from app import create_app
 from app.services import storage
 from app.services.ai_processes import classify
-from app.services.attribution import PowerModel, attribute, fit_power_model
+from app.services.attribution import PowerModel, activity, attribute, fit_power_model
 
 
 @pytest.mark.parametrize("name, exe, cmd, expected", [
@@ -130,3 +130,15 @@ def test_loaded_model_that_is_not_generating_gets_no_memory_power():
     apps = [{"app": "Ollama", "kind": "local", "cpu_percent": 0.0, "rss_mb": 40_000}]
     attribute(PowerModel(), 0, apps, ncpu=8, cpu_pct=10, measured={"memory": 3.0})
     assert apps[0]["memory_watts"] == 0.0 and apps[0]["watts"] == 0.0
+
+
+@pytest.mark.parametrize("app, expected", [
+    ({"kind": "client", "cpu_percent": 25.0}, "working"),        # streaming a reply or running tools
+    ({"kind": "client", "cpu_percent": 3.0}, "background"),      # open, light upkeep
+    ({"kind": "client", "cpu_percent": 0.2}, "idle"),            # open, waiting for a prompt
+    ({"kind": "local", "cpu_percent": 0.0, "gpu_share": 1.0}, "working"),
+    ({"kind": "local", "cpu_percent": 0.0, "model_mb": 4800.0}, "loaded"),  # in memory, not generating
+    ({"kind": "local", "cpu_percent": 0.0, "model_mb": None}, "idle"),      # the Ollama server alone
+])
+def test_activity_says_what_an_app_is_doing(app, expected):
+    assert activity(app) == expected

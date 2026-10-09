@@ -3,8 +3,11 @@ import {
   Server,
   Terminal,
   Radio,
+  Info,
+  ChevronDown,
 } from "lucide-react";
 import { formatWatts } from "../format";
+import { ACTIVITY, METRICS, explainApp, explainReading } from "../explain";
 import AppPowerParts from "./AppPowerParts";
 
 // Dial full-scale steps: the smallest that fits the readings, so a 5 W laptop and a
@@ -15,6 +18,7 @@ const HISTORY = 15;
 // The reading is polled once in App so it stays live whichever view is open.
 export default function LiveWattage({ reading }) {
   const [history, setHistory] = useState([]);
+  const [showMetrics, setShowMetrics] = useState(false);
 
   useEffect(() => {
     if (reading?.watts != null) {
@@ -74,10 +78,13 @@ export default function LiveWattage({ reading }) {
         watts: a.watts,
         cpu: `${(a.cpu_percent || 0).toFixed(1)}%`,
         app: a,
+        activity: ACTIVITY[a.activity],
+        why: explainApp(a),
         icon: a.kind === "local" ? Server : Terminal,
       })),
     [reading]
   );
+  const summary = useMemo(() => explainReading(reading), [reading]);
 
   if (!reading) return <section className="dash-card p-5 h-80 animate-pulse" />;
 
@@ -227,6 +234,19 @@ export default function LiveWattage({ reading }) {
             {currentWatts.toFixed(1)}W
           </span>
         </div>
+
+        {/* Why the computer draws what it draws, updated with every reading */}
+        {summary.length > 0 && (
+          <div className="w-full mt-2 p-2.5 rounded bg-sky-500/[0.06] border border-sky-500/15 text-[11px] leading-relaxed text-slate-300">
+            <div className="flex items-center gap-1.5 text-[9px] font-mono font-semibold text-sky-300 uppercase tracking-wider mb-1">
+              <Info className="w-3 h-3" />
+              Right now
+            </div>
+            {summary.map((line, i) => (
+              <p key={i} className={i === 0 ? "text-slate-100" : ""}>{line}</p>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Active AI Workload Breakdown */}
@@ -249,19 +269,33 @@ export default function LiveWattage({ reading }) {
             return (
               <div
                 key={i}
-                className="flex items-start justify-between p-2 rounded bg-black/30 border border-white/5 text-xs font-mono"
+                className={`flex items-start justify-between p-2 rounded bg-black/30 border border-white/5 text-xs font-mono ${
+                  proc.app.activity === "idle" ? "opacity-60" : ""
+                }`}
               >
                 <div className="flex items-start gap-2 min-w-0 flex-1">
                   <div className="w-5 h-5 rounded bg-white/[0.04] border border-white/5 flex items-center justify-center text-slate-400 shrink-0">
                     <Icon className="w-3 h-3" />
                   </div>
                   <div className="truncate min-w-0 flex-1">
-                    <div className="text-slate-200 font-medium truncate text-[11px]">
-                      {proc.name}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-slate-200 font-medium truncate text-[11px]">
+                        {proc.name}
+                      </span>
+                      {proc.activity && (
+                        <span className={`shrink-0 px-1 rounded border text-[8.5px] uppercase tracking-wider ${proc.activity.chip}`}>
+                          {proc.activity.label}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[9px] text-slate-400 truncate">
                       {proc.arch} · CPU {proc.cpu}
                     </div>
+                    {proc.why && (
+                      <div className="text-[10px] font-sans text-slate-400 leading-snug mt-0.5 whitespace-normal">
+                        {proc.why}
+                      </div>
+                    )}
                     <AppPowerParts app={proc.app} />
                   </div>
                 </div>
@@ -277,6 +311,26 @@ export default function LiveWattage({ reading }) {
           <div className="text-[9px] font-mono text-slate-500">
             Machine total {estimated ? "estimated" : "measured"} · per-app split calculated from CPU/GPU share
           </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setShowMetrics((v) => !v)}
+          aria-expanded={showMetrics}
+          className="flex items-center gap-1 text-[10px] font-mono text-sky-300 hover:text-sky-200"
+        >
+          <ChevronDown className={`w-3 h-3 transition-transform ${showMetrics ? "rotate-180" : ""}`} />
+          What do these numbers mean?
+        </button>
+        {showMetrics && (
+          <dl className="space-y-1.5 p-2.5 rounded bg-black/30 border border-white/5 text-[11px] leading-snug">
+            {METRICS.map((m) => (
+              <div key={m.term}>
+                <dt className="font-mono font-semibold text-slate-200">{m.term}</dt>
+                <dd className="text-slate-400">{m.text}</dd>
+              </div>
+            ))}
+          </dl>
         )}
       </div>
     </section>

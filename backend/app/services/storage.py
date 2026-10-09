@@ -12,7 +12,7 @@ import sqlite3
 import time
 from urllib.parse import unquote, urlparse
 
-from .attribution import ACTIVE_CPU_PCT, PowerModel
+from .attribution import ACTIVE_CPU_PCT, PowerModel, activity
 from .measurement import DERIVED
 
 SQLITE_SCHEMA = """
@@ -301,7 +301,7 @@ def latest_sample(conn, max_age_s=15):
         "cpu_percent": s["cpu_percent"],
         "gpu_percent": s["gpu_percent"],
         "ai_watts": round(sum(a["watts"] for a in apps), 2),
-        "apps": [dict(a) for a in apps],
+        "apps": [{**d, "activity": activity(d)} for d in map(dict, apps)],
         "components": {c["component"]: {"watts": c["watts"], "source": c["source"]} for c in components},
         "power_model": model.to_dict(),
         "device_id": s["device_id"],

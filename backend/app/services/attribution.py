@@ -24,6 +24,7 @@ import numpy as np
 MIN_WINDOWS = 8          # telemetry readings needed before fitting
 MIN_SPREAD_PCT = 3.0     # a resource must vary this much (std dev) to fit its coefficient
 ACTIVE_CPU_PCT = 1.0     # % of one core: a model runner below this isn't generating
+BUSY_CPU_PCT = 10.0      # % of one core: an AI app above this is doing real work, not just staying open
 
 
 def nnls(A, b):
@@ -93,6 +94,24 @@ def fit_power_model(windows, default=None):
         A = np.column_stack([np.ones(len(data)), cpu])
         (idle, w_cpu), _ = nnls(A, watts - w_gpu * gpu)
     return PowerModel(float(idle), float(w_cpu), float(w_gpu), fitted_on=len(data))
+
+
+def activity(app):
+    """What an AI app is doing in this reading, from its CPU and GPU use:
+
+    "working":    a local model generating, or an app streaming a reply, running tools or indexing
+    "background": open and doing light upkeep (timers, syncing, file watching)
+    "loaded":     a local model held in memory but not generating
+    "idle":       open and waiting for a prompt
+    """
+    cpu = app.get("cpu_percent") or 0.0
+    if app.get("kind") == "local":
+        if cpu >= ACTIVE_CPU_PCT or (app.get("gpu_share") or 0) > 0:
+            return "working"
+        return "loaded" if app.get("model_mb") else "idle"
+    if cpu >= BUSY_CPU_PCT:
+        return "working"
+    return "background" if cpu >= ACTIVE_CPU_PCT else "idle"
 
 
 def _gpu_shares(apps, gpu_by_pid, gpu_pids):
