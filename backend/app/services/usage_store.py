@@ -1,4 +1,4 @@
-"""Access to daily per-model energy usage: sample data, or what the device reader recorded."""
+"""Access to daily per-model energy usage recorded by the device reader."""
 
 import platform
 from collections import defaultdict
@@ -11,14 +11,7 @@ from flask import current_app
 from . import storage
 from .local_models import installed_local_models
 from .model_usage import model_usage
-from .sample_data import generate_daily_usage, sample_signals
 from .system_info import machine_id
-
-
-def data_source():
-    """"device" or "sample". Starts from USE_SAMPLE_DATA; "Start reading my device" switches it."""
-    cfg = current_app.config
-    return cfg.get("DATA_SOURCE") or ("sample" if cfg["USE_SAMPLE_DATA"] else "device")
 
 
 @lru_cache(maxsize=1)
@@ -38,8 +31,6 @@ def connect():
 
 
 def get_daily_usage(days=30):
-    if data_source() == "sample":
-        return generate_daily_usage()
     with connect() as conn:
         return storage.daily_usage(conn, days=days, device_id=this_device_id(conn))
 
@@ -50,7 +41,7 @@ WINDOWS = {"7d": ("7D", "Last 7 days"), "30d": ("30D", "Last 30 days"), "month":
 
 def usage_window(window_id, end=None):
     """The 7D, 30D or MTD window: N calendar days through `end` (default today), or the 1st of
-    the month through `end`. The sample data ends yesterday, so it passes that as `end`."""
+    the month through `end`."""
     if window_id not in WINDOWS:
         window_id = "30d"
     end = end or date.today()
@@ -67,8 +58,6 @@ def usage_window(window_id, end=None):
 def get_signals():
     """What recommendations and the forecast need besides daily kWh: which days were measured,
     loaded-but-idle models, installed local models, and the cloud-model switch hint."""
-    if data_source() == "sample":
-        return sample_signals()
     with connect() as conn:
         device = this_device_id(conn)
         measured = storage.measured_days(conn, device_id=device)

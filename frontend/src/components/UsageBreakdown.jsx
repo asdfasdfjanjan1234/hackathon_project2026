@@ -219,17 +219,15 @@ export default function UsageBreakdown({ usage }) {
                 <td className="py-2.5 px-2 text-right">
                   <span
                     className={`tech-tag ${
-                      m.source === "measured" && usage.data_source !== "sample" ? "tech-tag-live" : "tech-tag-sim"
+                      m.source === "measured" ? "tech-tag-live" : "tech-tag-sim"
                     }`}
                     title={
-                      usage.data_source === "sample"
-                        ? "Synthetic data for John's gaming PC"
-                        : m.source === "measured"
+                      m.source === "measured"
                         ? "Measured at the device, split per model by CPU and GPU share"
                         : "Estimated from token counts"
                     }
                   >
-                    {usage.data_source === "sample" ? "sample" : m.source === "measured" ? "device · per app" : m.source}
+                    {m.source === "measured" ? "device · per app" : m.source}
                   </span>
                 </td>
               </tr>

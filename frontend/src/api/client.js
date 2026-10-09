@@ -49,7 +49,6 @@ export const api = {
   startDevice: () => post("/device/start"),
   stopDevice: () => post("/device/stop"),
   deviceStatus: () => get("/device/status"),
-  setDataSource: (source) => post("/device/source", { source }),
 
   // Apply a recommendation to Ollama (unload, or switch to the smaller model).
   applyRecommendation: (rec) => post("/actions/apply", rec),

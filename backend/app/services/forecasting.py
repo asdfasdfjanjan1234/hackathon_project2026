@@ -2,7 +2,7 @@
 
 For each model, from its daily kWh:
   1. Weekday/weekend pattern: with a week or more of data, weekdays and weekends get
-     their own factor (John uses AI less on weekends) and the trend is fitted to
+     their own factor (many people use AI less on weekends) and the trend is fitted to
      values with that pattern taken out.
   2. Trend: a least-squares line through the daily values, so growing use gives a
      growing forecast. With fewer than MIN_TREND_DAYS days there's no trend, just the average.
@@ -93,7 +93,7 @@ def forecast_bill(daily, rate, baseline_bill, today=None, cycle_start_day=1, mea
                   reductions=None, budget=None):
     """Bill forecast for the billing cycle containing `today`, plus HORIZONS months after it.
 
-    measured_days: [{date, hours}] the device reader ran (None for sample data: every day
+    measured_days: [{date, hours}] the device reader ran (None: every day
     from the first to the last row counts). reductions: {model: fraction of its energy the
     recommendations save}, used for the "with recommendations" path from tomorrow on.
     """

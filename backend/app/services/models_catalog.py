@@ -16,8 +16,8 @@ bits per weight) needs about half the energy per token on the same hardware.
 
 import re
 
-# Models in the sample data (John's gaming PC). Real devices list their own models
-# from Ollama and LM Studio (local_models.installed_local_models).
+# Well-known local models, used when a device's runtimes don't say more about a model.
+# Devices list their own models from Ollama and LM Studio (local_models.installed_local_models).
 LOCAL_MODELS = {
     "llama3:70b": {"avg_watts": 280, "smaller_alternative": "llama3:8b", "family": "llama",
                    "params_b": 70, "quantization": "Q4_0"},

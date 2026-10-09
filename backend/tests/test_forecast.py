@@ -65,9 +65,9 @@ def test_days_the_reader_was_off_are_not_counted_as_zero():
                              "last": measured[-1].isoformat()}
 
 
-def test_forecast_endpoint_uses_the_users_billing_cycle(tmp_path):
+def test_forecast_endpoint_uses_the_users_billing_cycle(seeded_db):
     app = create_app()
-    app.config.update(TESTING=True, USE_SAMPLE_DATA=True, DATABASE=str(tmp_path / "t.db"))
+    app.config.update(TESTING=True, DATABASE=seeded_db)
     f = app.test_client().get("/api/forecast?cycle_start_day=15&budget=2000").json
     assert f["cycle"]["start_day"] == 15 and f["cycle"]["start"].endswith("-15")
     assert f["daily"][-1]["bill_to_date"] == pytest.approx(f["forecast_bill"], abs=0.05)

@@ -4,9 +4,9 @@ from app import create_app
 
 
 @pytest.fixture
-def client(tmp_path):
+def client(seeded_db):
     app = create_app()
-    app.config.update(TESTING=True, USE_SAMPLE_DATA=True, DATABASE=str(tmp_path / "test.db"))
+    app.config.update(TESTING=True, DATABASE=seeded_db)
     return app.test_client()
 
 

@@ -11,7 +11,6 @@ class Config:
     BASELINE_BILL = float(os.getenv("BASELINE_BILL", 1500))
     MONTHLY_BUDGET = float(os.getenv("MONTHLY_BUDGET", 2000))
     BILLING_CYCLE_START_DAY = int(os.getenv("BILLING_CYCLE_START_DAY", 1))
-    USE_SAMPLE_DATA = os.getenv("USE_SAMPLE_DATA", "true").lower() == "true"
     # Where readings are stored: a mysql:// URL, or a SQLite file path (the default)
     DATABASE = os.getenv("DATABASE_URL") or os.getenv("DB_PATH") or os.path.join(BACKEND_DIR, "data", "wattage.db")
     # Bill actually received this month, and the rate that applied before AI use

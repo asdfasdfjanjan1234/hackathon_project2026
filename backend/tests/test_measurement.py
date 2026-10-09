@@ -88,7 +88,7 @@ def test_dashboard_uses_collected_data(tmp_path):
     storage.save_sample(conn, time.time(), 3600, 30, 10, 8, 7.5, [app])
 
     flask_app = create_app()
-    flask_app.config.update(TESTING=True, USE_SAMPLE_DATA=False, DATABASE=db)
+    flask_app.config.update(TESTING=True, DATABASE=db)
     client = flask_app.test_client()
 
     usage = client.get("/api/usage").json

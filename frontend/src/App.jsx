@@ -105,13 +105,11 @@ export default function App() {
 
   const refresh = useCallback(() => fetchData(customParams, true), [fetchData, customParams]);
 
-  // While showing this device's data, keep the dashboard current as readings come in.
-  const dataSource = rawData?.usage?.data_source;
+  // Keep the dashboard current as readings come in.
   useEffect(() => {
-    if (dataSource !== "device") return undefined;
     const timer = setInterval(refresh, 30000);
     return () => clearInterval(timer);
-  }, [dataSource, refresh]);
+  }, [refresh]);
 
   // Poll live power here so it keeps updating whichever view is open.
   useEffect(() => {
@@ -261,7 +259,7 @@ export default function App() {
       case "device":
         return (
           <>
-            <DeviceReader dataSource={dataSource} params={customParams} onDataChanged={refresh} />
+            <DeviceReader params={customParams} onDataChanged={refresh} />
             <LiveWattage reading={effectiveLiveReading} />
             <MeterCheck />
           </>
@@ -316,7 +314,6 @@ export default function App() {
         setMobileOpen={setMobileMenuOpen}
         badges={badges}
         liveReading={effectiveLiveReading}
-        dataSource={dataSource}
       />
 
       {/* 2. Main Viewport Container */}
@@ -353,7 +350,7 @@ export default function App() {
               <span>WATT-TELEMETRY SCADA CONSOLE // ENGINE V1.4</span>
             </div>
             <div>
-              {dataSource === "device" ? "THIS DEVICE" : "SAMPLE DATA (JOHN)"} · SAMPLING: 2000MS · TARIFF: ₱{customParams?.rate?.toFixed(2)} / KWH · CAP: ₱{customParams?.budget} · CYCLE STARTS DAY {customParams?.cycleStartDay ?? 1}
+              THIS DEVICE · SAMPLING: 2000MS · TARIFF: ₱{customParams?.rate?.toFixed(2)} / KWH · CAP: ₱{customParams?.budget} · CYCLE STARTS DAY {customParams?.cycleStartDay ?? 1}
             </div>
           </footer>
         </main>

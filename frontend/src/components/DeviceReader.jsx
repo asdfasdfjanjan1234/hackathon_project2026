@@ -9,7 +9,6 @@ import {
   Bot,
   Cloud,
   ShieldCheck,
-  Database,
 } from "lucide-react";
 import { formatWatts, formatWh, formatTokens, formatAppWatts, peso } from "../format";
 import AppPowerParts from "./AppPowerParts";
@@ -171,7 +170,7 @@ function ModelsPanel({ models }) {
   );
 }
 
-export default function DeviceReader({ dataSource, params, onDataChanged }) {
+export default function DeviceReader({ params, onDataChanged }) {
   const [status, setStatus] = useState(null);
   const [system, setSystem] = useState(null);
   const [sensors, setSensors] = useState(null);
@@ -180,7 +179,6 @@ export default function DeviceReader({ dataSource, params, onDataChanged }) {
   const [error, setError] = useState(null);
 
   const running = status?.running || status?.external_collector;
-  const viewingDevice = dataSource === "device";
 
   const loadDetails = useCallback(async () => {
     const [sys, mdl] = await Promise.all([api.system(), api.models(params)]);
@@ -229,11 +227,6 @@ export default function DeviceReader({ dataSource, params, onDataChanged }) {
     onDataChanged?.();
   };
 
-  const switchSource = async (source) => {
-    setStatus(await api.setDataSource(source));
-    onDataChanged?.();
-  };
-
   const showDetails = running || system;
 
   return (
@@ -254,22 +247,6 @@ export default function DeviceReader({ dataSource, params, onDataChanged }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg bg-black/40 border border-white/5 p-0.5 text-[10px] font-mono">
-            {[
-              ["device", "This device"],
-              ["sample", "Sample (John)"],
-            ].map(([id, label]) => (
-              <button
-                key={id}
-                onClick={() => switchSource(id)}
-                className={`px-2 py-1 rounded-md transition-colors ${
-                  dataSource === id ? "bg-sky-600 text-white" : "text-slate-400 hover:text-white"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
           {running && !status.external_collector ? (
             <button
               onClick={stop}
@@ -302,11 +279,6 @@ export default function DeviceReader({ dataSource, params, onDataChanged }) {
               Everything stays on this computer. Only model names and token counts are read from app logs, never
               prompts or code.
             </p>
-            {!viewingDevice && (
-              <p className="flex items-center gap-1.5 text-[11px] text-amber-300">
-                <Database className="w-3.5 h-3.5 shrink-0" /> The dashboard is showing sample data (John's gaming PC).
-              </p>
-            )}
           </div>
           <button
             onClick={start}

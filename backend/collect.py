@@ -3,8 +3,8 @@
     python collect.py                 # sample every 2 seconds until Ctrl+C
     python collect.py --interval 5
 
-Leave it running while you use AI tools. The dashboard reads the results
-when USE_SAMPLE_DATA=false in .env. Readings go to MySQL when DATABASE_URL is set.
+Leave it running while you use AI tools; the dashboard reads the results.
+Readings go to MySQL when DATABASE_URL is set.
 """
 
 import argparse

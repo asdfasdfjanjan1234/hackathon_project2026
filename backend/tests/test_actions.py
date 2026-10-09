@@ -52,10 +52,10 @@ def test_apply_switch_unloads_loads_and_records_it(ollama, tmp_path):
     assert client.post("/api/actions/apply", json={}).status_code == 400
 
 
-def test_recommendations_say_which_can_be_applied(ollama, tmp_path):
+def test_recommendations_say_which_can_be_applied(ollama, seeded_db):
     app = create_app()
-    app.config.update(TESTING=True, USE_SAMPLE_DATA=True, DATABASE=str(tmp_path / "a.db"))
+    app.config.update(TESTING=True, DATABASE=seeded_db)
     recs = app.test_client().get("/api/recommendations").json["recommendations"]
     applicable = {r["rule"] for r in recs if r["apply"]}
-    assert "smaller" in applicable or "idle" in applicable  # John's llama3:70b is "loaded"
+    assert "smaller" in applicable or "idle" in applicable  # llama3:70b is "loaded"
     assert all(r["apply"] is None for r in recs if r["rule"] == "quantized")

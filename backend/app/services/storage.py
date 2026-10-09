@@ -311,7 +311,7 @@ def latest_sample(conn, max_age_s=15):
 
 
 def daily_usage(conn, days=30, device_id=None):
-    """Daily kWh per AI app or model, in the same shape as the sample data.
+    """Daily kWh per AI app or model.
 
     active_hours: time the app was doing work (CPU at or above ACTIVE_CPU_PCT of a core).
     """

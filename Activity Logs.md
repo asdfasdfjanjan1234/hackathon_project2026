@@ -31,6 +31,20 @@ This document tracks development sessions, features implemented, refactoring eff
 
 ## Session History
 
+### [2026-10-09] - Session 10: Remove the Sample Data (John)
+**Branch:** `main`  
+**Goal:** The dashboard shows only this device's readings; drop the generated "Sample (John)" data.
+
+#### Completed Tasks
+- [x] **Backend:** deleted `sample_data.py`, `USE_SAMPLE_DATA` and `POST /api/device/source`; `data_source` is gone from `/api/usage` and `/api/device/status`. `LOCAL_MODELS` stays: recommendations use it for known models (llama3:70b → llama3:8b).
+- [x] **Frontend:** removed the **This device / Sample (John)** toggle, the "showing sample data" notice and the sample labels; the dashboard always refreshes every 30 s.
+- [x] **Docs:** README and DEMO_SCRIPT no longer use the toggle (the 1:35 demo step uses this device's bill split).
+
+#### Tests & Verification
+- `cd backend && .venv/bin/python -m pytest`: 172 passed, 4 skipped. API tests now seed a month of Ollama readings (`tests/conftest.py`) instead of using sample data. `npm run build` clean.
+
+---
+
 ### [2026-10-09] - Session 9: Every Plan Item, Built for Any Device and OS
 **Branch:** `main`  
 **Goal:** Implement the remaining PROJECT_PLAN.md items (§3.3, §4, §5, §6) and make measurement accurate on every OS, not just the M2.

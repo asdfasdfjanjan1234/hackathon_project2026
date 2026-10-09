@@ -43,8 +43,7 @@ backend/                  Flask API (port 5001)
       model_usage.py      Reads Claude Code / Codex / Copilot logs → tokens per model per day
       storage.py          MySQL or SQLite storage of devices and readings
       models_catalog.py   Local models (watts) and cloud models (list prices → data-center Wh estimate)
-      usage_store.py      Daily usage per model (sample data for now)
-      sample_data.py      Generates 30 days of realistic demo data
+      usage_store.py      Daily usage per model from this device's readings
       forecasting.py      Billing cycle, weekday/weekend pattern, damped trend → bill per day and 1/3/12 months
       recommendations.py  Rule-based recommendations with savings (budget, smaller model, quantization, idle, …)
       outlook.py          Forecast + recommendations together ("with recommendations" path)
@@ -93,7 +92,7 @@ Click **Start reading my device** at the top of the dashboard. The backend, runn
 3. reads which models they used from their local logs (Claude Code transcripts, Codex sessions, Copilot logs): model names and token counts only, never prompts or code,
 4. measures watts every 2 seconds into the database (MySQL, or `backend/data/wattage.db`) until you click **Stop reading**.
 
-The dashboard switches to this device's data; the **This device / Sample (John)** toggle switches back to the demo data. A browser can't read hardware or local files, which is why the backend has to run on the computer being measured.
+The dashboard shows this device's readings. A browser can't read hardware or local files, which is why the backend has to run on the computer being measured.
 
 `python collect.py` (in `backend/`, with the venv active) does the same from a terminal. The dashboard picks up its readings too. On startup it first detects the OS and devices, then lists the sensor it will use for each part (`~` in the readings marks an estimate):
 
@@ -163,7 +162,6 @@ cd backend && .venv/bin/python demo_load.py --model llama3:70b
 
 ## Notes
 
-- **Sample data:** `USE_SAMPLE_DATA=true` in `backend/.env` makes the dashboard start on generated data (John's gaming PC); clicking Start reading switches to this device.
 - **Your bill:** set the rate, baseline bill, this month's bill, budget and billing-cycle start day in Tariff & Hardware. The backend does all bill math with them.
 - **Comparisons:** CO₂ uses the Philippine DOE grid emission factor (0.7122 kg/kWh, Luzon-Visayas) and "hours of aircon" a 1 HP non-inverter unit (750 W). Change `GRID_CO2_KG_PER_KWH` and `AIRCON_WATTS` in `.env` for other places.
 - **Live power on Mac:** no sudo needed. The battery sensor gives measured system power on Apple Silicon laptops, and IOReport gives measured GPU power. Desktop Macs have no battery sensor.

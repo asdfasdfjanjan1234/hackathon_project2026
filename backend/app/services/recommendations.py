@@ -1,6 +1,6 @@
 """Rule-based recommendations: STOP, SWITCH or REDUCE, each with its expected savings.
 
-Every rule works from what was measured or read on this device (or from the sample data):
+Every rule works from what was measured or read on this device:
 
   budget      the forecast goes over budget: when, and how much the top consumer must drop
   smaller     a big local model, when a smaller one of its family is installed (or known)
@@ -55,7 +55,7 @@ def _rec(action, rule, model, message, monthly_savings, **extra):
 
 
 def _model_info(model, installed):
-    """What's known about a local model: from this device's runtimes, else the sample catalog."""
+    """What's known about a local model: from this device's runtimes, else the catalog."""
     name = local_name(model)
     for info in installed:
         if info["name"] == name:

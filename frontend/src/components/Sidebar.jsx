@@ -9,7 +9,6 @@ export default function Sidebar({
   setMobileOpen,
   badges = {},
   liveReading,
-  dataSource,
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const reading = liveReading?.source === "collector";
@@ -149,7 +148,7 @@ export default function Sidebar({
                   </span>
                 </div>
                 <div className="text-slate-400 truncate mt-0.5" title={sensor}>
-                  {sensor} · {dataSource === "device" ? "this device" : "sample data"}
+                  {sensor} · this device
                 </div>
               </div>
             )}

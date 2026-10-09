@@ -377,6 +377,7 @@ class FakeCollector:
     def __init__(self, conn, interval, sensors=None):
         from app.services.attribution import PowerModel
         self.model = PowerModel()
+        self.device_id = None
 
     def step(self):
         return {"ts": time.time(), "cpu": 10.0, "gpu": 0.0, "est_watts": 5.0, "measured_watts": 4.5,
@@ -390,14 +391,13 @@ def client(tmp_path, monkeypatch):
     from app.routes import device
     monkeypatch.setattr(device, "reader", device_reader.reader)
     app = create_app()
-    app.config.update(TESTING=True, USE_SAMPLE_DATA=True, DATABASE=str(tmp_path / "test.db"))
+    app.config.update(TESTING=True, DATABASE=str(tmp_path / "test.db"))
     return app.test_client()
 
 
-def test_start_reading_switches_to_device_data(client):
-    assert client.get("/api/usage").json["data_source"] == "sample"
+def test_start_and_stop_reading(client):
     started = client.post("/api/device/start").json
-    assert started["started"] and started["running"] and started["data_source"] == "device"
+    assert started["started"] and started["running"]
     assert started["system"]["os"] and "gpu" in started["sensors"]
     assert client.post("/api/device/start").json["started"] is False  # already running
     for _ in range(50):
@@ -406,9 +406,20 @@ def test_start_reading_switches_to_device_data(client):
         time.sleep(0.1)
     status = client.post("/api/device/stop").json
     assert not status["running"]
-    assert client.get("/api/usage").json["data_source"] == "device"
-    assert client.post("/api/device/source", json={"source": "sample"}).json["data_source"] == "sample"
-    assert client.post("/api/device/source", json={"source": "x"}).status_code == 400
+
+
+def test_reading_resumes_after_backend_restart(client, monkeypatch):
+    from app.routes import device
+    assert client.post("/api/device/start").json["started"]
+    # The debug reloader restarts the process: the thread and its state are gone.
+    device_reader.reader._stop.set()
+    restarted = device_reader.DeviceReader()
+    monkeypatch.setattr(device, "reader", restarted)
+    assert client.get("/api/device/status").json["running"]
+    # Stopping on purpose stays stopped across a restart.
+    client.post("/api/device/stop")
+    monkeypatch.setattr(device, "reader", device_reader.DeviceReader())
+    assert not client.get("/api/device/status").json["running"]
 
 
 def test_bill_params_come_from_the_query(client):
