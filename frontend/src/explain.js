@@ -6,6 +6,8 @@
 import { formatWatts } from "./format";
 
 // What each `activity` from the backend (attribution.activity) means for the user.
+// TODO: Add more activities and their meanings
+
 export const ACTIVITY = {
   working: {
     label: "Working",

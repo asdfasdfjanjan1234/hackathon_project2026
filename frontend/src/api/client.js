@@ -18,6 +18,7 @@ const post = (path, body) =>
 const del = (path) => request(path, { method: "DELETE" });
 
 // The user's rate, bills and budget; the backend does all bill math with them.
+// dsd.
 function billQuery(params) {
   if (!params) return "";
   const q = new URLSearchParams({
