@@ -308,10 +308,18 @@ export default function App() {
             <div key={activeTab} className="space-y-6 min-w-0 animate-view-in">
               {renderView()}
             </div>
-            <div>
-              THIS DEVICE · SAMPLING: {LIVE_POLL_MS}MS · TARIFF: ₱{customParams?.rate?.toFixed(2)} / KWH · CAP: ₱{customParams?.budget} · CYCLE STARTS DAY {customParams?.cycleStartDay ?? 1}
-            </div>
-          </footer>
+
+            {/* Dashboard Footer */}
+            <footer className="pt-4 pb-2 border-t border-line flex flex-wrap items-center justify-between text-xs text-ink-muted gap-2">
+              <div className="flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-accent" />
+                <span className="font-medium text-ink-soft">WattTrace</span>
+              </div>
+              <div className="tabular-nums">
+                This device · Sampling: {LIVE_POLL_MS} ms · Tariff: ₱{customParams?.rate?.toFixed(2)} / kWh · Cap: ₱{customParams?.budget} · Cycle starts day {customParams?.cycleStartDay ?? 1}
+              </div>
+            </footer>
+          </div>
         </main>
       </div>
 
