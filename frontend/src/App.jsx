@@ -17,6 +17,8 @@ import BestTime from "./components/BestTime";
 import { VIEWS } from "./navigation";
 import { AlertTriangle, RefreshCw, Zap } from "lucide-react";
 
+const LIVE_POLL_MS = 2000;
+
 const viewFromHash = () => {
   const id = window.location.hash.slice(1);
   return VIEWS[id] ? id : "dashboard";
@@ -26,11 +28,9 @@ export default function App() {
   const [rawData, setRawData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState(viewFromHash);
   const [dateRange, setDateRange] = useState("30d");
   const [liveReading, setLiveReading] = useState(null);
-  const [demoSpike, setDemoSpike] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [system, setSystem] = useState(null);
@@ -39,34 +39,12 @@ export default function App() {
   const dateRangeRef = useRef(dateRange);
   dateRangeRef.current = dateRange;
 
-  const effectiveLiveReading = useMemo(() => {
-    if (!liveReading) return null;
-    if (!demoSpike) return liveReading;
-    // Components are {watts, source}; the spike adds 485.4 W split across GPU, CPU and RAM.
-    const parts = liveReading.components || {};
-    const bump = (key, w) => ({ ...parts[key], watts: Math.round(((parts[key]?.watts || 0) + w) * 10) / 10,
-                                source: parts[key]?.source || "estimated" });
-    return {
-      ...liveReading,
-      watts: Math.round(((liveReading.watts || 12) + 485.4) * 10) / 10,
-      ai_watts: Math.round(((liveReading.ai_watts || 0) + 485.4) * 10) / 10,
-      components: { ...parts, gpu: bump("gpu", 382.5), cpu: bump("cpu", 91.2), memory: bump("memory", 11.7) },
-      apps: [
-        { name: "ollama (llama3:70b)", kind: "local", cpu_percent: 780, watts: 452.0 },
-        { name: "python (stable-diffusion-xl)", kind: "local", cpu_percent: 120, watts: 33.4 },
-        ...(liveReading.apps || []),
-      ],
-      spike_simulated: true,
-    };
-  }, [liveReading, demoSpike]);
-
   // The user's rate, bills, budget and billing cycle. Starts from the backend's .env values.
   const [customParams, setCustomParams] = useState(null);
   const [defaultParams, setDefaultParams] = useState(null);
 
   const fetchData = useCallback(async (params, isRefresh = false) => {
-    if (isRefresh) setIsRefreshing(true);
-    else setLoading(true);
+    if (!isRefresh) setLoading(true);
     setError(null);
 
     try {
@@ -98,7 +76,6 @@ export default function App() {
       setError(e.message || "Failed to communicate with telemetry backend.");
     } finally {
       setLoading(false);
-      setIsRefreshing(false);
     }
   }, []);
 
@@ -131,7 +108,7 @@ export default function App() {
       }
     };
     poll();
-    const timer = setInterval(poll, 2000);
+    const timer = setInterval(poll, LIVE_POLL_MS);
     return () => {
       isMounted = false;
       clearInterval(timer);
@@ -160,15 +137,11 @@ export default function App() {
   useEffect(() => {
     if (!rawData) return;
     const id = ++usageRequest.current;
-    setIsRefreshing(true);
     Promise.all([api.usage(customParams, dateRange), api.carbon(customParams, dateRange)])
       .then(([usage, carbon]) => {
         if (id === usageRequest.current) setRawData((d) => ({ ...d, usage, carbon }));
       })
-      .catch((e) => setError(e.message || "Failed to load usage for this window."))
-      .finally(() => {
-        if (id === usageRequest.current) setIsRefreshing(false);
-      });
+      .catch((e) => setError(e.message || "Failed to load usage for this window."));
     // Runs only when the window changes; settings changes refetch everything through fetchData.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange]);
@@ -179,17 +152,10 @@ export default function App() {
     const budget = recs.find((r) => r.rule === "budget");
     const top = recs.find((r) => r.rule !== "budget" && r.scope === "bill" && !r.alternative);
     const list = [];
-    if (demoSpike) {
-      list.push({
-        level: "warn",
-        title: "Critical load surge: +485.4 W",
-        text: "Local Ollama Llama-3-70B + Stable Diffusion active on GPU. Projected cost: +₱5.82 / hr at ₱12/kWh.",
-      });
-    }
     if (budget) list.push({ level: "warn", title: "Budget overrun projected", text: budget.message });
     if (top) list.push({ level: "opt", title: `${top.action}: ${top.model}`, text: top.message });
     return list;
-  }, [rawData, demoSpike]);
+  }, [rawData]);
 
   const badges = { recommendations: rawData?.recs?.recommendations?.length || 0 };
 
@@ -202,7 +168,6 @@ export default function App() {
           <TopBar
             dateRange={dateRange}
             setDateRange={setDateRange}
-            onRefresh={() => {}}
             onOpenMobileMenu={() => setMobileMenuOpen(true)}
             onOpenSettings={() => setSettingsOpen(true)}
           />
@@ -231,7 +196,6 @@ export default function App() {
           <TopBar
             dateRange={dateRange}
             setDateRange={setDateRange}
-            onRefresh={refresh}
             onOpenMobileMenu={() => setMobileMenuOpen(true)}
             onOpenSettings={() => setSettingsOpen(true)}
           />
@@ -262,7 +226,7 @@ export default function App() {
         return (
           <>
             <DeviceReader params={customParams} onDataChanged={refresh} />
-            <LiveWattage reading={effectiveLiveReading} />
+            <LiveWattage reading={liveReading} />
             <MeterCheck />
           </>
         );
@@ -285,13 +249,13 @@ export default function App() {
             <BillSummary
               forecast={rawData.forecast}
               recs={rawData.recs}
-              liveReading={effectiveLiveReading}
+              liveReading={liveReading}
               usage={rawData.usage}
               rate={customParams?.rate}
             />
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-w-0">
               <div className="lg:col-span-5 flex flex-col min-w-0">
-                <LiveWattage reading={effectiveLiveReading} />
+                <LiveWattage reading={liveReading} />
               </div>
               <div className="lg:col-span-7 flex flex-col min-w-0">
                 <ForecastChart forecast={rawData.forecast} recs={rawData.recs} />
@@ -318,7 +282,7 @@ export default function App() {
         mobileOpen={mobileMenuOpen}
         setMobileOpen={setMobileMenuOpen}
         badges={badges}
-        liveReading={effectiveLiveReading}
+        liveReading={liveReading}
       />
 
       {/* 2. Main Viewport Container */}
@@ -327,17 +291,13 @@ export default function App() {
         <TopBar
           dateRange={dateRange}
           setDateRange={setDateRange}
-          onRefresh={refresh}
-          isRefreshing={isRefreshing}
           electricityRate={customParams?.rate}
           monthlyBudget={customParams?.budget}
           onOpenMobileMenu={() => setMobileMenuOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
           system={system}
-          liveReading={effectiveLiveReading}
+          liveReading={liveReading}
           alerts={alerts}
-          demoSpike={demoSpike}
-          onToggleDemoSpike={() => setDemoSpike((p) => !p)}
         />
 
         {/* Scrollable View */}
@@ -348,24 +308,16 @@ export default function App() {
             <div key={activeTab} className="space-y-6 min-w-0 animate-view-in">
               {renderView()}
             </div>
-
-            {/* Dashboard Footer */}
-            <footer className="pt-4 pb-2 border-t border-line flex flex-wrap items-center justify-between text-xs text-ink-muted gap-2">
-              <div className="flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-accent" />
-                <span className="font-medium text-ink-soft">WattTrace</span>
-              </div>
-              <div className="tabular-nums">
-                This device · Sampling: 2000 ms · Tariff: ₱{customParams?.rate?.toFixed(2)} / kWh · Cap: ₱{customParams?.budget} · Cycle starts day {customParams?.cycleStartDay ?? 1}
-              </div>
-            </footer>
-          </div>
+            <div>
+              THIS DEVICE · SAMPLING: {LIVE_POLL_MS}MS · TARIFF: ₱{customParams?.rate?.toFixed(2)} / KWH · CAP: ₱{customParams?.budget} · CYCLE STARTS DAY {customParams?.cycleStartDay ?? 1}
+            </div>
+          </footer>
         </main>
       </div>
 
       {/* Interactive Tariff & Hardware Settings Modal */}
       <TariffSettingsModal
-        isOpen={settingsOpen}
+        isOpen={settingsOpen && customParams != null}
         onClose={() => setSettingsOpen(false)}
         currentRate={customParams?.rate}
         currentBudget={customParams?.budget}

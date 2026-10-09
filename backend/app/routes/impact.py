@@ -1,7 +1,7 @@
 from flask import jsonify
 
 from ..services.impact import bill_impact
-from ..services.usage_store import equivalents, get_daily_usage
+from ..services.usage_store import equivalence_factors, equivalents, get_daily_usage
 from . import api_bp, bill_params
 
 
@@ -15,4 +15,5 @@ def impact():
         baseline_rate=p["baseline_rate"],
         current_rate=p["rate"],
     )
-    return jsonify({**result, "equivalents": equivalents(result["local_ai_kwh"])})
+    return jsonify({**result, "equivalents": equivalents(result["local_ai_kwh"]),
+                    "factors": equivalence_factors()})

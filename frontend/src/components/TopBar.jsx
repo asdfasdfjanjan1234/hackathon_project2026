@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { Bell, RefreshCw, Menu, SlidersHorizontal, Zap } from "lucide-react";
+import {
+  Bell,
+  Menu,
+  SlidersHorizontal,
+} from "lucide-react";
 import { peso } from "../format";
 import ThemeToggle from "./ThemeToggle";
 
@@ -22,8 +26,6 @@ function sensorStatus(reading) {
 export default function TopBar({
   dateRange = "30d",
   setDateRange,
-  onRefresh,
-  isRefreshing = false,
   electricityRate,
   monthlyBudget,
   onOpenMobileMenu,
@@ -31,8 +33,6 @@ export default function TopBar({
   system,
   liveReading,
   alerts = [],
-  demoSpike = false,
-  onToggleDemoSpike,
 }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const status = sensorStatus(liveReading);
@@ -106,32 +106,6 @@ export default function TopBar({
             </button>
           ))}
         </div>
-
-        {/* Sync Telemetry Button */}
-        <button
-          onClick={onRefresh}
-          disabled={isRefreshing}
-          className="btn px-2 sm:px-3"
-          title="Resample hardware telemetry"
-          aria-label="Resample"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-accent" : "text-ink-muted"}`} />
-          <span className="hidden sm:inline">Resample</span>
-        </button>
-
-        {/* Hackathon Demo: Pulse Load Spike */}
-        <button
-          onClick={onToggleDemoSpike}
-          aria-pressed={demoSpike}
-          className={`btn px-2 sm:px-3 ${demoSpike ? "border-neg/40 bg-neg/10 text-neg hover:bg-neg/15 hover:text-neg" : ""}`}
-          title="Simulate 485W GPU local AI inference load"
-          aria-label={demoSpike ? "Surge active" : "Demo spike"}
-        >
-          <Zap className={`w-3.5 h-3.5 ${demoSpike ? "text-neg" : "text-warn"}`} />
-          <span className="hidden sm:inline">{demoSpike ? "Surge active" : "Demo spike"}</span>
-        </button>
-
-        <ThemeToggle className="hidden sm:flex" />
 
         {/* Telemetry Alert Log */}
         <div className="relative">

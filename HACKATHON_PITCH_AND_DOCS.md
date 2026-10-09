@@ -28,12 +28,16 @@ Most AI cost calculators perform naive token multiplications. **WATT-TRACE SCADA
 
 ## 🎤 3-Minute Hackathon Demo Script (Pitch Guide)
 
-| Time | Slide / Screen | Speaker Dialogue |
+The full script, with setup, checklist, fallbacks and judge Q&A, is in **[DEMO_SCRIPT.md](DEMO_SCRIPT.md)**. Numbers marked **[fill in]** come from rehearsal: never quote a number on stage that we didn't measure.
+
+| Time | Screen | Speaker Dialogue |
 |---|---|---|
-| **0:00 - 0:45** | **The Problem** | *"In 2026, everyone is running AI agents, local LLMs, and image generators. But developers have no idea how much power their workstation is consuming or whether AI is responsible for their ₱1,000 electric bill surge. Today, we built WATT-TRACE SCADA — the first hardware telemetry and FinOps engine for AI."* |
-| **0:45 - 1:30** | **Telemetry Console** | *(Open `http://localhost:5173`)* <br>*"Here is our live SCADA console. On this machine, our backend connects directly to Windows RAPL counters and our NVIDIA RTX 3050 GPU. Notice the baseline draw is ~12W. If we click **DEMO SPIKE** [click button], you see a live 485W surge from Ollama running Llama-3-70B. Our predictive model immediately catches it and forecasts a bill increase in real time."* |
-| **1:30 - 2:15** | **Billing & Carbon Matrix** | *(Click 'Billing Projection')* <br>*"We decompose the bill surge into Rate Hikes, Non-AI appliances, and Local AI Metal/CUDA draw. Furthermore, we translate raw kWh into real-world Green Computing metrics: exact kg of $\text{CO}_2$, trees needed for monthly offset, and EV driving distance."* |
-| **2:15 - 3:00** | **Actionable Directives** | *(Click 'Load Directives')* <br>*"Unlike passive dashboards, we provide actionable load directives: unloading idle local models from VRAM saves ₱240/mo, and switching high-volume repetitive queries from Opus to Sonnet cuts data-center carbon by 60%."* |
+| **0:00 - 0:42** | **Telemetry Console → This Device** | *"Your electric bill went up. Everyone's saying it's AI. Is it? Most tools guess. We measure: this app reads the laptop's own power sensors and finds every AI app running. Claude Code and Copilot right now: a fraction of a watt. For cloud AI, the honest answer is that it didn't raise your bill."* |
+| **0:42 - 1:17** | **Active Power Draw → If You Kept This Up** | *(Start `python demo_load.py --model llama3.1:8b`)* <br>*"But some people run AI on their own machine. There's the model: **[fill in] W**, and the wall meter agrees. Kept up 4 hours a day, that's **₱[fill in]** a month, times ten for a 10-machine dev shop."* |
+| **1:17 - 1:40** | **Billing Projection** | *"The app splits the bill increase into the rate change, AI, and everything else. Here AI explains **[fill in]%**."* |
+| **1:40 - 2:05** | **Load Directives** | *(Click **Switch now** on the big model)* <br>*"It doesn't just tell you, it fixes it. Big model unloaded, small one loaded: **[fill in] W** down to **[fill in] W**, right now."* |
+| **2:05 - 2:35** | **Carbon Ledger → Cleanest Hours; Best Time** | *"It also tells you when to run heavy jobs. Luzon's grid is cleanest **[fill in]**. Moving batch work there avoids **[fill in] g** of CO₂ a month, and on Meralco's Peak/Off-Peak rate those night hours are about ₱2 cheaper per kWh."* |
+| **2:35 - 3:00** | **This Device → Wall-Meter Check** | *"Is it accurate? Against a power meter at the wall, within **[fill in]%**, using only the laptop's own sensors. Watt-Trace: the honest answer about AI and your bill, and the fix when it's real."* |
 
 ---
 

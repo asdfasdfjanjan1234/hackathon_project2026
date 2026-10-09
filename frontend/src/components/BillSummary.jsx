@@ -62,7 +62,7 @@ export default function BillSummary({ forecast, recs, liveReading, usage, rate }
       title: `AI energy on bill (${windowShort})`,
       value: formatKwh(totalKwh, 1),
       subtext: factors
-        ? `≈ ${formatCo2(totalKwh * factors.co2_kg_per_kwh)} · ${formatDuration((totalKwh * 1000) / factors.aircon_watts)} of a 1 HP aircon`
+        ? `≈ ${formatCo2(totalKwh * factors.co2_kg_per_kwh)} · ${formatDuration((totalKwh * 1000) / factors.aircon_watts)} of a ${factors.aircon_watts} W aircon`
         : `Avg ${formatKwh(totalKwh / windowDays, 2)} / day`,
       badge: "Integrated",
       badgeType: "neutral",

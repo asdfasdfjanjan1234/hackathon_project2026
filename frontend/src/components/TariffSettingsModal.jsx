@@ -53,28 +53,28 @@ export default function TariffSettingsModal({
   defaults,
   onSave,
 }) {
-  const [rate, setRate] = useState(currentRate ?? 12);
-  const [budget, setBudget] = useState(currentBudget ?? 2000);
-  const [baseline, setBaseline] = useState(currentBaseline ?? 1500);
-  const [bill, setBill] = useState(currentBill ?? 2500);
+  const [rate, setRate] = useState(currentRate ?? "");
+  const [budget, setBudget] = useState(currentBudget ?? "");
+  const [baseline, setBaseline] = useState(currentBaseline ?? "");
+  const [bill, setBill] = useState(currentBill ?? "");
   const [cycleDay, setCycleDay] = useState(currentCycleStartDay ?? 1);
-  const [carbonBudget, setCarbonBudget] = useState(currentCarbonBudget ?? 10);
+  const [carbonBudget, setCarbonBudget] = useState(currentCarbonBudget ?? "");
   const [tariff, setTariff] = useState(currentTariff ?? "flat");
-  const [peakRate, setPeakRate] = useState(currentPeakRate ?? 13.59);
-  const [offpeakRate, setOffpeakRate] = useState(currentOffpeakRate ?? 9.86);
+  const [peakRate, setPeakRate] = useState(currentPeakRate ?? "");
+  const [offpeakRate, setOffpeakRate] = useState(currentOffpeakRate ?? "");
 
   // Start from the values in use each time the modal opens.
   useEffect(() => {
     if (!isOpen) return;
-    setRate(currentRate ?? 12);
-    setBudget(currentBudget ?? 2000);
-    setBaseline(currentBaseline ?? 1500);
-    setBill(currentBill ?? 2500);
+    setRate(currentRate ?? "");
+    setBudget(currentBudget ?? "");
+    setBaseline(currentBaseline ?? "");
+    setBill(currentBill ?? "");
     setCycleDay(currentCycleStartDay ?? 1);
-    setCarbonBudget(currentCarbonBudget ?? 10);
+    setCarbonBudget(currentCarbonBudget ?? "");
     setTariff(currentTariff ?? "flat");
-    setPeakRate(currentPeakRate ?? 13.59);
-    setOffpeakRate(currentOffpeakRate ?? 9.86);
+    setPeakRate(currentPeakRate ?? "");
+    setOffpeakRate(currentOffpeakRate ?? "");
   }, [isOpen, currentRate, currentBudget, currentBaseline, currentBill, currentCycleStartDay, currentCarbonBudget,
       currentTariff, currentPeakRate, currentOffpeakRate]);
 
