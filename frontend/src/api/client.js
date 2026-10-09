@@ -9,14 +9,7 @@ export const api = {
   forecast: () => get("/forecast"),
   recommendations: () => get("/recommendations"),
 
-  // Live / measurement endpoint: try /measurement first, fallback to /live
-  live: async () => {
-    try {
-      return await get("/measurement");
-    } catch {
-      return await get("/live");
-    }
-  },
+  live: () => get("/live"),
 
   // Impact endpoint: try /impact; if 404/fails, compute fallback impact from forecast & usage
   impact: async (forecastData, usageData) => {

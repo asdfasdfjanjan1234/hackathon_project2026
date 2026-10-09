@@ -2,7 +2,15 @@
 
 Software that measures how much electricity AI models (coding agents, chatbots, image generators) use, forecasts the user's electricity bill, and recommends ways to reduce it.
 
-**Example:** John's bill was ₱1,500 before he used AI. After he started using different AI models, it rose to ₱2,500. Our app shows how much each model contributed, what his next bills will be if he keeps going, and what he can change.
+**The pitch, in three parts** (based on what we measured; see section 1):
+
+1. **"Did AI really raise your bill?"** The app gives an honest answer. For most people using cloud AI it's "no: AI explains almost none of the increase, look at the aircon instead", and that answer is still useful.
+2. **Local AI is where the bill impact is real.** Models running on the user's own GPU are measured directly, shown in pesos, and come with fixes: smaller models, unloading idle ones.
+3. **Cloud AI is about awareness.** Claude, ChatGPT and Copilot run in the provider's data center, so they barely touch the user's bill. The app shows their estimated data-center energy per model (Opus vs. Sonnet), clearly labeled as estimated.
+
+**Two example users:**
+- **John** runs local models (`llama3:70b`, Stable Diffusion) on a gaming PC with a large NVIDIA GPU, about 4 hours a day. His bill went from ₱1,500 to ₱2,500. The app shows local AI explains most of the increase, which models caused it, his next bills if he keeps going, and what to change.
+- **Maria** vibe codes with Claude Code and Copilot on a MacBook, 8 hours a day. The app shows AI adds less than ₱1 a month to her bill. It also shows the estimated data-center energy of her Opus usage, and that switching simple tasks to Sonnet would roughly halve that estimate for those tasks.
 
 ## Core question: did AI increase the bill?
 
@@ -18,7 +26,9 @@ Cloud AI energy is shown separately but never counted in the bill, because the p
 
 **Verdict** (AI share of the increase): ≥50% *major* · 20–50% *contributing* · under 20% *minor* · 0 *none*.
 
-**With the current sample data:** John's bill went from ₱1,500 to ₱2,500. Local AI used 72 kWh (≈ ₱866), so AI explains about 87% of the increase. Verdict: *major*. These figures come from synthetic data and will change once real measurements are in.
+**With the current sample data (John's gaming PC):** his bill went from ₱1,500 to ₱2,500. Local AI used 72 kWh (≈ ₱866), so AI explains about 87% of the increase. Verdict: *major*. These figures come from synthetic data. They match a ~600 W PC running local models 4 hours a day, but they aren't measured.
+
+**Maria's case (measured on our M2):** AI apps used 0.01–0.18 W on her laptop, under ₱1 a month. Verdict: *none* or *minor*, whatever her bill did.
 
 **Ways to strengthen the evidence later:** an "AI-off week" vs. "AI-on week" experiment, or daily meter readings compared with daily AI kWh.
 
@@ -31,9 +41,16 @@ Cloud AI energy is shown separately but never counted in the bill, because the p
 | **Local models** | Ollama, LM Studio, Stable Diffusion on own GPU | **Yes** | **Measured** (real watts) |
 | **Cloud models** | Claude, ChatGPT, Gemini, Copilot, Cursor | **Almost none**: the model runs in the provider's data center | **Estimated** from token usage |
 
-**Rough check (assuming ~₱12/kWh; adjust to the local rate):**
-- A ₱1,000 increase ≈ 83 kWh/month ≈ a 300W GPU running local models ~9 hours/day.
-- Heavy cloud use (~500 prompts/day) ≈ only a few kWh/month, billed to the data center, not to the user.
+**What the numbers show (at ₱12/kWh; adjust to the local rate):**
+
+| Scenario | Power | Use | kWh / month | Cost / month | Source |
+|---|---|---|---|---|---|
+| MacBook Air M2 while vibe coding | ~7 W | 8 h/day | ~1.7 | ~₱20 | Measured |
+| Claude Code + Copilot on that laptop | 0.01–0.18 W | 8 h/day | under 0.05 | under ₱1 | Measured |
+| Local model on the M2 | ~20 W | 4 h/day | ~2.4 | ~₱30 | Estimate; measure in rehearsal |
+| Gaming PC running local models on a large GPU | ~600 W | 4 h/day | ~72 | ~₱860 | Estimate |
+
+So a ₱1,000 increase from AI takes about 83 kWh a month, and only heavy local-model use on a powerful GPU gets there. Cloud AI barely moves the user's bill; its energy is used in the data center, which we can only estimate (section 3.3). AI apps also use memory (Claude Code holds ~300 MB per session), but memory use barely changes power: RAM draws about the same whether it's 30% or 90% full.
 
 The app keeps **measured** and **estimated** values separate and labels them clearly.
 
@@ -287,15 +304,26 @@ Measure (watts per model) → Store (daily kWh per model)
 
 ## 7. Demo plan
 
-1. Run a local model on stage and show the live wattage graph climb.
-2. Show the per-app and per-model breakdown (e.g. Claude Code in VS Code: Opus 5.5 vs. Sonnet 5.5) and the "without AI vs. with AI" bill.
-3. Show the forecast chart: current path vs. following recommendations.
-4. Show the recommendations and how much they save.
+1. **Maria (live, on the Mac):** start `collect.py`, show the detected devices and the AI apps. Claude Code in VS Code adds a fraction of a watt: AI didn't raise her bill. Show its per-model breakdown (Opus 5.5 vs. Sonnet 5.5) with the estimated data-center energy.
+2. **Local AI (live, on the Mac):** run Ollama and show the live wattage climb. We expect about 5 W → 20 W; measure it in rehearsal. Small in pesos, but clearly visible.
+3. **John (sample data, labeled as such):** the gaming-PC case. Show the "without AI vs. with AI" bill, the forecast (current path vs. following recommendations) and the recommendations with savings. If a teammate has a Windows PC with an NVIDIA GPU, run this one live instead.
 
-## 8. Open decisions
+## 8. Open decisions and risks
 
-- [x] Hardware for the demo: Mac with Apple Silicon
+- [x] Hardware for the demo: Mac with Apple Silicon (plus a Windows PC with an NVIDIA GPU, if a teammate has one)
 - [x] Stack: Flask backend + React (Vite) frontend
 - [x] Which AI tools the team uses: detected automatically (section 3)
 - [ ] Reference figure for cloud data-center energy (Google 0.24 Wh, OpenAI 0.34 Wh or Epoch AI 0.3 Wh per query)
 - [ ] Electricity rate and billing cycle to use as defaults
+- [ ] Test the Windows sensors and device detection on a real Windows PC (the code is only tested against sample data)
+- [ ] Rehearse the Ollama demo on the Mac and record the real watt jump for step 2
+
+**Risks and how we handle them:**
+
+| Risk | How we handle it |
+|---|---|
+| Judges question "AI added ₱1,000 to the bill" | Only claim it for local models on a big GPU (John). For cloud AI, say plainly that it's under ₱1 (Maria). |
+| Cloud data-center energy is a rough estimate | Always labeled *estimated*, with the reference figure cited (section 3.3) |
+| Per-app watts are estimated from CPU/GPU share | The whole-laptop and GPU readings are measured; per-app splits are labeled as calculated |
+| Windows code untested | Every Windows sensor falls back to estimates if it fails; test before demo day |
+| John's numbers are synthetic | Label them "sample data" on screen, or replace them with a live run on a gaming PC |
