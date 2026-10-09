@@ -232,4 +232,8 @@ Unknown steps are missing values for the model, not zeros. The Kalman filter han
 
 ## Using it in the app
 
-The backend can load `device_<id>_model.json` and call `wattcast.pipeline.forecast(saved, agents, energy, Config)` on the latest readings (`readings.ai_energy`). That returns the projected bill with its range, the series by step, and the cost per agent, ready for `/api/forecast`. Refit daily while the device has under a week of readings, then weekly, or whenever a backtest score drifts.
+`/api/forecast` uses the model on its own (`backend/app/services/arima_forecast.py`). It loads this computer's `artifacts/devices/device_<id>_model.json`, runs `wattcast.pipeline.forecast` on the latest readings (no refitting; reused for 5 minutes), and takes the rest of the billing cycle from it in place of the trend, with an 80% range (`forecast_range`). The months after the cycle stay on the trend. The response's `method` says which forecast the bill is on and why.
+
+`ARIMA_FORECAST` in `backend/.env` decides when: `auto` (default) only when `beats_baselines` is true in the model file, `on` whenever there is one (to try it out), `off` never. `ARIMA_MODEL_DIR` moves the folder it reads. A retrained model is picked up on the next request.
+
+Refit daily while the device has under a week of readings, then weekly, or whenever a backtest score drifts.

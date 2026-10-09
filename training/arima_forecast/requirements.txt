@@ -1,10 +1,6 @@
-# The backend's packages: the scripts reuse its database access, config (.env) and tariff code.
+# The backend's packages: the scripts reuse its database access, config (.env) and tariff code,
+# and the backend runs the fine-tuned models, so pandas, statsmodels, scipy and holidays are there.
 -r ../../backend/requirements.txt
-pandas==2.2.3
-statsmodels==0.14.4
-# 1.15's macOS wheels fail to load on recent macOS (dlopen: __thread_bss); 1.14.1 works.
-scipy==1.14.1
-holidays==0.62
 # Notebook: charts, and the kernel for VS Code / Jupyter
 matplotlib==3.9.2
 ipykernel==6.29.5

@@ -10,14 +10,15 @@ from contextlib import closing
 from flask import current_app
 
 from . import storage
+from .arima_forecast import arima_ahead
 from .carbon import carbon_report, with_carbon
 from .cheap_hours import cheap_hours
 from .forecasting import forecast_bill
 from .measurement import read_live_power
 from .model_usage import model_usage
 from .recommendations import build_recommendations, reductions
-from .usage_store import (get_clean_hours, get_daily_usage, get_hourly_usage, get_signals, summarize_by_model,
-                          usage_window)
+from .usage_store import (connect, get_clean_hours, get_daily_usage, get_hourly_usage, get_signals,
+                          summarize_by_model, this_device_id, usage_window)
 
 
 def outlook(params, today=None):
@@ -25,15 +26,22 @@ def outlook(params, today=None):
     # The tariff comes with the request (settings), so cheap hours is worked out here, not in get_signals.
     signals["cheap_hours"] = cheap_hours(signals["hourly_use"], params, signals["clean_hours"],
                                          current_app.config["CLEAN_WINDOW_HOURS"])
+    # The fine-tuned ARIMA's days ahead, when this device has one in use; otherwise the trend.
+    # The ARIMA forecasts from now, so a forecast as of another day stays on the trend.
+    ahead, method = None, {"name": "trend", "reason": "Forecast as of a given day"}
+    if today is None:
+        with connect() as conn:
+            ahead, method = arima_ahead(conn, this_device_id(conn), params, current_app.config)
     common = dict(rate=params["rate"], baseline_bill=params["baseline_bill"], today=today,
                   cycle_start_day=params["cycle_start_day"], measured_days=signals.get("measured_days"),
-                  budget=params["budget"])
+                  budget=params["budget"], ahead=ahead)
     forecast = forecast_bill(daily, **common)
     recs = build_recommendations(daily, forecast, params["rate"], params["budget"], signals, today)
     saved = reductions(recs, forecast)
     forecast = forecast_bill(daily, **common, reductions=saved)
     forecast["monthly_savings"] = round(sum(m["monthly_cost"] * saved.get(m["model"], 0.0)
                                             for m in forecast["by_model"]), 2)
+    forecast["method"] = method
     return forecast, recs
 
 

@@ -11,6 +11,9 @@ For each model, from its daily kWh:
 
 Days the device reader didn't run aren't zeros: they're left out of the fit and projected.
 Only energy used on this device is on the bill; cloud data-center energy isn't.
+
+When the device has a fine-tuned ARIMA that's in use (arima_forecast.py), the rest of this cycle
+comes from it instead, with a range; the months after it stay on the trend.
 """
 
 import calendar
@@ -90,12 +93,16 @@ def _days(start, end):
 
 
 def forecast_bill(daily, rate, baseline_bill, today=None, cycle_start_day=1, measured_days=None,
-                  reductions=None, budget=None):
+                  reductions=None, budget=None, ahead=None):
     """Bill forecast for the billing cycle containing `today`, plus HORIZONS months after it.
 
     measured_days: [{date, hours}] the device reader ran (None: every day
     from the first to the last row counts). reductions: {model: fraction of its energy the
     recommendations save}, used for the "with recommendations" path from tomorrow on.
+    ahead: the ARIMA forecast (arima_forecast.arima_ahead): {"days": {date: AI kWh still to come},
+    "low", "high"}. It replaces the trend from now to the end of the cycle: today is what was
+    measured plus the rest of the day. The recommendations save the share they save of the trend's
+    day, and the per-model figures are the trend's, scaled to the ARIMA total.
     """
     today = today or date.today()
     reductions = reductions or {}
@@ -138,6 +145,7 @@ def forecast_bill(daily, rate, baseline_bill, today=None, cycle_start_day=1, mea
 
     series, cum, cum_recs = [], 0.0, 0.0
     by_model_kwh, remaining_kwh = defaultdict(float), defaultdict(float)
+    cycle_kwh = left_kwh = 0.0  # AI energy this cycle, and after today
     base_per_day = baseline_bill / len(cycle_days)
     exceeded = exceeded_recs = None
     for day in cycle_days:
@@ -150,6 +158,15 @@ def forecast_bill(daily, rate, baseline_bill, today=None, cycle_start_day=1, mea
                 remaining_kwh[model] += value
             ai += value
             ai_recs += value * (1 - reductions.get(model, 0.0)) if day > today else value
+        if ahead is not None and day == today:
+            ai = ai_recs = sum(kwh[m].get(day, 0.0) for m in kwh) + ahead["days"].get(day, 0.0)
+        elif ahead is not None and day > today:
+            kept = ai_recs / ai if ai > 0 else 1.0
+            ai = ahead["days"].get(day, 0.0)
+            ai_recs = ai * kept
+        cycle_kwh += ai
+        if day > today:
+            left_kwh += ai
         cum += base_per_day + ai * rate
         cum_recs += base_per_day + ai_recs * rate
         if budget is not None and exceeded is None and cum > budget:
@@ -163,21 +180,30 @@ def forecast_bill(daily, rate, baseline_bill, today=None, cycle_start_day=1, mea
             "bill_to_date": round(cum, 2), "bill_to_date_with_recommendations": round(cum_recs, 2),
         })
 
+    # With the ARIMA forecast, each model keeps its share of the trend's total.
+    month_scale = cycle_kwh / sum(by_model_kwh.values()) if sum(by_model_kwh.values()) > 0 else 1.0
+    left_scale = left_kwh / sum(remaining_kwh.values()) if sum(remaining_kwh.values()) > 0 else 1.0
     models = []
     for model, total in by_model_kwh.items():
         t = trends[model]
+        total, left = total * month_scale, remaining_kwh[model] * left_scale
         models.append({
             "model": model,
             "kind": kinds.get(model, "local"),
             "monthly_kwh": round(total, 4),
             "monthly_cost": round(total * rate, 2),
-            "remaining_cost": round(remaining_kwh[model] * rate, 2),  # rest of the cycle, after today
+            "remaining_cost": round(left * rate, 2),  # rest of the cycle, after today
             "daily_trend_kwh": round(t.slope, 5),
             "avg_daily_kwh": round(total / len(cycle_days), 5),
             "weekly_pattern": t.weekly,
         })
-    ai_cost = sum(by_model_kwh.values()) * rate
+    ai_cost = cycle_kwh * rate
     ai_cost_recs = cum_recs - baseline_bill
+    forecast_range = None
+    if ahead is not None:  # the range is the ARIMA's, of the AI energy still to come
+        to_come = sum(v for d, v in ahead["days"].items() if today <= d <= end) * rate
+        forecast_range = {"low": round(baseline_bill + ai_cost - to_come * (1 - ahead["low"]), 2),
+                          "high": round(baseline_bill + ai_cost + to_come * (ahead["high"] - 1), 2)}
 
     return {
         "month": start.strftime("%Y-%m"),
@@ -187,6 +213,7 @@ def forecast_bill(daily, rate, baseline_bill, today=None, cycle_start_day=1, mea
         "baseline_bill": baseline_bill,
         "ai_cost": round(ai_cost, 2),
         "forecast_bill": round(baseline_bill + ai_cost, 2),
+        "forecast_range": forecast_range,
         "ai_cost_with_recommendations": round(ai_cost_recs, 2),
         "forecast_bill_with_recommendations": round(cum_recs, 2),
         "by_model": sorted(models, key=lambda m: m["monthly_cost"], reverse=True),

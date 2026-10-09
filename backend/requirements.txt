@@ -6,3 +6,10 @@ psutil==6.1.1
 numpy==2.2.1
 PyMySQL==1.1.1
 cryptography==44.0.0
+# The fine-tuned ARIMA bill forecast (training/arima_forecast, see app/services/arima_forecast.py).
+# Without these the forecast stays on the trend.
+pandas==2.2.3
+statsmodels==0.14.4
+# 1.15's macOS wheels fail to load on recent macOS (dlopen: __thread_bss); 1.14.1 works.
+scipy==1.14.1
+holidays==0.62

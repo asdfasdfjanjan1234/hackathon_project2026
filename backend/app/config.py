@@ -42,3 +42,9 @@ class Config:
     TARIFF = os.getenv("TARIFF", "flat")
     POP_PEAK_RATE = float(os.getenv("POP_PEAK_RATE", 0))
     POP_OFFPEAK_RATE = float(os.getenv("POP_OFFPEAK_RATE", 0))
+    # The fine-tuned ARIMA models from training/arima_forecast, one device_<id>_model.json per device.
+    # "auto": the bill forecast uses this device's model when it beat the simple baselines in its
+    # backtest, "on": whenever there is one, "off": never. Otherwise it's the trend (forecasting.py).
+    ARIMA_FORECAST = os.getenv("ARIMA_FORECAST", "auto")
+    ARIMA_MODEL_DIR = os.getenv("ARIMA_MODEL_DIR", os.path.join(os.path.dirname(BACKEND_DIR), "training",
+                                                                "arima_forecast", "artifacts", "devices"))
