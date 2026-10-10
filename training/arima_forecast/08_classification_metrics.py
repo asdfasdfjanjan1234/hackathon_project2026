@@ -13,7 +13,7 @@ every held-out step are each turned into in use / idle and compared (wattcast/cl
 
 "Always idle" is listed as a yardstick: on a mostly idle device it scores a high accuracy by never
 saying "in use", so compare accuracy with it, and look at F1. The model fine-tuning picked is marked ★.
-The dashboard shows the same scores (Billing Projection → Forecast accuracy).
+The dashboard shows the same scores (Analysis → Forecast test).
 
 Nothing is fitted. The held-out forecasts are read from the backtest checkpoints in
 artifacts/devices/device_<id>_checkpoints, and the actual readings from data/processed. If the

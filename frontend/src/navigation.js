@@ -1,4 +1,4 @@
-import { Activity, BarChart2, Cpu, Laptop, Leaf, Settings, Sliders, Target } from "lucide-react";
+import { Activity, BarChart2, Cpu, Laptop, Leaf, ScrollText, Settings, Sliders, Target } from "lucide-react";
 
 // Sidebar groups. Each item is its own view in App, except "settings" which opens the tariff modal.
 export const NAV_GROUPS = [
@@ -33,10 +33,10 @@ export const NAV_GROUPS = [
       },
       {
         id: "accuracy",
-        label: "Forecast accuracy",
+        label: "Forecast test",
         icon: Target,
-        title: "Forecast accuracy",
-        description: "Accuracy, precision, recall and F1 of the fine-tuned models on readings they never saw.",
+        title: "Forecast test",
+        description: "How well the fine-tuned models call each 15-minute step in use or idle, on readings they never saw. Not the bill's error in pesos.",
       },
       {
         id: "models",
@@ -44,6 +44,13 @@ export const NAV_GROUPS = [
         icon: Cpu,
         title: "Model runtimes",
         description: "Energy and cost per model for the selected window.",
+      },
+      {
+        id: "log",
+        label: "Usage log",
+        icon: ScrollText,
+        title: "Usage log",
+        description: "Every record with its time, IDE, model, effort and watts, and how the totals are computed.",
       },
       {
         id: "carbon",

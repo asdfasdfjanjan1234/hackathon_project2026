@@ -74,6 +74,13 @@ export const api = {
     const q = billQuery(params);
     return get(`/usage${q ? `${q}&` : "?"}range=${range}`);
   },
+  // Timestamped records (IDE, app, model, effort, watts) and their energy by date, IDE, app, model
+  // and effort. slot: seconds per record (60, 900 or 3600).
+  usageLog: (params, range = "30d", slot = 900) => {
+    const q = billQuery(params);
+    return get(`/usage/log${q ? `${q}&` : "?"}range=${range}&slot=${slot}`);
+  },
+  usageLogCsvUrl: (range = "30d", slot = 900) => `/api/usage/log?range=${range}&slot=${slot}&format=csv`,
   forecast: (params) => get(`/forecast${billQuery(params)}`),
   // The fine-tuned ARIMA models scored as an "in use / idle" classifier on held-out windows.
   forecastAccuracy: () => get("/forecast/accuracy"),

@@ -72,6 +72,19 @@ export const shortDate = (iso) => {
   return d.toLocaleDateString("en-PH", { month: "short", day: "numeric" });
 };
 
+// Date and time of a reading from Unix seconds: "Oct 10, 08:01:20".
+export const formatTimestamp = (ts) => {
+  if (ts === null || ts === undefined || isNaN(ts)) return "—";
+  return new Date(ts * 1000).toLocaleString("en-PH", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+};
+
 // Watts with enough decimals for the fractions of a watt one AI app often draws.
 export const formatAppWatts = (w) => {
   if (w === null || w === undefined || isNaN(w)) return "—";

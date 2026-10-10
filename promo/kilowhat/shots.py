@@ -38,7 +38,7 @@ SHOTS = [
     ("apps", "This Device", lambda p: card(p, "AI apps running now", PANEL)),
     ("forecast", "Billing Projection", lambda p: card(p, "Cycle projection trajectory")),
     ("decomp", "Billing Projection", lambda p: card(p, "Causal tariff decomposition")),
-    ("accuracy", "Forecast Accuracy", lambda p: card(p, "Accuracy", ROW)),
+    ("accuracy", "Forecast test", lambda p: card(p, "Accuracy", ROW)),
     ("directives", "Load Directives", lambda p: card(p, "Load shedding & optimization directives")),
     ("carbon", "Carbon Ledger", lambda p: card(p, "Carbon budget", ROW)),
 ]

@@ -128,6 +128,11 @@ class Database:
             return f"HOUR(FROM_UNIXTIME({column}))"
         return f"CAST(strftime('%H', {column}, 'unixepoch', 'localtime') AS INTEGER)"
 
+    def slot(self, seconds, column="ts"):
+        """SQL for the start (Unix seconds) of the `seconds`-long time slot a timestamp falls in."""
+        whole = f"FLOOR({column} / {int(seconds)})" if self.dialect == "mysql" else f"CAST({column} / {int(seconds)} AS INTEGER)"
+        return f"{whole} * {int(seconds)}"
+
     def _sql(self, sql):
         return sql.replace("?", "%s") if self.dialect == "mysql" else sql
 
@@ -395,6 +400,31 @@ def host_usage(conn, days=30, device_id=None, since=None):
         (since, *params),
     ).fetchall()
     return [{"app": r["app"], "host": r["host"], "kwh": round(r["kwh"], 6)} for r in rows]
+
+
+def usage_records(conn, since, until=None, device_id=None, slot_s=None, limit=None):
+    """AI readings added up per time slot, app, model, host and effort, newest slot first. A slot
+    is `slot_s` seconds long, or a local calendar day when None.
+
+    Each record: when its first reading began and its last one ended, how many readings it adds
+    up, the seconds they cover, their energy in joules (watts × seconds) and the highest watts.
+    """
+    where, params = _device_filter(device_id)
+    if until is not None:
+        where, params = where + " AND ts <= ?", (*params, until)
+    rows = conn.execute(
+        f"""
+        SELECT {conn.day() if slot_s is None else conn.slot(slot_s)} AS slot, app, model, kind, host, effort,
+               MIN(ts - interval_s) AS start_ts, MAX(ts) AS end_ts, COUNT(*) AS readings,
+               SUM(interval_s) AS seconds, SUM(watts * interval_s) AS joules, MAX(watts) AS peak_watts
+        FROM ai_samples WHERE ts >= ?{where}
+        GROUP BY 1, 2, 3, 4, 5, 6 ORDER BY slot DESC, joules DESC{"" if limit is None else " LIMIT ?"}
+        """,
+        (since, *params, *(() if limit is None else (limit,))),
+    ).fetchall()
+    return [{**dict(r), "slot": str(r["slot"]) if slot_s is None else float(r["slot"]),
+             "seconds": r["seconds"] or 0.0, "joules": r["joules"] or 0.0, "peak_watts": r["peak_watts"] or 0.0}
+            for r in rows]
 
 
 def app_part_usage(conn, days=30, device_id=None, since=None):

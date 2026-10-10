@@ -20,6 +20,7 @@ backend/                  Flask API (port 5001)
     config.py             Rate, baseline bill, budget (from .env)
     routes/               API endpoints
       usage.py            GET /api/usage            kWh + cost per model
+                          GET /api/usage/log        timestamped records (IDE, app, model, effort, watts) and totals by each
       live.py             GET /api/live             current watts
       forecast.py         GET /api/forecast         projected monthly bill
       recommendations.py  GET /api/recommendations  STOP / SWITCH / REDUCE tips, with CO₂ saved each
@@ -59,13 +60,14 @@ backend/                  Flask API (port 5001)
       assistant.py        Kilo: dashboard figures as text, prompt, streaming replies from Ollama
       actions.py          Unloads / switches Ollama models when a recommendation is applied
       validation.py       Compares our whole-machine readings with a plug-in wall meter
+      usage_log.py        Usage records and their energy by date, IDE, app, model and effort
   tests/                  API, measurement, sensors, storage, forecast, recommendations, platforms (Linux/Windows/NVIDIA/Ollama)
 
 frontend/                 React + Vite (port 5173), proxies /api to Flask
   src/
     App.jsx               Dashboard layout
     api/client.js         API calls
-    components/           LiveWattage, BillSummary, UsageBreakdown,
+    components/           LiveWattage, BillSummary, UsageBreakdown, UsageLog (records and the formula),
                           ForecastChart, Recommendations, CarbonFootprint, MeterCheck (wall-meter
                           check), ScaleUp (monthly / team projection)
 ```
@@ -142,12 +144,31 @@ The backend creates the tables on first connect:
 | `devices` | computer that took readings (machine ID, hostname, OS, model, CPU, RAM) |
 | `samples` | 2-second reading: CPU %, GPU %, estimated and measured watts |
 | `component_samples` | component in a reading: cpu / gpu / memory / disk / other watts and its sensor |
-| `ai_samples` | AI app in a reading: app, model, host, CPU %, memory, attributed watts |
+| `ai_samples` | AI app in a reading: timestamp, seconds covered, app, model, host (IDE or terminal), effort, CPU %, memory, attributed watts |
 | `power_windows` | averaged battery-sensor window used to fit the power model |
 | `settings` | stored values, e.g. the fitted power model |
 | `meter_checks` | check against a wall meter: meter reading, our reading, when |
 
 Every reading row has the `device_id` of the computer that took it. `GET /api/devices` lists the devices; `GET /api/readings?device_id=&since=&until=&limit=` returns stored readings with their components and AI apps.
+
+### Usage log and the energy formula
+
+The **Usage log** view (`GET /api/usage/log?range=7d|30d|month&slot=60|900|3600`, add `&format=csv` for a file) lists the records behind every figure: when, in which IDE, which AI app, which model, at what reasoning effort, and the watts. Each `ai_samples` row is one AI app in one reading, with the watts attributed to it `P` and the seconds since the previous reading `Δt` (about 2). A record in the log adds up the readings that share a time slot, IDE, app, model and effort.
+
+Energy is watts added up over time. For any group of readings `G` (a date, an IDE, a model, an effort level, or a combination):
+
+```
+E_G (Wh)   = Σ_{i ∈ G} P_i · Δt_i / 3600          watts × seconds = joules; 3600 J = 1 Wh
+E_G (kWh)  = E_G (Wh) / 1000
+P̄_G (W)    = Σ_{i ∈ G} P_i · Δt_i / Σ_{i ∈ G} Δt_i   time-weighted average watts
+Cost_G     = E_G (kWh) × rate
+
+P_i = P_cpu,i + P_gpu,i + P_memory,i               the app's share of the machine's power above idle
+```
+
+Example: Claude Code at an average 6 W for 30 minutes is 6 × 1800 / 3600 = 3 Wh = 0.003 kWh, or ₱0.036 at ₱12/kWh.
+
+Every reading belongs to exactly one date, one IDE, one app, one model and one effort level, so each breakdown adds up to the same total (a test checks this). Time and average watts are per app: two apps running for the same hour count two hours. `P_i` is what the app drew on this device (see [PROJECT_PLAN.md §2](PROJECT_PLAN.md#2-measurement-from-device-resources) for how watts are attributed); a cloud model's own inference runs in the provider's data center and is estimated separately at `GET /api/models`. Effort is read from the app's own logs and is empty for apps that don't record one.
 
 Tests: `cd backend && .venv/bin/python -m pytest` (add `TEST_DATABASE_URL=mysql://…/ai_wattage_test` to also run the storage tests on MySQL)
 

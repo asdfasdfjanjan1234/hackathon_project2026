@@ -77,6 +77,7 @@ The full script, with setup, checklist, fallbacks and judge Q&A, is in **[DEMO_S
 | `/api/live` | `GET` | Instantaneous system watts, component breakdown, and active AI processes |
 | `/api/system` | `GET` | Detected hardware specification (CPU, GPUs, RAM, battery, active sensors) |
 | `/api/usage` | `GET` | Historical energy consumption (kWh) and costs per model |
+| `/api/usage/log` | `GET` | Timestamped records (IDE, AI app, model, effort, watts) and energy totals by date, IDE, app, model and effort; `?format=csv` to export |
 | `/api/forecast` | `GET` | End-of-cycle bill projection with baseline comparison |
 | `/api/impact` | `GET` | Bill increase decomposition (AI share vs rate hikes) + Carbon Equivalents |
 | `/api/recommendations` | `GET` | Algorithmic savings rules (STOP idle, SWITCH model, REDUCE footprint) |

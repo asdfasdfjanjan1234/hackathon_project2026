@@ -188,7 +188,7 @@
   .press { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; border: 4px solid rgb(var(--volt)); opacity: 0; box-sizing: border-box; }
 
   /* ---- forecast ---- */
-  .step { position: absolute; left: 96px; width: 640px; height: 176px; box-sizing: border-box; padding: 24px 28px 0 106px; border-radius: 26px; background: rgb(var(--ink-2)); border: 2px solid rgb(var(--ink-3)); }
+  .step { position: absolute; left: 96px; width: 640px; height: 164px; box-sizing: border-box; padding: 24px 28px 0 106px; border-radius: 26px; background: rgb(var(--ink-2)); border: 2px solid rgb(var(--ink-3)); }
   .step .n { position: absolute; left: 30px; top: 28px; width: 52px; height: 52px; border-radius: 50%; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
              font-size: 27px; font-weight: 700; border: 2.5px solid rgb(var(--ink-4)); color: rgb(var(--paper-muted)); }
   .step.on { border-color: rgb(var(--volt)); }
@@ -431,13 +431,15 @@
       <div class="n">1</div><div class="t">Pre-trained</div><div class="d">on Luzon grid demand</div>
       <div class="x">IEMOP's public market data</div>
     </div>
-    <div class="step" id="step2" style="top:489px" data-in="$forecast+0.5" data-fx="rise" data-dur="0.5">
+    <div class="step" id="step2" style="top:477px" data-in="$forecast+0.5" data-fx="rise" data-dur="0.5">
       <div class="n">2</div><div class="t">Fine-tuned</div><div class="d">on this device's own readings</div>
       <div class="x" id="specs"></div>
     </div>
-    <div class="step" id="step3" style="top:682px; height:218px" data-in="$forecast+0.6" data-fx="rise" data-dur="0.5">
+    <!-- The scores are of the "in use / idle" call per step (the app's Forecast test view), not of the bill in pesos: #scored says so. -->
+    <div class="step" id="step3" style="top:658px; height:242px" data-in="$forecast+0.6" data-fx="rise" data-dur="0.5">
       <div class="n">3</div><div class="t">Tested</div><div class="d">on readings it never saw</div>
-      <div class="x" id="scores" style="gap:14px"></div>
+      <div class="x" id="scored" style="margin-top:12px"><b>Is AI in use or idle?</b> Scored per 15-minute step</div>
+      <div class="x" id="scores" style="gap:14px; margin-top:8px"></div>
     </div>
 
     <div class="abs card" style="left:800px; top:296px; width:1024px; height:604px; padding:30px 36px" data-in="$forecast+0.35" data-fx="rise" data-dur="0.6">
@@ -716,6 +718,8 @@
   const SCORES = F.accuracy ? [["Accuracy", F.accuracy.accuracy], ["Precision", F.accuracy.precision], ["Recall", F.accuracy.recall], ["F1", F.accuracy.f1]] : [];
   $("scores").innerHTML = SCORES.length ? SCORES.map(([name, v]) => `<div class="score">${name}<b>${num(v * 100, 1)}%</b><u><s style="width:${v * 100}%"></s></u></div>`).join("")
     : "scored on held-out readings in the app";
+  if (F.accuracy) $("scored").lastChild.textContent = ` Scored per ${F.accuracy_step_minutes || 15}-minute step`;
+  else $("scored").style.display = "none";
   const scoreBars = [...document.querySelectorAll(".score s")];
   $("cyclelabel").textContent = `Projected bill, ${short(FC.cycle.start)} – ${short(FC.cycle.end)}`;
   $("fcsum").innerHTML = `${peso(FC.baseline)} before AI + <b>${peso(FC.ai_cost, 2)}</b> from AI`;
