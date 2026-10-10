@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { CardHeader, MiniTile } from "./Card";
-import { ASSETS, DEV_TOOLS, MODELS, PYTHON_LIBRARIES, PYTHON_STDLIB, SERVICES, STACK } from "../disclosure";
+import { ASSETS, DEV_TOOLS, LIMITATIONS, MODELS, PYTHON_LIBRARIES, PYTHON_STDLIB, SERVICES, STACK } from "../disclosure";
 
 const WHERE = {
   device: { label: "This device", className: "tech-tag-pos" },
@@ -138,6 +138,25 @@ export default function Disclosure() {
         </dl>
         <div className="card-foot">
           <span>Open-source libraries above are used under their own licenses. All project code was written for this hackathon.</span>
+        </div>
+      </section>
+
+      <section className="dash-card p-5 min-w-0">
+        <CardHeader title="Limitations" sub="What the numbers can't tell you, and what isn't finished. Estimated figures are labeled as estimated" />
+        <div className="columns-1 lg:columns-2 gap-3 mt-4">
+          {LIMITATIONS.map((g) => (
+            <div key={g.area} className="inset-panel p-3 mb-3 min-w-0 break-inside-avoid">
+              <h3 className="eyebrow">{g.area}</h3>
+              <dl className="mt-2 space-y-2.5">
+                {g.items.map((l) => (
+                  <div key={l.name}>
+                    <dt className="text-sm font-semibold text-ink">{l.name}</dt>
+                    <dd className="text-xs text-ink-soft leading-relaxed mt-0.5">{l.detail}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
         </div>
       </section>
 

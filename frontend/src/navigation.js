@@ -80,7 +80,7 @@ export const NAV_GROUPS = [
         label: "Technical disclosure",
         icon: FileText,
         title: "Technical disclosure",
-        description: "Every model, library, service and outside asset Kilo What? uses, and where each one runs.",
+        description: "Every model, library, service and outside asset Kilo What? uses, where each one runs, and its limitations.",
       },
     ],
   },

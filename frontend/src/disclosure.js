@@ -165,6 +165,111 @@ export const ASSETS = [
   },
 ];
 
+// What the numbers can't tell you, grouped by part of the app.
+export const LIMITATIONS = [
+  {
+    area: "Measurement",
+    items: [
+      {
+        name: "Whole-machine watts need a battery sensor",
+        detail: "Mac laptops report them all the time, Windows laptops only while unplugged. Desktops and plugged-in Windows PCs have no whole-machine reading, so the total is built from the parts.",
+      },
+      {
+        name: "Some parts are always estimated",
+        detail: "Disk on every OS. CPU and RAM on a Mac, because their sensors need root. RAM on most Windows PCs, because the RAPL DRAM channel is mostly on server CPUs.",
+      },
+      {
+        name: "Watts per app are calculated, not measured",
+        detail: "The machine's measured power above idle is split by each app's CPU and GPU share, using a formula fitted to this device. Until about 8 battery readings are in, it uses defaults for the device type. Idle power is never counted as AI.",
+      },
+      {
+        name: "AI extensions inside VS Code's shared extension host can't be measured on their own",
+        detail: "Only tools that start their own process can, such as Claude Code, Copilot's runtime and Codex.",
+      },
+      {
+        name: "Loaded models can share one number",
+        detail: "LM Studio's use is split between its loaded models by size, not by which one is generating. Older Ollama versions that run models inside the server process give all of it to the most recently used model.",
+      },
+      {
+        name: "Only time with the reader running counts",
+        detail: "Readings are taken while Start reading my device or collect.py runs. AI use while it's stopped isn't recorded.",
+      },
+      {
+        name: "Windows and Linux sensors are less tested than macOS",
+        detail: "The Windows readers follow Microsoft's documentation and are tested against sample output; Linux only against sample sysfs files. A sensor that fails or is denied falls back to an estimate.",
+      },
+      {
+        name: "No accuracy figure yet",
+        detail: "The wall-meter check is built, but we haven't recorded enough checks to quote an accuracy. A wall meter also counts charger losses (often 5–15%) and battery charging.",
+      },
+    ],
+  },
+  {
+    area: "Cloud AI",
+    items: [
+      {
+        name: "Data-center energy ranks models; it doesn't measure them",
+        detail: "Providers don't publish energy per model. We scale each model's list price per token to one published figure (Epoch AI, about 0.3 Wh per typical GPT-4o query). Price includes margin and business choices, so a cheaper newer model is estimated lower. This energy isn't on your bill.",
+      },
+      {
+        name: "Token counts come from some apps only",
+        detail: "Exact for Claude Code, Codex, OpenCode and Gemini CLI. Copilot, Kiro and Amazon Q logs name the model but give no tokens, so those get no data-center estimate. Claude Desktop, the ChatGPT app and Cursor store nothing readable, so their model is unknown.",
+      },
+      {
+        name: "Device readings can't tell cloud models apart",
+        detail: "The laptop looks the same whether Claude Code uses Opus or Sonnet. Each reading goes to the model of the app's most recent response, from the log timestamps.",
+      },
+    ],
+  },
+  {
+    area: "Forecast",
+    items: [
+      {
+        name: "A short history gives a rough forecast",
+        detail: "The ARIMA is pre-trained on Luzon grid demand, then fine-tuned on this device's readings. An hour of the day it hasn't seen yet is forecast at the device's average, so the rest of the cycle stays rough until it has seen whole days. Before 2 hours of readings, the damped-trend fallback is used.",
+      },
+      {
+        name: "Made-up history counts as real until it's removed",
+        detail: "backend/seed_history.py can add made-up days before the first real reading, so the forecast has something to learn from. History, usage and the forecast count those rows, and so do the accuracy scores of a model fitted on them. Nothing on screen marks them. python seed_history.py --remove deletes them.",
+      },
+    ],
+  },
+  {
+    area: "Bill, tariff and carbon",
+    items: [
+      {
+        name: "One computer at a time",
+        detail: "The backend has to run on the computer it measures, because a browser can't read hardware. The bill impact counts only this computer's AI. \"Other usage\" is whatever the rate change and AI don't explain (aircon, appliances); it isn't measured. The team figures in If You Kept This Up multiply this computer's figures.",
+      },
+      {
+        name: "Built for the Philippines",
+        detail: "Pesos, Meralco's flat or Peak/Off-Peak tariff, the DOE grid factor and Luzon demand for pre-training. Other tariff structures aren't modelled. Peak/Off-Peak rates are estimated from the regular rate unless set from a bill, and public holidays aren't modelled. Elsewhere, change the rate and GRID_CO2_KG_PER_KWH in backend/.env.",
+      },
+      {
+        name: "One CO₂ factor for every hour",
+        detail: "CO₂ totals use the DOE factor (0.7122 kg per kWh) all day. Hourly grid CO₂ for Cleanest Hours needs an Electricity Maps token; without one that card stays empty. Data-center CO₂ carries the cloud estimate's uncertainty.",
+      },
+    ],
+  },
+  {
+    area: "Kilo and one-click fixes",
+    items: [
+      {
+        name: "Kilo can get a figure wrong",
+        detail: "It's a 4B model on this computer. The backend hands it every figure as text, but it still slips sometimes, so the panel says to check figures on the dashboard. It needs Ollama and a 3.3 GB model; without them Kilo stays off and the rest of the dashboard works.",
+      },
+      {
+        name: "Voice depends on the browser",
+        detail: "Spoken questions work in Chrome and Safari only, and Chrome sends the audio to Google.",
+      },
+      {
+        name: "Fixes apply to Ollama only",
+        detail: "Unload now and Switch now act on models loaded in Ollama. The app can't change which model Claude Code, Copilot or LM Studio asks for; you have to. In the demo, demo_load.py stands in for the user.",
+      },
+    ],
+  },
+];
+
 export const DEV_TOOLS = [
   {
     name: "Claude Code (Anthropic)",
