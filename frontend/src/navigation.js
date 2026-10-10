@@ -1,4 +1,4 @@
-import { Activity, BarChart2, Cpu, Laptop, Leaf, ScrollText, Settings, Sliders, Target } from "lucide-react";
+import { Activity, BarChart2, Cpu, FileText, Laptop, Leaf, ScrollText, Settings, Sliders, Target } from "lucide-react";
 
 // Sidebar groups. Each item is its own view in App, except "settings" which opens the tariff modal.
 export const NAV_GROUPS = [
@@ -71,6 +71,18 @@ export const NAV_GROUPS = [
   {
     label: "Configuration",
     items: [{ id: "settings", label: "Tariff & bill", icon: Settings }],
+  },
+  {
+    label: "About",
+    items: [
+      {
+        id: "disclosure",
+        label: "Technical disclosure",
+        icon: FileText,
+        title: "Technical disclosure",
+        description: "Every model, library, service and outside asset Kilo What? uses, and where each one runs.",
+      },
+    ],
   },
 ];
 

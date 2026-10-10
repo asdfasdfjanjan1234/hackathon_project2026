@@ -4,6 +4,7 @@ Measures physical electricity consumption of AI models, forecasts utility bills,
 
 * 📘 **[Hackathon Presentation & Architecture Guide](HACKATHON_PITCH_AND_DOCS.md)** (3-minute pitch script, innovation pillars, and API docs).
 * 📋 **[Full Project Plan & Specifications](PROJECT_PLAN.md)**.
+* 🧾 **[Technical Disclosure](TECHNICAL_DISCLOSURE.md)** (models, Python libraries, tech stack, online services and outside assets; also in the app under About).
 
 ## Structure
 
@@ -69,7 +70,8 @@ frontend/                 React + Vite (port 5173), proxies /api to Flask
     api/client.js         API calls
     components/           LiveWattage, BillSummary, UsageBreakdown, UsageLog (records and the formula),
                           ForecastChart, Recommendations, CarbonFootprint, MeterCheck (wall-meter
-                          check), ScaleUp (monthly / team projection)
+                          check), ScaleUp (monthly / team projection), Disclosure (technical
+                          disclosure; its lists are in src/disclosure.js)
 ```
 
 ## Run it

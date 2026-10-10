@@ -18,6 +18,7 @@ import ScaleUp from "./components/ScaleUp";
 import CarbonFootprint from "./components/CarbonFootprint";
 import BestTime from "./components/BestTime";
 import Assistant from "./components/Assistant";
+import Disclosure from "./components/Disclosure";
 import { VIEWS } from "./navigation";
 import { peso } from "./format";
 import { AlertTriangle, RefreshCw } from "lucide-react";
@@ -196,6 +197,8 @@ export default function App() {
         );
       case "recommendations":
         return <Recommendations recs={rawData.recs} liveReading={liveReading} onApplied={refresh} />;
+      case "disclosure":
+        return <Disclosure />;
       default:
         return (
           <>
