@@ -1,0 +1,54 @@
+{
+  "duration": 60,
+  "fps": 30,
+  "voice": "af_heart",
+  "speed": 1.0,
+  "tail": 2.3,
+  "max_gap": 1.0,
+  "loudness": -14,
+  "cues": [
+    {"id": "jumped", "scene": "hook", "say": "Your electric bill just jumped.", "pause": 0.8,
+     "caption": "Your electric bill just jumped."},
+    {"id": "blame", "scene": "hook", "say": "Everyone blames AI.", "pause": 0.8,
+     "caption": "Everyone blames AI."},
+    {"id": "nobody", "scene": "hook", "say": "But nobody can show you the number.", "pause": 2.0,
+     "caption": "But nobody can show you the number."},
+
+    {"id": "meet", "scene": "meet", "say": "Kilo What measures it,", "pause": 0.4,
+     "caption": "Kilo What? measures it,"},
+    {"id": "local", "scene": "meet", "say": "on your own computer. No cloud, no account, no extra hardware.", "pause": 1.8,
+     "caption": "on your own computer. | No cloud, no account, no extra hardware."},
+
+    {"id": "sensors", "scene": "read", "say": "Every two seconds, it reads your machine's own power sensors,", "pause": 0.5,
+     "caption": "Every two seconds, it reads | your machine's own power sensors,"},
+    {"id": "apps", "scene": "read", "say": "finds every AI app running,", "pause": 0.5,
+     "caption": "finds every AI app running,"},
+    {"id": "split", "scene": "read", "say": "and splits the watts between them.", "pause": 1.8,
+     "caption": "and splits the watts between them."},
+
+    {"id": "live", "scene": "see", "say": "You see it live: watts, pesos and carbon,", "pause": 0.6,
+     "caption": "You see it live: watts, pesos and carbon,"},
+    {"id": "theme", "scene": "see", "say": "in dark mode or light.", "pause": 1.8,
+     "caption": "in dark mode or light."},
+
+    {"id": "forecast", "scene": "forecast", "say": "Then it forecasts your bill:", "pause": 0.5,
+     "caption": "Then it forecasts your bill:"},
+    {"id": "trained", "scene": "forecast", "say": "pre-trained on the Luzon grid, fine-tuned on your own readings,", "pause": 0.5,
+     "caption": "pre-trained on the Luzon grid, | fine-tuned on your own readings,"},
+    {"id": "tested", "scene": "forecast", "say": "and tested on data it never saw.", "pause": 1.8,
+     "caption": "and tested on data it never saw."},
+
+    {"id": "kilo", "scene": "kilo", "say": "Ask Kilo, an AI that runs on your own machine.", "pause": 0.7,
+     "caption": "Ask Kilo, an AI that runs on your own machine."},
+    {"id": "math", "scene": "kilo", "say": "The app does the math; Kilo puts it in plain words.", "pause": 2.8,
+     "caption": "The app does the math; | Kilo puts it in plain words."},
+
+    {"id": "verdict", "scene": "fix", "say": "On this laptop, AI was half a percent of the jump.", "pause": 0.8,
+     "caption": "On this laptop, AI was | half a percent of the jump."},
+    {"id": "fix", "scene": "fix", "say": "When it's more, it shows the fix, and what you'll save.", "pause": 2.2,
+     "caption": "When it's more, it shows the fix, | and what you'll save."},
+
+    {"id": "close", "scene": "close", "say": "Kilo What? Measured, not guessed.",
+     "caption": "Kilo What? Measured, not guessed."}
+  ]
+}

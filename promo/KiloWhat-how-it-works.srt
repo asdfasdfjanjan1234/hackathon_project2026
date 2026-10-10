@@ -1,0 +1,96 @@
+1
+00:00:00,550 --> 00:00:02,268
+Your electric bill just jumped.
+
+2
+00:00:02,857 --> 00:00:04,387
+Everyone blames AI.
+
+3
+00:00:04,977 --> 00:00:06,726
+But nobody can show you the number.
+
+4
+00:00:08,200 --> 00:00:09,480
+Kilo What? measures it,
+
+5
+00:00:09,774 --> 00:00:11,155
+on your own computer.
+
+6
+00:00:11,155 --> 00:00:13,785
+No cloud, no account, no extra hardware.
+
+7
+00:00:15,111 --> 00:00:16,686
+Every two seconds, it reads
+
+8
+00:00:16,686 --> 00:00:18,610
+your machine's own power sensors,
+
+9
+00:00:18,978 --> 00:00:20,846
+finds every AI app running,
+
+10
+00:00:21,214 --> 00:00:22,963
+and splits the watts between them.
+
+11
+00:00:24,289 --> 00:00:27,020
+You see it live: watts, pesos and carbon,
+
+12
+00:00:27,462 --> 00:00:28,891
+in dark mode or light.
+
+13
+00:00:30,218 --> 00:00:31,668
+Then it forecasts your bill:
+
+14
+00:00:32,037 --> 00:00:33,760
+pre-trained on the Luzon grid,
+
+15
+00:00:33,760 --> 00:00:35,599
+fine-tuned on your own readings,
+
+16
+00:00:35,968 --> 00:00:37,974
+and tested on data it never saw.
+
+17
+00:00:39,300 --> 00:00:42,180
+Ask Kilo, an AI that runs on your own machine.
+
+18
+00:00:42,696 --> 00:00:44,001
+The app does the math;
+
+19
+00:00:44,001 --> 00:00:45,662
+Kilo puts it in plain words.
+
+20
+00:00:47,724 --> 00:00:49,123
+On this laptop, AI was
+
+21
+00:00:49,123 --> 00:00:50,839
+half a percent of the jump.
+
+22
+00:00:51,428 --> 00:00:53,032
+When it's more, it shows the fix,
+
+23
+00:00:53,032 --> 00:00:54,052
+and what you'll save.
+
+24
+00:00:55,673 --> 00:00:57,700
+Kilo What? Measured, not guessed.
+

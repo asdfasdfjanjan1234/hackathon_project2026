@@ -1,0 +1,1153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kilo What? How it works (60 s)</title>
+<!--
+  "How it works": the Kilo What? explainer, drawn as a 1920x1080 page whose look depends only on a
+  time in seconds. build.py calls window.seek(t) for every frame and encodes the screenshots, and
+  reads window.SFX (the sound effects, placed by the same clock) to make the effects track.
+  Opened in a browser, it plays with out/audio.m4a: click or Space to play, arrow keys to step.
+
+  The palette is the mark's: its yellow (--volt) and its black (--ink), with a paper white. The
+  app's own blue appears only inside the screenshots.
+
+  When something appears is tied to the narration (narration.json), not to fixed seconds:
+    data-in="sensors"         when the line "sensors" starts
+    data-in="sensors#1"       when its 2nd spoken segment starts (after the first pause)
+    data-in="local@0.24"      24% of the way through the line
+    data-in="nobody.end+0.4"  0.4 s after the line ends
+    data-in="$read+0.2"       0.2 s after the scene "read" starts
+  data-fx picks the entrance (rise, fade, pop, left, right, drop, stamp, slam, tilt, growx); data-out
+  fades it away. data-sfx="pop pitch=1.2 gain=0.6" plays a sound effect (kilowhat/sound.py) when
+  the element enters; at=<time> moves it.
+
+  Every figure on screen is read from assets/shots/shots.js (taken with shots.py from the running
+  app: its readings, its forecast, and Kilo's reply word for word), or sits in a screenshot.
+  The bill and forecast figures are the app's own, so they count whatever history it holds,
+  made-up days from backend/seed_history.py included. Only live sensor readings are called measured.
+-->
+<script src="out/timeline.js"></script>
+<script src="assets/shots/shots.js"></script>
+<style>
+  @font-face {
+    font-family: "DM Sans"; font-style: normal; font-weight: 400 700;
+    src: url(../assets/fonts/dmsans-latin-ext.woff2) format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F;
+  }
+  @font-face {
+    font-family: "DM Sans"; font-style: normal; font-weight: 400 700;
+    src: url(../assets/fonts/dmsans-latin.woff2) format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+
+  /* The mark's two colours (frontend/src/App.css: --brand, --on-brand) and the neutrals drawn from them. */
+  :root {
+    --volt: 255 225 73; --volt-deep: 226 190 24;
+    --ink: 29 28 26; --ink-2: 42 41 37; --ink-3: 66 64 57; --ink-4: 108 104 93;
+    --paper: 252 249 238; --paper-soft: 212 207 191; --paper-muted: 160 155 140;
+    --cream: 250 246 229;
+  }
+  html, body { margin: 0; height: 100%; background: rgb(12 12 11); overflow: hidden; }
+  #stage {
+    position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden;
+    transform-origin: 0 0; background: rgb(var(--ink)); color: rgb(var(--paper));
+    font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif; font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased; line-height: 1.2;
+  }
+  #world { position: absolute; inset: 0; }
+  .scene { position: absolute; inset: 0; visibility: hidden; overflow: hidden; }
+  .scene.ink { background: rgb(var(--ink)); color: rgb(var(--paper)); }
+  .scene.volt { background: rgb(var(--volt)); color: rgb(var(--ink)); }
+  .scene.cream { background: rgb(var(--cream)); color: rgb(var(--ink)); }
+  /* A drafting grid behind everything */
+  .scene::before { content: ""; position: absolute; inset: -64px; background-size: 64px 64px; }
+  .scene.ink::before { background-image: linear-gradient(rgb(var(--paper) / 0.032) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--paper) / 0.032) 1px, transparent 1px); }
+  .scene.volt::before, .scene.cream::before { background-image: linear-gradient(rgb(var(--ink) / 0.05) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--ink) / 0.05) 1px, transparent 1px); }
+  .cam { position: absolute; inset: 0; transform-origin: 50% 50%; }
+  .abs { position: absolute; }
+  .center { left: 0; right: 0; text-align: center; }
+  [data-in] { opacity: 0; }
+  .ic { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
+
+  .h1 { font-size: 92px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
+  .h2 { font-size: 58px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.08; white-space: nowrap; }
+  .w { display: inline-block; }
+  .y { color: rgb(var(--volt)); }
+  .soft { color: rgb(var(--paper-soft)); }
+  .muted { color: rgb(var(--paper-muted)); }
+  .volt .soft, .cream .soft { color: rgb(var(--ink) / 0.74); }
+  .volt .muted, .cream .muted { color: rgb(var(--ink) / 0.6); }
+  /* On the yellow and the cream, emphasis is a marker stroke, not yellow type */
+  mark { background: rgb(var(--volt)); color: rgb(var(--ink)); padding: 0 0.14em; border-radius: 0.14em; }
+  .volt .h2 mark, .cream .h2 mark { background: rgb(var(--ink)); color: rgb(var(--volt)); padding: 0 0.16em; border-radius: 0.16em; }
+
+  .card { box-sizing: border-box; border-radius: 28px; background: rgb(var(--ink-2)); border: 1.5px solid rgb(var(--ink-3)); color: rgb(var(--paper)); }
+  .volt .card, .cream .card { background: rgb(var(--ink)); border-color: rgb(var(--ink)); box-shadow: 0 26px 50px -26px rgb(var(--ink) / 0.6); }
+  .card .soft { color: rgb(var(--paper-soft)); }
+  .card .muted { color: rgb(var(--paper-muted)); }
+  .eyebrow { font-size: 26px; font-weight: 500; color: rgb(var(--paper-muted)); }
+  .volt .eyebrow, .cream .eyebrow { color: rgb(var(--ink) / 0.62); }
+  .card .eyebrow { color: rgb(var(--paper-muted)); }
+  /* Pills stay neutral; what they say is on the dot: filled = measured, ring = estimated */
+  .pill { display: inline-flex; align-items: center; gap: 12px; white-space: nowrap; border-radius: 999px; box-sizing: border-box;
+          border: 1.5px solid rgb(var(--ink-3)); background: rgb(var(--ink-2)); color: rgb(var(--paper-soft));
+          padding: 8px 22px; font-size: 26px; font-weight: 500; line-height: 1.3; }
+  .volt .pill, .cream .pill { background: rgb(var(--ink)); border-color: rgb(var(--ink)); color: rgb(var(--paper)); }
+  .card .pill { background: rgb(var(--ink-2)); border-color: rgb(var(--ink-3)); color: rgb(var(--paper-soft)); }
+  .pill i, .dot { width: 12px; height: 12px; border-radius: 50%; background: rgb(var(--volt)); flex: none; box-sizing: border-box; }
+  .pill i.est, .dot.est { background: none; border: 2.5px solid rgb(var(--paper-muted)); }
+  .pill .ic { width: 28px; height: 28px; flex: none; }
+  .pill .ic.y { color: rgb(var(--volt)); }
+
+  .s-line { stroke: rgb(var(--ink-3)); } .s-volt { stroke: rgb(var(--volt)); } .s-ink { stroke: rgb(var(--ink)); }
+  .f-volt { fill: rgb(var(--volt)); } .f-ink { fill: rgb(var(--ink)); }
+  .mono-light { filter: brightness(0) invert(94%) sepia(12%); }   /* single-colour logos, drawn in the paper white */
+  /* A window of the real app */
+  .win { position: absolute; overflow: hidden; border-radius: 20px; border: 3px solid rgb(var(--ink)); background: rgb(var(--ink));
+         box-shadow: 0 44px 80px -34px rgb(var(--ink) / 0.7); box-sizing: content-box; }
+  .win img { display: block; }
+  .ink .win { border-color: rgb(var(--ink-4)); box-shadow: 0 44px 80px -30px rgb(0 0 0 / 0.8); }
+  .ringbox { position: absolute; box-sizing: border-box; border: 5px solid rgb(var(--volt)); border-radius: 18px; opacity: 0; }
+  .ringbox b { position: absolute; left: -5px; top: -52px; padding: 5px 18px; border-radius: 12px 12px 12px 0; background: rgb(var(--volt)); color: rgb(var(--ink));
+               font-size: 28px; font-weight: 700; white-space: nowrap; }
+  .ringbox.below b { top: auto; bottom: -52px; border-radius: 0 12px 12px 12px; }
+  .ringbox.beside b { left: auto; right: calc(100% + 4px); top: 50%; margin-top: -24px; border-radius: 12px 0 12px 12px; }
+  .cursor { position: absolute; left: 0; top: 0; width: 52px; height: 52px; color: rgb(var(--ink)); opacity: 0; filter: drop-shadow(0 4px 8px rgb(0 0 0 / 0.45)); }
+  .cursor .ic { width: 100%; height: 100%; fill: rgb(var(--paper)); stroke-width: 1.7; }
+
+  /* ---- hook ---- */
+  #billnum { margin-top: 12px; font-size: 190px; font-weight: 700; letter-spacing: -0.045em; line-height: 1; }
+  #billnum small { font-size: 0.6em; font-weight: 600; margin-right: 6px; color: rgb(var(--paper-soft)); }
+  .suspect { width: 176px; height: 222px; box-sizing: border-box; border-radius: 26px; background: rgb(var(--ink-2)); border: 2.5px solid rgb(var(--ink-3));
+             display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+             font-size: 26px; font-weight: 600; color: rgb(var(--paper-soft)); }
+  .suspect .ic { width: 76px; height: 76px; stroke-width: 1.6; }
+  .bubble { padding: 16px 28px; border-radius: 26px; font-size: 34px; font-weight: 600; background: rgb(var(--paper)); color: rgb(var(--ink)); white-space: nowrap; }
+  .bubble::after { content: ""; position: absolute; left: 46px; bottom: -11px; width: 24px; height: 24px; background: rgb(var(--paper)); transform: rotate(45deg); }
+  #guess { font-size: 92px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; color: rgb(var(--paper-muted)); white-space: nowrap; }
+  #stamp { transform: rotate(-7deg); }
+  #stamp .pill { font-size: 40px; font-weight: 700; padding: 10px 30px; border-width: 3px; color: rgb(var(--ink)); background: rgb(var(--volt)); border-color: rgb(var(--volt)); }
+  #stamp .pill i { width: 16px; height: 16px; border-color: rgb(var(--ink)); border-width: 3.5px; }
+
+  /* ---- the mark striking (into "meet", and again at the close) ---- */
+  .markbox { position: absolute; border-radius: 23.44%; background: rgb(var(--volt)); }   /* rx 15 of 64 */
+  .glyph { position: absolute; overflow: visible; }
+  .glyph .m-arc, .glyph .m-rest { fill: none; stroke: rgb(var(--ink)); stroke-width: 5.6; stroke-linecap: round; }
+  .glyph .m-bolt { fill: rgb(var(--ink)); stroke: rgb(var(--ink)); stroke-width: 1.6; stroke-linejoin: round; }
+
+  /* ---- meet ---- */
+  #heroword { font-size: 190px; font-weight: 700; letter-spacing: -0.045em; line-height: 1; white-space: nowrap; }
+  .chips { display: flex; gap: 20px; }
+  .chips .pill { font-size: 34px; padding: 12px 30px 12px 22px; }
+  .chips .pill .ic { color: rgb(var(--volt)); stroke-width: 2.8; }
+
+  /* ---- read ---- */
+  #board { box-sizing: border-box; border-radius: 30px; background: rgb(var(--ink-2)); border: 1.5px solid rgb(var(--ink-3)); padding: 26px 28px; overflow: hidden; }
+  #boardtitle { display: flex; align-items: center; gap: 14px; height: 50px; font-size: 27px; font-weight: 600; color: rgb(var(--paper-soft)); }
+  #boardtitle .ic { width: 34px; height: 34px; }
+  .part { position: relative; box-sizing: border-box; height: 86px; margin-top: 12px; padding: 0 24px; border-radius: 18px; background: rgb(var(--ink)); border: 2px solid rgb(var(--ink-3));
+          display: grid; grid-template-columns: 46px 218px 1fr auto; align-items: center; }
+  .part .ic { width: 32px; height: 32px; color: rgb(var(--paper-muted)); }
+  .part b { font-size: 29px; font-weight: 700; }
+  .part .src { display: flex; align-items: center; gap: 11px; font-size: 21px; color: rgb(var(--paper-muted)); white-space: nowrap; }
+  .part .val { font-size: 33px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; }
+  .part.est .val { color: rgb(var(--paper-soft)); }
+  #scan { position: absolute; left: 28px; right: 28px; height: 3px; background: rgb(var(--volt)); opacity: 0; }
+  .bignum { font-size: 170px; font-weight: 700; letter-spacing: -0.05em; line-height: 1; }
+  .bignum small { font-size: 0.42em; font-weight: 600; letter-spacing: -0.01em; margin-left: 12px; color: rgb(var(--paper-soft)); }
+  .cols { display: grid; grid-template-columns: 190px 230px 140px 140px 144px; align-items: center; }
+  .cols span:not(:first-child) { text-align: right; }
+  #streamhead { height: 40px; font-size: 22px; color: rgb(var(--paper-muted)); border-bottom: 1.5px solid rgb(var(--ink-3)); }
+  #rows { position: relative; height: 232px; overflow: hidden; }
+  #rows .row { position: absolute; left: 0; top: 0; width: 100%; height: 58px; font-size: 29px; font-weight: 500; border-bottom: 1.5px solid rgb(var(--ink-3) / 0.6); box-sizing: border-box; }
+  #rows .row.new { color: rgb(var(--volt)); }
+  .app { width: 196px; height: 172px; box-sizing: border-box; border-radius: 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+         background: rgb(var(--ink-2)); border: 2px solid rgb(var(--ink-3)); font-size: 22px; font-weight: 600; color: rgb(var(--paper-soft)); }
+  .app img { width: 60px; height: 60px; }
+  .app .st { display: flex; align-items: center; gap: 8px; font-size: 19px; font-weight: 500; color: rgb(var(--paper-muted)); }
+  .app.on { border-color: rgb(var(--volt)); color: rgb(var(--paper)); }
+  .app.on .st { color: rgb(var(--volt)); }
+  #splitbar { margin-top: 22px; height: 60px; border-radius: 16px; overflow: hidden; display: flex; gap: 4px; background: rgb(var(--ink)); }
+  #splitbar div { height: 100%; min-width: 6px; transform-origin: 0 50%; }
+  .srow { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; height: 76px; border-bottom: 1.5px solid rgb(var(--ink-3)); }
+  .srow .sw { width: 18px; height: 18px; border-radius: 5px; }
+  .srow .nm { font-size: 28px; font-weight: 600; white-space: nowrap; }
+  .srow .nm small { margin-left: 12px; font-size: 22px; font-weight: 500; color: rgb(var(--paper-muted)); }
+  .srow .v { font-size: 36px; font-weight: 700; letter-spacing: -0.02em; }
+  .formula { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 14px 24px; border-radius: 16px; box-sizing: border-box;
+             background: rgb(var(--ink)); border: 1.5px solid rgb(var(--ink-3)); white-space: nowrap; }
+  .formula b { font-size: 27px; font-weight: 600; }
+  .formula em { font-style: normal; color: rgb(var(--volt)); }
+  .formula span { font-size: 20px; color: rgb(var(--paper-muted)); }
+
+  /* ---- see ---- */
+  #win .layer { position: absolute; left: 0; top: 0; width: 1600px; height: 1000px; }
+  #win .layer > img { position: absolute; }
+  #win .mainclip { position: absolute; overflow: hidden; }
+  .press { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; border: 4px solid rgb(var(--volt)); opacity: 0; box-sizing: border-box; }
+
+  /* ---- forecast ---- */
+  .step { position: absolute; left: 96px; width: 640px; height: 176px; box-sizing: border-box; padding: 24px 28px 0 106px; border-radius: 26px; background: rgb(var(--ink-2)); border: 2px solid rgb(var(--ink-3)); }
+  .step .n { position: absolute; left: 30px; top: 28px; width: 52px; height: 52px; border-radius: 50%; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
+             font-size: 27px; font-weight: 700; border: 2.5px solid rgb(var(--ink-4)); color: rgb(var(--paper-muted)); }
+  .step.on { border-color: rgb(var(--volt)); }
+  .step.on .n { background: rgb(var(--volt)); border-color: rgb(var(--volt)); color: rgb(var(--ink)); }
+  .step .t { font-size: 37px; font-weight: 700; letter-spacing: -0.015em; }
+  .step .d { margin-top: 4px; font-size: 27px; color: rgb(var(--paper-soft)); }
+  .step .x { margin-top: 14px; display: flex; gap: 10px; font-size: 21px; color: rgb(var(--paper-muted)); white-space: nowrap; }
+  .step .x b { font-weight: 600; color: rgb(var(--paper-soft)); }
+  .score { width: 118px; }
+  .score b { display: block; font-size: 25px; font-weight: 700; color: rgb(var(--paper)); }
+  .score u { display: block; margin-top: 5px; height: 7px; border-radius: 4px; background: rgb(var(--ink)); overflow: hidden; text-decoration: none; }
+  .score u s { display: block; height: 100%; border-radius: 4px; background: rgb(var(--volt)); transform-origin: 0 50%; }
+  #chart .grid { stroke: rgb(var(--ink-3)); stroke-width: 1.5; }
+  #chart .axis { font-size: 20px; fill: rgb(var(--paper-muted)); font-family: "DM Sans"; }
+  #chart .today { stroke: rgb(var(--paper-muted)); stroke-width: 2; stroke-dasharray: 3 7; }
+  #chart .measured { fill: none; stroke: rgb(var(--volt)); stroke-width: 5.5; stroke-linecap: round; stroke-linejoin: round; }
+  #chart .ahead { fill: none; stroke: rgb(var(--volt)); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 5 14; }
+  #chart .band { fill: rgb(var(--volt) / 0.16); }
+  #chart .end { font-size: 34px; font-weight: 700; fill: rgb(var(--paper)); font-family: "DM Sans"; letter-spacing: -0.6px; }
+  .legend { display: flex; gap: 24px; font-size: 21px; color: rgb(var(--paper-muted)); }
+  .legend span { display: flex; align-items: center; gap: 9px; }
+  .legend i { display: block; width: 30px; height: 0; border-top: 5px solid rgb(var(--volt)); border-radius: 3px; }
+  .legend i.d { border-top-style: dotted; } .legend i.b { height: 16px; border: 0; background: rgb(var(--volt) / 0.2); border-radius: 4px; }
+
+  /* ---- kilo ---- */
+  #bound { box-sizing: border-box; border: 3px dashed rgb(var(--ink) / 0.5); border-radius: 40px; }
+  .qbubble { box-sizing: border-box; padding: 24px 28px; border-radius: 26px 26px 26px 8px; background: rgb(var(--ink)); color: rgb(var(--paper)); font-size: 36px; font-weight: 600; line-height: 1.22; }
+  #datacard { padding: 24px 28px 26px; }
+  #datacard .tag { font-size: 21px; font-weight: 700; letter-spacing: 0.14em; color: rgb(var(--volt)); }
+  #datacard p { margin: 13px 0 0; font-size: 25px; line-height: 1.34; color: rgb(var(--paper-soft)); }
+  #datacard mark { background: none; padding: 0; color: rgb(var(--volt)); font-weight: 700; }
+  .abubble { box-sizing: border-box; padding: 22px 26px; border-radius: 26px 26px 8px 26px; background: rgb(255 255 255); border: 2.5px solid rgb(var(--ink)); color: rgb(var(--ink));
+             font-size: 27px; font-weight: 500; line-height: 1.38; }
+  .flowline { fill: none; stroke: rgb(var(--ink)); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 12 12; }
+  .flowhead { fill: none; stroke: rgb(var(--ink)); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+  .ink .flowline, .ink .flowhead { stroke: rgb(var(--volt)); }
+
+  /* ---- fix ---- */
+  #pct { font-size: 300px; font-weight: 700; letter-spacing: -0.055em; line-height: 0.92; white-space: nowrap; }
+
+  /* ---- persistent ---- */
+  .badge { display: flex; align-items: center; height: 60px; box-sizing: border-box; border-radius: 18px; background: rgb(var(--ink)); border: 1.5px solid rgb(var(--ink-3)); color: rgb(var(--paper)); }
+  #bug { left: 64px; top: 40px; padding: 0 20px 0 10px; gap: 12px; font-size: 27px; font-weight: 700; letter-spacing: -0.02em; }
+  #bug span { font-weight: 500; color: rgb(var(--paper-soft)); }
+  #rail { right: 64px; top: 40px; padding: 0 8px; gap: 4px; }
+  #rail div { padding: 7px 17px; border-radius: 12px; font-size: 22px; font-weight: 600; color: rgb(var(--paper-muted)); white-space: nowrap; }
+  #rail div.done { color: rgb(var(--paper-soft)); }
+  #rail div.now { background: rgb(var(--volt)); color: rgb(var(--ink)); font-weight: 700; }
+  #edge { top: -15%; width: 16px; height: 130%; margin-left: -8px; opacity: 0; pointer-events: none; }
+  #flash { inset: 0; background: rgb(255 252 235); opacity: 0; pointer-events: none; }
+  #cap { left: 0; right: 0; bottom: 44px; display: flex; justify-content: center; opacity: 0; }
+  #cap span.box {
+    max-width: 1560px; padding: 12px 30px 14px; border-radius: 16px; text-align: center;
+    background: rgb(18 17 16 / 0.93); border: 1.5px solid rgb(var(--ink-3));
+    font-size: 36px; font-weight: 500; line-height: 1.25; color: rgb(var(--paper));
+  }
+  #hint { position: fixed; left: 16px; bottom: 12px; font: 13px -apple-system, sans-serif; color: rgb(150 150 150); }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-air-vent" viewBox="0 0 24 24"><path d="M18 17.5a2.5 2.5 0 1 1-4 2.03V12"/><path d="M6 12H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 8h12"/><path d="M6.6 15.572A2 2 0 1 0 10 17v-5"/></symbol>
+  <symbol id="i-refrigerator" viewBox="0 0 24 24"><path d="M5 6a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6Z"/><path d="M5 10h14"/><path d="M15 7v6"/></symbol>
+  <symbol id="i-cooking-pot" viewBox="0 0 24 24"><path d="M2 12h20"/><path d="M20 12v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8"/><path d="m4 8 16-4"/><path d="m8.86 6.78-.45-1.81a2 2 0 0 1 1.45-2.43l1.94-.48a2 2 0 0 1 2.43 1.46l.45 1.8"/></symbol>
+  <symbol id="i-fan" viewBox="0 0 24 24"><path d="M10.827 16.379a6.082 6.082 0 0 1-8.618-7.002l5.412 1.45a6.082 6.082 0 0 1 7.002-8.618l-1.45 5.412a6.082 6.082 0 0 1 8.618 7.002l-5.412-1.45a6.082 6.082 0 0 1-7.002 8.618l1.45-5.412Z"/><path d="M12 12v.01"/></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-laptop" viewBox="0 0 24 24"><path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z"/><path d="M20.054 15.987H3.946"/></symbol>
+  <symbol id="i-cloud-off" viewBox="0 0 24 24"><path d="M10.94 5.274A7 7 0 0 1 15.71 10h1.79a4.5 4.5 0 0 1 4.222 6.057"/><path d="M18.796 18.81A4.5 4.5 0 0 1 17.5 19H9A7 7 0 0 1 5.79 5.78"/><path d="m2 2 20 20"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 19v3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><rect x="9" y="2" width="6" height="13" rx="3"/></symbol>
+  <symbol id="i-mouse-pointer" viewBox="0 0 24 24"><path d="M12.586 12.586 19 19"/><path d="M3.688 3.037a.497.497 0 0 0-.651.651l6.5 15.999a.501.501 0 0 0 .947-.062l1.569-6.083a2 2 0 0 1 1.448-1.479l6.124-1.579a.5.5 0 0 0 .063-.947z"/></symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M15 8V2"/><path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z"/><path d="M9 8V2"/></symbol>
+  <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M11 20a10 10 0 0010-10 25.9 25.9 0 00-1.04-7.281 1 1 0 00-1.755-.325C15.833 5.5 13 5.5 9.8 6.1A7 7 0 0011 20"/><path d="M2 21a5 5 0 012.911-4.544C7.613 15.212 8.351 15.24 11 13"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
+  <symbol id="i-languages" viewBox="0 0 24 24"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></symbol>
+  <symbol id="i-volume-2" viewBox="0 0 24 24"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/></symbol>
+  <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><path d="M12 20v2"/><path d="M12 2v2"/><path d="M17 20v2"/><path d="M17 2v2"/><path d="M2 12h2"/><path d="M2 17h2"/><path d="M2 7h2"/><path d="M20 12h2"/><path d="M20 17h2"/><path d="M20 7h2"/><path d="M7 20v2"/><path d="M7 2v2"/><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/></symbol>
+  <symbol id="i-battery-charging" viewBox="0 0 24 24"><path d="m11 7-3 5h4l-3 5"/><path d="M14.856 6H16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.935"/><path d="M22 14v-4"/><path d="M5.14 18H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2.936"/></symbol>
+  <symbol id="i-memory-stick" viewBox="0 0 24 24"><path d="M12 12v-2"/><path d="M12 18v-2"/><path d="M16 12v-2"/><path d="M16 18v-2"/><path d="M2 11h1.5"/><path d="M20 18v-2"/><path d="M20.5 11H22"/><path d="M4 18v-2"/><path d="M8 12v-2"/><path d="M8 18v-2"/><rect x="2" y="6" width="20" height="10" rx="2"/></symbol>
+  <symbol id="i-hard-drive" viewBox="0 0 24 24"><path d="M10 16h.01"/><path d="M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><path d="M21.946 12.013H2.054"/><path d="M6 16h.01"/></symbol>
+  <symbol id="i-microchip" viewBox="0 0 24 24"><path d="M10 12h4"/><path d="M10 17h4"/><path d="M10 7h4"/><path d="M18 12h2"/><path d="M18 18h2"/><path d="M18 6h2"/><path d="M4 12h2"/><path d="M4 18h2"/><path d="M4 6h2"/><rect x="6" y="2" width="12" height="20" rx="2"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <!-- The mark (frontend/src/components/Logo.jsx): a wattmeter dial with a bolt at its centre -->
+  <symbol id="mark" viewBox="0 0 64 64">
+    <rect width="64" height="64" rx="15" class="f-volt"/>
+    <g fill="none" class="s-ink" stroke-width="5.6" stroke-linecap="round"><path d="M17.86 49.14A20 20 0 1 1 46.86 21.62"/><path d="M51.56 30.84A20 20 0 0 1 46.14 49.14" stroke-opacity="0.22"/></g>
+    <polygon points="29.6,21.5 39,21.5 34.2,33 41.4,33 26.4,52 30.2,38.6 22.6,38.6" class="f-ink s-ink" stroke-width="1.6" stroke-linejoin="round"/>
+  </symbol>
+</svg>
+
+<div id="stage">
+ <div id="world">
+
+  <!-- ============ 1. The pain: the bill jumped, everyone blames AI, nobody has the number ============ -->
+  <section class="scene ink" data-scene="hook"><div class="cam">
+    <div class="abs center h1" style="top:112px" data-out="blame-0.3">
+      <span class="w" data-in="jumped-0.15" data-dur="0.45">Your</span>
+      <span class="w" data-in="jumped@0.14-0.15" data-dur="0.45">electric</span>
+      <span class="w" data-in="jumped@0.36-0.15" data-dur="0.45">bill</span>
+      <span class="w" data-in="jumped@0.5-0.15" data-dur="0.45">just</span>
+      <span class="w y" data-in="jumped@0.66-0.15" data-dur="0.45" data-fx="pop">jumped.</span>
+    </div>
+    <div class="abs center h1" style="top:112px" data-in="blame-0.12" data-out="nobody-0.3" data-dur="0.4">Everyone blames <span class="y">AI.</span></div>
+    <div class="abs center h1" style="top:112px" data-in="nobody-0.12" data-dur="0.4">Nobody can show you <span class="y">the number.</span></div>
+
+    <div id="bill" class="abs card" style="left:104px; top:356px; width:700px; height:474px; padding:46px 52px" data-in="-0.6" data-fx="rise" data-dur="0.9"
+         data-sfx="whoosh at=0.05 dur=0.5 gain=0.4">
+      <div class="eyebrow">Electric bill · this month</div>
+      <div id="billnum"><small>₱</small><span id="billval"></span></div>
+      <div style="margin-top:30px" data-in="jumped.end+0.25" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=0.9">
+        <span class="pill" style="font-size:33px; padding:10px 26px; color:rgb(var(--paper))"><svg class="ic y"><use href="#i-arrow-up"/></svg><span id="incr"></span> vs last month</span>
+      </div>
+      <svg class="abs" style="left:52px; bottom:44px" width="596" height="14" viewBox="0 0 596 14">
+        <line class="s-line" x1="0" y1="7" x2="596" y2="7" stroke-width="3"/>
+        <line id="hookflow" class="s-volt" x1="0" y1="7" x2="596" y2="7" stroke-width="5" stroke-linecap="round" stroke-dasharray="16 36"/>
+      </svg>
+    </div>
+
+    <div id="lineup" class="abs" style="left:864px; top:420px; display:flex; gap:18px"></div>
+    <div class="abs bubble" style="left:876px; top:288px" data-in="blame@0.12" data-out="nobody-0.3" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=1.1">It's the AI.</div>
+    <div class="abs bubble" style="left:1170px; top:306px" data-in="blame@0.42" data-out="nobody-0.3" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=1.25">Must be the AI.</div>
+    <div class="abs bubble" style="left:1548px; top:288px" data-in="blame@0.72" data-out="nobody-0.3" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=1.4">AI did it.</div>
+
+    <div class="abs card" style="left:864px; top:686px; width:952px; height:144px; padding:0 38px; display:flex; align-items:center; justify-content:space-between"
+         data-in="nobody-0.25" data-fx="rise" data-dur="0.5" data-sfx="glitch at=nobody-0.1 dur=1.4 gain=0.9">
+      <div>
+        <div style="font-size:34px; font-weight:600">AI's part of the <span id="sharehow"></span>?</div>
+        <div class="muted" style="font-size:23px; margin-top:6px">Token calculators multiply by an average. They never read your hardware.</div>
+      </div>
+      <div id="guess">₱<span id="guessval"></span></div>
+    </div>
+    <div id="stamp" class="abs" style="left:1590px; top:650px"><div data-in="nobody.end-0.2" data-fx="stamp" data-dur="0.3" data-sfx="stamp"><span class="pill"><i class="est"></i>A guess</span></div></div>
+  </div></section>
+
+  <!-- ============ 2. Meet Kilo What?: the mark's tile floods the frame ============ -->
+  <section class="scene volt" data-scene="meet"><div class="cam">
+    <svg id="hero" class="abs glyph" style="left:306px; top:196px; width:420px; height:420px" viewBox="0 0 64 64">
+      <path class="m-arc" d="M17.86 49.14A20 20 0 1 1 46.86 21.62"/><path class="m-rest" d="M51.56 30.84A20 20 0 0 1 46.14 49.14" stroke-opacity="0.22"/>
+      <polygon class="m-bolt" points="29.6,21.5 39,21.5 34.2,33 41.4,33 26.4,52 30.2,38.6 22.6,38.6"/>
+    </svg>
+    <div id="heroword" class="abs" style="left:722px; top:318px">
+      <span class="w" data-in="$meet+0.34" data-fx="right" data-dur="0.5">Kilo</span>
+      <span class="w" style="font-weight:500; color:rgb(var(--ink) / 0.66)" data-in="$meet+0.46" data-fx="right" data-dur="0.5">What?</span>
+    </div>
+    <span data-sfx="whoosh at=$meet+0.3 dur=0.6 gain=0.6"></span>
+    <div class="abs" style="left:388px; top:650px; font-size:60px; font-weight:600; letter-spacing:-0.02em; white-space:nowrap">
+      <span class="w" data-in="meet@0.42" data-dur="0.45">Measures it,</span>
+      <span class="w" data-in="local-0.05" data-dur="0.5">on your own computer.</span>
+    </div>
+    <div class="abs chips" style="left:388px; top:770px">
+      <span class="pill" data-in="local#1-0.05" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=1.1"><svg class="ic"><use href="#i-check"/></svg>No cloud</span>
+      <span class="pill" data-in="local#1+0.68" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=1.25"><svg class="ic"><use href="#i-check"/></svg>No account</span>
+      <span class="pill" data-in="local#1+1.4" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=1.4"><svg class="ic"><use href="#i-check"/></svg>No extra hardware</span>
+    </div>
+  </div></section>
+
+  <!-- ============ 3. How it reads: sensors every 2 s, the AI apps, the split ============ -->
+  <section class="scene ink" data-scene="read"><div class="cam">
+    <div class="abs h2" style="left:96px; top:150px" data-in="$read+0.3" data-out="apps-0.25">Reads your machine's own <span class="y">power sensors</span></div>
+    <div class="abs h2" style="left:96px; top:150px" data-in="apps-0.1" data-out="split-0.25">Finds every <span class="y">AI app</span> running</div>
+    <div class="abs h2" style="left:96px; top:150px" data-in="split-0.1">Splits the watts <span class="y">between them</span></div>
+
+    <div id="board" class="abs" style="left:96px; top:296px; width:800px; height:604px" data-in="$read+0.3" data-fx="rise" data-dur="0.6">
+      <div id="boardtitle">
+        <svg class="ic"><use href="#i-laptop"/></svg><span id="devname"></span>
+        <span class="pill" style="margin-left:auto; font-size:23px; padding:6px 18px; background:rgb(var(--ink)); color:rgb(var(--paper))">
+          <svg width="26" height="26" viewBox="0 0 26 26"><circle class="s-line" cx="13" cy="13" r="10" fill="none" stroke-width="4"/>
+            <circle id="ring2s" class="s-volt" cx="13" cy="13" r="10" fill="none" stroke-width="4" pathLength="1" transform="rotate(-90 13 13)"/></svg>every 2 seconds</span>
+      </div>
+      <div id="parts"></div>
+      <div id="scan"></div>
+    </div>
+    <svg class="abs" style="left:900px; top:572px" width="76" height="56" viewBox="0 0 76 56" data-in="$read+0.8" data-fx="fade">
+      <path id="readflow" class="flowline" d="M4 28 H56"/><path class="flowhead" d="M52 12 L70 28 L52 44"/>
+    </svg>
+
+    <div class="abs" style="left:980px; top:296px" data-in="$read+0.55" data-out="apps-0.3" data-dur="0.5">
+      <div class="eyebrow">Whole machine, right now</div>
+      <div style="display:flex; align-items:flex-end; gap:34px; margin-top:8px">
+        <div class="bignum"><span id="livew"></span><small>W</small></div>
+        <span class="pill" style="margin-bottom:26px; color:rgb(var(--paper))" data-in="sensors#1+0.5" data-fx="pop" data-dur="0.35" data-sfx="pop pitch=1.6 gain=0.6"><i></i>measured, not guessed</span>
+      </div>
+    </div>
+    <div class="abs" style="left:980px; top:556px; width:844px" data-in="$read+0.7" data-out="apps-0.3" data-dur="0.5">
+      <div id="streamhead" class="cols"><span>Read at</span><span>Whole machine</span><span>CPU</span><span>GPU</span><span>AI apps</span></div>
+      <div id="rows"></div>
+      <div class="muted" style="display:flex; align-items:center; gap:12px; margin-top:18px; font-size:24px">
+        <svg class="ic" style="width:28px; height:28px"><use href="#i-database"/></svg><span>Every reading is stored <b style="color:rgb(var(--paper)); font-weight:600">on this computer</b></span>
+      </div>
+    </div>
+
+    <div id="apps" class="abs" style="left:980px; top:312px; display:grid; grid-template-columns:repeat(4, 196px); gap:20px" data-out="split-0.3"></div>
+    <div class="abs card" style="left:980px; top:724px; width:844px; height:118px; padding:0 30px; display:flex; align-items:center; gap:22px; background:rgb(var(--ink))"
+         data-in="apps@0.55" data-out="split-0.3" data-fx="rise" data-dur="0.5">
+      <svg class="ic y" style="width:44px; height:44px; flex:none"><use href="#i-lock"/></svg>
+      <div><div style="font-size:27px; font-weight:600">Reads model names and token counts from their logs.</div>
+        <div class="muted" style="font-size:25px; margin-top:2px">Never your prompts or your code.</div></div>
+    </div>
+
+    <div class="abs card" style="left:980px; top:296px; width:844px; height:604px; padding:32px 36px" data-in="split-0.2" data-fx="rise" data-dur="0.55" data-sfx="whoosh dur=0.5 gain=0.5">
+      <div style="display:flex; align-items:baseline; justify-content:space-between">
+        <div style="font-size:35px; font-weight:700; letter-spacing:-0.015em"><span id="splittotal"></span> W, measured</div>
+        <div class="muted" style="font-size:24px">shared out by CPU and GPU use</div>
+      </div>
+      <div id="splitbar"></div>
+      <div id="splitrows" style="margin-top:8px"></div>
+      <div style="margin-top:24px" data-in="split@0.6" data-fx="rise" data-dur="0.5"><div class="formula"><b id="formula"></b><span>fitted to this machine</span></div></div>
+    </div>
+  </div></section>
+
+  <!-- ============ 4. What you see: the live console, dark and light ============ -->
+  <section class="scene volt" data-scene="see"><div class="cam" id="seecam">
+    <div id="winwrap" class="win" style="left:285px; top:117px; width:1344px; height:840px" data-in="$see+0.05" data-fx="tilt" data-dur="0.8">
+      <div id="win" style="position:absolute; left:0; top:0; width:1600px; height:1000px; transform-origin:0 0; transform:scale(0.84)">
+        <div class="layer" data-theme="dark"><img class="frame"><div class="mainclip"><img class="main"></div><img class="ask"></div>
+        <div class="layer" data-theme="light" id="lightlayer"><img class="frame"><div class="mainclip"><img class="main"></div><img class="ask"></div>
+        <div class="ringbox" id="ring-watts"><b>Watts</b></div>
+        <div class="ringbox below" id="ring-cost"><b>Pesos</b></div>
+        <div class="ringbox" id="ring-energy"><b>Carbon</b></div>
+        <div class="press" id="themepress"></div>
+      </div>
+    </div>
+    <div class="cursor" id="cursor1"><svg class="ic"><use href="#i-mouse-pointer"/></svg></div>
+  </div></section>
+
+  <!-- ============ 5. How it forecasts: pre-trained, fine-tuned, tested ============ -->
+  <section class="scene ink" data-scene="forecast"><div class="cam">
+    <div class="abs h2" style="left:96px; top:150px" data-in="$forecast+0.3">Forecasts <span class="y">your bill</span></div>
+    <div class="abs muted" style="left:96px; top:226px; font-size:27px; white-space:nowrap" data-in="$forecast+0.45" data-fx="fade">An ARIMA model per AI app, in 15-minute steps</div>
+
+    <svg class="abs" style="left:150px; top:340px" width="10" height="480" viewBox="0 0 10 480" data-in="$forecast+0.5" data-fx="fade">
+      <line class="s-line" x1="5" y1="0" x2="5" y2="480" stroke-width="3"/>
+      <line id="stepflow" class="s-volt" x1="5" y1="0" x2="5" y2="480" stroke-width="5" stroke-linecap="round" stroke-dasharray="4 16"/>
+    </svg>
+    <div class="step" id="step1" style="top:296px" data-in="$forecast+0.4" data-fx="rise" data-dur="0.5">
+      <div class="n">1</div><div class="t">Pre-trained</div><div class="d">on Luzon grid demand</div>
+      <div class="x">IEMOP's public market data</div>
+    </div>
+    <div class="step" id="step2" style="top:489px" data-in="$forecast+0.5" data-fx="rise" data-dur="0.5">
+      <div class="n">2</div><div class="t">Fine-tuned</div><div class="d">on this device's own readings</div>
+      <div class="x" id="specs"></div>
+    </div>
+    <div class="step" id="step3" style="top:682px; height:218px" data-in="$forecast+0.6" data-fx="rise" data-dur="0.5">
+      <div class="n">3</div><div class="t">Tested</div><div class="d">on readings it never saw</div>
+      <div class="x" id="scores" style="gap:14px"></div>
+    </div>
+
+    <div class="abs card" style="left:800px; top:296px; width:1024px; height:604px; padding:30px 36px" data-in="$forecast+0.35" data-fx="rise" data-dur="0.6">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <div style="font-size:32px; font-weight:700; letter-spacing:-0.015em">AI on this cycle's bill</div>
+        <div class="legend"><span><i></i>So far</span><span><i class="d"></i>Forecast</span><span><i class="b"></i><b id="interval" style="font-weight:500"></b></span></div>
+      </div>
+      <svg id="chart" width="952" height="372" viewBox="0 0 952 372" style="display:block; margin-top:12px; overflow:visible"></svg>
+      <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-top:14px">
+        <div data-in="trained#1+0.25" data-fx="fade" data-dur="0.4">
+          <div class="eyebrow" id="cyclelabel"></div>
+          <div style="font-size:68px; font-weight:700; letter-spacing:-0.035em; line-height:1.05"><span id="fcbill"></span></div>
+        </div>
+        <div style="text-align:right; padding-bottom:8px">
+          <div style="font-size:27px; font-weight:500" data-in="tested-0.2" data-fx="fade"><span id="fcsum"></span></div>
+          <div class="muted" style="font-size:24px; margin-top:4px" data-in="tested#1-0.1" data-fx="fade"><span id="fcrange"></span></div>
+        </div>
+      </div>
+    </div>
+  </div></section>
+
+  <!-- ============ 6. How Kilo works: the app does the math, a local model does the words ============ -->
+  <section class="scene cream" data-scene="kilo"><div class="cam">
+    <div class="abs h2" style="left:96px; top:150px" data-in="$kilo+0.3">Ask <mark>Kilo</mark></div>
+    <div class="abs muted" style="left:404px; top:170px; font-size:29px; white-space:nowrap" data-in="kilo#1-0.05" data-fx="right" data-dur="0.5">a small language model, running on your own machine</div>
+    <span class="abs pill" style="right:96px; top:160px; font-size:28px; padding:10px 24px" data-in="kilo#1+0.9" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=1.3 gain=0.6">
+      <svg class="ic y"><use href="#i-cloud-off"/></svg>Answers here, not in a cloud</span>
+
+    <div id="bound" class="abs" style="left:96px; top:282px; width:1728px; height:618px" data-in="kilo#1-0.1" data-fx="fade" data-dur="0.5"></div>
+    <span class="abs pill" style="left:140px; top:256px; font-size:27px; padding:9px 24px" data-in="kilo#1-0.1" data-fx="pop" data-dur="0.4">
+      <svg class="ic y"><use href="#i-laptop"/></svg>On this computer</span>
+
+    <div class="abs eyebrow" style="left:144px; top:340px" data-in="$kilo+0.45" data-fx="fade">You ask</div>
+    <div class="abs qbubble" style="left:144px; top:386px; width:400px" data-in="kilo-0.1" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=1.5 gain=0.6"><span id="question"></span></div>
+    <div class="abs" style="left:144px; top:590px; display:flex; flex-direction:column; gap:12px; align-items:flex-start">
+      <span class="pill" style="font-size:23px" data-in="kilo#1+0.2" data-fx="right" data-dur="0.4"><svg class="ic y"><use href="#i-mic"/></svg>Typed or spoken</span>
+      <span class="pill" style="font-size:23px" data-in="kilo#1+0.35" data-fx="right" data-dur="0.4"><svg class="ic y"><use href="#i-languages"/></svg>English · Filipino · Taglish</span>
+    </div>
+
+    <svg class="abs" style="left:556px; top:432px" width="80" height="56" viewBox="0 0 80 56" data-in="math-0.3" data-fx="fade"><path id="kflow1" class="flowline" d="M4 28 H58"/><path class="flowhead" d="M56 12 L74 28 L56 44"/></svg>
+    <div class="abs eyebrow" style="left:648px; top:340px" data-in="math-0.25" data-fx="fade">The app does the math</div>
+    <div id="datacard" class="abs card" style="left:648px; top:386px; width:536px" data-in="math-0.2" data-fx="rise" data-dur="0.45" data-sfx="whoosh dur=0.4 gain=0.4">
+      <div class="tag">DATA</div><div id="datalines"></div>
+    </div>
+
+    <svg class="abs" style="left:1196px; top:432px" width="80" height="56" viewBox="0 0 80 56" data-in="math#1-0.45" data-fx="fade"><path id="kflow2" class="flowline" d="M4 28 H58"/><path class="flowhead" d="M56 12 L74 28 L56 44"/></svg>
+    <div class="abs eyebrow" style="left:1288px; top:340px" data-in="math#1-0.4" data-fx="fade">Kilo puts it in plain words</div>
+    <div class="abs abubble" style="left:1288px; top:386px; width:492px" data-in="math#1-0.4" data-fx="pop" data-dur="0.4"><span id="reply"></span></div>
+
+    <div class="abs" style="left:144px; top:826px; display:flex; gap:14px">
+      <span class="pill" style="font-size:23px" data-in="kilo#1+0.5" data-fx="rise" data-dur="0.4"><img class="mono-light" src="../kilowhat/assets/brands/ollama.svg" style="width:26px; height:26px" alt=""><span id="kmodel"></span></span>
+      <span class="pill" style="font-size:23px" data-in="math.end+0.05" data-fx="rise" data-dur="0.4"><svg class="ic y"><use href="#i-zap"/></svg><span id="kwatts"></span></span>
+      <span class="pill" style="font-size:23px" data-in="math.end+0.2" data-fx="rise" data-dur="0.4"><svg class="ic y"><use href="#i-volume-2"/></svg>Reads replies aloud</span>
+      <span class="pill" style="font-size:23px" data-in="math.end+0.35" data-fx="rise" data-dur="0.4"><svg class="ic y"><use href="#i-bell"/></svg>Speaks up on alerts</span>
+    </div>
+  </div></section>
+
+  <!-- ============ 7. The verdict, and the fix ============ -->
+  <section class="scene volt" data-scene="fix"><div class="cam"><div class="abs" style="inset:0" data-out="$close-0.78">
+    <div class="abs" style="inset:0" data-out="fix-0.4">
+      <div class="abs" style="left:96px; top:146px; font-size:46px; font-weight:600; letter-spacing:-0.015em" data-in="$fix+0.3">On this laptop, AI was</div>
+      <div id="pct" class="abs" style="left:88px; top:204px; transform-origin:0 70%" data-in="verdict#1-0.25" data-fx="slam" data-dur="0.3" data-sfx="thunk"><span id="pctval"></span>%</div>
+      <div class="abs" style="left:770px; top:258px; font-size:84px; font-weight:700; letter-spacing:-0.035em; line-height:1.04; white-space:nowrap" data-in="verdict#1+0.45" data-fx="right" data-dur="0.5">
+        of the <span id="jump"></span><br>jump.</div>
+      <span class="abs pill" style="left:1310px; top:386px; font-size:30px; padding:10px 26px" data-in="verdict#1+1.0" data-fx="pop" data-dur="0.4" data-sfx="pop pitch=1.2"><i></i><span id="aieffect"></span></span>
+      <div id="verdictwin" class="win" style="left:93px; top:497px; width:1728px" data-in="verdict-0.1" data-fx="rise" data-dur="0.6" data-sfx="whoosh dur=0.5 gain=0.45"><img id="verdictimg" style="width:100%"></div>
+    </div>
+
+    <div class="abs h2" style="left:96px; top:150px" data-in="fix-0.1">When it's more, it shows <mark>the fix</mark></div>
+    <div id="recswin" class="win" style="left:93px; top:262px; width:1728px" data-in="fix-0.2" data-fx="rise" data-dur="0.6" data-sfx="whoosh dur=0.5 gain=0.5"><img id="recsimg" style="width:100%"></div>
+    <div id="fixrings" class="abs" style="left:96px; top:265px"></div>
+    <div class="cursor" id="cursor2"><svg class="ic"><use href="#i-mouse-pointer"/></svg></div>
+    <div class="abs" style="left:96px; top:880px; display:flex; gap:14px">
+      <span class="pill" style="font-size:25px" data-in="fix#1+0.15" data-fx="rise" data-dur="0.4" data-sfx="pop pitch=1.0 gain=0.5"><svg class="ic y"><use href="#i-leaf"/></svg>Carbon ledger</span>
+      <span class="pill" style="font-size:25px" data-in="fix#1+0.3" data-fx="rise" data-dur="0.4" data-sfx="pop pitch=1.15 gain=0.5"><svg class="ic y"><use href="#i-zap"/></svg>Cleanest and cheapest hours</span>
+      <span class="pill" style="font-size:25px" data-in="fix#1+0.45" data-fx="rise" data-dur="0.4" data-sfx="pop pitch=1.3 gain=0.5"><svg class="ic y"><use href="#i-plug"/></svg>Wall-meter check</span>
+      <span class="pill" style="font-size:25px" data-in="fix#1+0.6" data-fx="rise" data-dur="0.4" data-sfx="pop pitch=1.45 gain=0.5"><svg class="ic y"><use href="#i-bell"/></svg>Budget alerts</span>
+    </div>
+  </div></div></section>
+
+  <!-- ============ 8. Close: the yellow folds back into the mark ============ -->
+  <section class="scene ink" data-scene="close"><div class="cam">
+    <div id="endtile" class="markbox" style="left:468px; top:300px; width:200px; height:200px"></div>
+    <svg id="endglyph" class="abs glyph" style="left:468px; top:300px; width:200px; height:200px" viewBox="0 0 64 64">
+      <path class="m-arc" d="M17.86 49.14A20 20 0 1 1 46.86 21.62" pathLength="1"/><path class="m-rest" d="M51.56 30.84A20 20 0 0 1 46.14 49.14" stroke-opacity="0.22"/>
+      <polygon class="m-bolt" points="29.6,21.5 39,21.5 34.2,33 41.4,33 26.4,52 30.2,38.6 22.6,38.6"/>
+    </svg>
+    <div class="abs" style="left:716px; top:322px; font-size:150px; font-weight:700; letter-spacing:-0.045em; line-height:1.05; white-space:nowrap">
+      <span class="w" data-in="$close+0.1" data-fx="right" data-dur="0.5">Kilo</span>
+      <span class="w soft" style="font-weight:500" data-in="$close+0.22" data-fx="right" data-dur="0.5">What?</span>
+    </div>
+    <div class="abs center" style="top:612px; font-size:84px; font-weight:700; letter-spacing:-0.03em">
+      <span class="w y" data-in="close#1-0.1" data-dur="0.5">Measured,</span>
+      <span class="w" data-in="close#1+0.35" data-dur="0.5">not guessed.</span>
+    </div>
+    <div class="abs center soft" style="top:750px; font-size:36px; font-weight:500" data-in="close.end+0.15" data-fx="fade" data-dur="0.7">
+      The power, bill and carbon of your AI, measured on your own computer.
+    </div>
+    <svg class="abs" style="left:0; top:880px" width="1920" height="60" viewBox="0 0 1920 60">
+      <path class="s-line" d="M0 30 H1920" stroke-width="3" pathLength="1" style="stroke-dasharray:1; stroke-dashoffset:1" data-in="close+0.2" data-fx="draw" data-dur="1.6"/>
+      <line id="closeflow" class="s-volt" x1="0" y1="30" x2="1920" y2="30" stroke-width="5" stroke-linecap="round" stroke-dasharray="18 42" opacity="0"/>
+    </svg>
+  </div></section>
+
+ </div>
+
+  <!-- The mark strikes over the end of the hook, and its tile floods the frame for "meet" -->
+  <div id="intro" class="abs" style="inset:0; visibility:hidden">
+    <div id="introdim" class="abs" style="inset:0; background:rgb(var(--ink))"></div>
+    <div id="introtile" class="markbox" style="left:830px; top:340px; width:260px; height:260px"></div>
+    <svg id="introglyph" class="abs glyph" style="left:830px; top:340px; width:260px; height:260px" viewBox="0 0 64 64">
+      <path class="m-arc" d="M17.86 49.14A20 20 0 1 1 46.86 21.62" pathLength="1"/><path class="m-rest" d="M51.56 30.84A20 20 0 0 1 46.14 49.14" stroke-opacity="0.22"/>
+      <polygon class="m-bolt" points="29.6,21.5 39,21.5 34.2,33 41.4,33 26.4,52 30.2,38.6 22.6,38.6"/>
+    </svg>
+  </div>
+
+  <!-- Between scenes, the incoming one is wiped in behind this stripe -->
+  <div id="edge" class="abs"></div>
+  <!-- From the first step to the last: the logo, and where the explanation has got to -->
+  <div id="bug" class="abs badge" data-in="$read+0.25" data-out="$close-0.8" data-fx="fade" data-dur="0.3">
+    <svg width="42" height="42" viewBox="0 0 64 64"><use href="#mark"/></svg><div>Kilo <span>What?</span></div>
+  </div>
+  <div id="rail" class="abs badge" data-in="$read+0.25" data-out="$close-0.8" data-fx="fade" data-dur="0.3"></div>
+  <div id="flash" class="abs"></div>
+  <div id="cap" class="abs"><span class="box"></span></div>
+</div>
+<div id="hint"></div>
+
+<script>
+(function () {
+  const T = window.TIMELINE, F = window.FACTS, SHOTS = window.SHOTS, W = window.WHERE;
+  const cues = Object.fromEntries(T.cues.map((c) => [c.id, c]));
+  const scenes = Object.fromEntries(T.scenes.map((s) => [s.id, s]));
+  const $ = (id) => document.getElementById(id);
+  const make = (tag, cls, html) => { const el = document.createElement(tag); el.className = cls || ""; el.innerHTML = html || ""; return el; };
+
+  const clamp = (x) => Math.min(Math.max(x, 0), 1);
+  const lerp = (a, b, p) => a + (b - a) * p;
+  const outCubic = (p) => 1 - Math.pow(1 - p, 3);
+  const inOut = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+  const inQuad = (p) => p * p;
+  const outBack = (p) => 1 + 2.4 * Math.pow(p - 1, 3) + 1.4 * Math.pow(p - 1, 2);
+  const ramp = (t, from, dur) => clamp((t - from) / dur);
+  const num = (x, d = 0) => x.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const peso = (x, d = 0) => "₱" + num(x, d);
+  const watts = (w) => (w >= 10 ? num(w, 1) : num(w, 2));   // as the app writes watts
+  const html = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+  // "sensors#1+0.3" and the other forms described at the top of this file → seconds.
+  function at(spec) {
+    spec = String(spec).trim();
+    if (/^-?[\d.]+$/.test(spec)) return parseFloat(spec);
+    let m = spec.match(/^\$(\w+?)(\.end)?([+-][\d.]+)?$/);
+    if (m) {
+      if (!scenes[m[1]]) throw new Error("No scene " + m[1]);
+      return (m[2] ? scenes[m[1]].end : scenes[m[1]].start) + parseFloat(m[3] || 0);
+    }
+    m = spec.match(/^(\w+?)(?:#(\d+)|@([\d.]+)|(\.end))?([+-][\d.]+)?$/);
+    const cue = m && cues[m[1]];
+    if (!cue) throw new Error("No narration line for " + spec);
+    let t = cue.start;
+    if (m[2] != null) {
+      const seg = cue.segments[+m[2]];
+      t = seg ? seg[0] : lerp(cue.start, cue.end, +m[2] / (cue.segments.length + 1));
+    } else if (m[3] != null) t = lerp(cue.start, cue.end, parseFloat(m[3]));
+    else if (m[4]) t = cue.end;
+    return t + parseFloat(m[5] || 0);
+  }
+
+  // ---------- 1. hook: figures and the line-up ----------
+  $("incr").textContent = "+" + peso(F.bill.increase);
+  $("sharehow").textContent = "+" + peso(F.bill.increase);
+  const suspects = [["Aircon", "air-vent"], ["Fridge", "refrigerator"], ["Rice cooker", "cooking-pot"], ["Electric fan", "fan"], ["AI", "sparkles"]].map(([name, icon], i) => {
+    const el = make("div", "suspect", `<svg class="ic"><use href="#i-${icon}"/></svg>${name}`);
+    el.dataset.in = `blame-${(0.6 - i * 0.09).toFixed(2)}`;
+    el.dataset.fx = "pop"; el.dataset.dur = "0.4";
+    el.dataset.sfx = `pop pitch=${(0.85 + i * 0.1).toFixed(2)} gain=0.5`;
+    return $("lineup").appendChild(el);
+  });
+
+  // ---------- 3. read: the parts and their sensors, the readings, the apps, the split ----------
+  $("devname").textContent = `${F.device.replace(/\s*\(.*?\)/, "")} · ${F.cpu}`;
+  const comp = F.live.components;
+  const PARTS = [["Whole machine", "battery-charging", F.live.watts, F.sensors.system], ["GPU", "microchip", comp.gpu.watts, F.sensors.gpu],
+                 ["CPU", "cpu", comp.cpu.watts, F.sensors.cpu], ["Memory", "memory-stick", comp.memory.watts, F.sensors.memory],
+                 ["Disk", "hard-drive", comp.disk.watts, F.sensors.disk]];
+  const partEls = PARTS.map(([name, icon, w, sensor]) => {
+    const el = make("div", "part" + (sensor ? "" : " est"),
+      `<svg class="ic"><use href="#i-${icon}"/></svg><b>${name}</b>` +
+      `<span class="src"><i class="dot${sensor ? "" : " est"}"></i>${sensor ? "measured · " + html(sensor) : "estimated from its use"}</span>` +
+      `<span class="val">${sensor ? "" : "~"}${num(w, 1)} W</span>`);   // ~ marks an estimate, as the collector prints it
+    return $("parts").appendChild(el);
+  });
+
+  const READ = [...F.readings].sort((a, b) => a.ts - b.ts);
+  const clock = (ts) => new Date(ts * 1000).toLocaleTimeString("en-GB");
+  const rowEls = READ.map((r) => $("rows").appendChild(make("div", "row cols",
+    `<span>${clock(r.ts)}</span><span>${num(r.watts, 1)} W</span><span>${num(r.cpu)}%</span><span>${num(r.gpu)}%</span><span>${watts(r.ai)} W</span>`)));
+
+  // Apps the reader knows; the ones in this reading are marked as running.
+  const running = new Set(F.live.apps.map((a) => a.name.split(" · ")[0]));
+  const APPS = [["Claude Code", "claudecode", 0], ["GitHub Copilot", "githubcopilot", 1], ["Codex", "codex", 0], ["Cursor", "cursor", 1],
+                ["Ollama", "ollama", 1], ["LM Studio", "lmstudio", 1], ["Gemini CLI", "geminicli", 0], ["Windsurf", "windsurf", 1]];
+  APPS.forEach(([name, file, mono], i) => {
+    const on = running.has(name);
+    const el = make("div", "app" + (on ? " on" : ""), `<img ${mono ? 'class="mono-light" ' : ""}src="../kilowhat/assets/brands/${file}.svg" alt="">${name}` +
+      (on ? `<span class="st"><i class="dot"></i>running</span>` : `<span class="st">&nbsp;</span>`));
+    const off = i * 0.12 - 0.1;
+    el.dataset.in = `apps${off < 0 ? "-" : "+"}${Math.abs(off).toFixed(2)}`;
+    el.dataset.fx = "pop"; el.dataset.dur = "0.4";
+    el.dataset.sfx = `pop pitch=${(1 + i * 0.09).toFixed(2)} gain=0.55`;
+    $("apps").appendChild(el);
+  });
+
+  // The split of this reading: one row per app (its processes added up), then the rest of the computer.
+  const byApp = new Map();
+  for (const a of F.live.apps) {
+    const key = a.name.split(" · ")[0];
+    const row = byApp.get(key) || byApp.set(key, { name: key, watts: 0, kind: a.kind, top: 0, label: key }).get(key);
+    row.watts += a.watts;
+    if (a.watts >= row.top) { row.top = a.watts; row.label = a.name; }
+  }
+  const rest = Math.max(F.live.watts - F.live.ai_watts, 0);
+  const SPLIT = [...byApp.values()].sort((a, b) => b.watts - a.watts).slice(0, 3)
+    .map((r) => ({ name: r.kind === "local" ? r.label : r.name, tag: r.kind === "local" ? "local model" : "cloud app", watts: r.watts,
+                   colour: r.kind === "local" ? "rgb(var(--volt))" : "rgb(var(--paper))" }))
+    .concat([{ name: "Rest of the computer", tag: "screen, system, other apps", watts: rest, colour: "rgb(var(--ink-4))" }]);
+  $("splittotal").textContent = num(F.live.watts, 1);
+  const splitEls = SPLIT.map((r) => {
+    const bar = $("splitbar").appendChild(make("div"));
+    bar.style.background = r.colour;
+    bar.style.flex = `${Math.max(r.watts, 0.001)} 0 0`;
+    const row = $("splitrows").appendChild(make("div", "srow",
+      `<i class="sw" style="background:${r.colour}"></i><span class="nm">${html(r.name)}<small>${r.tag}</small></span><span class="v"><span></span> W</span>`));
+    return { ...r, bar, row, val: row.querySelector(".v span") };
+  });
+  const pm = F.power_model;
+  $("formula").innerHTML = `watts ≈ ${num(pm.idle_watts, 1)} + <em>${num(pm.watts_per_cpu_pct, 2)}</em> × CPU% + <em>${num(pm.watts_per_gpu_pct, 2)}</em> × GPU%`;
+
+  // ---------- 4. see: the app's window, in both themes ----------
+  for (const layer of document.querySelectorAll("#win .layer")) {
+    const theme = layer.dataset.theme;
+    layer.querySelector(".frame").src = SHOTS["window-" + theme].src;
+    layer.querySelector(".frame").style.cssText = "left:0; top:0; width:1600px; height:1000px";
+    const clip = layer.querySelector(".mainclip");
+    clip.style.cssText = `left:${W.main.x}px; top:${W.main.y}px; width:${W.main.w}px; height:${W.main.h}px`;
+    layer.querySelector(".main").src = SHOTS["main-" + theme].src;
+    layer.querySelector(".main").style.width = SHOTS["main-" + theme].w + "px";
+    const ask = layer.querySelector(".ask");
+    ask.src = SHOTS["ask-" + theme].src;
+    ask.style.cssText = `left:${W.ask.x + W.ask.w - SHOTS["ask-" + theme].w}px; top:${W.ask.y}px; width:${SHOTS["ask-" + theme].w}px`;
+  }
+  const mains = [...document.querySelectorAll("#win .main")];
+  const KWIN = 0.84, WINX = 285 + 3, WINY = 117 + 3;                  // the window's scale and place on the stage (inside its border)
+  const onStage = (x, y) => [WINX + x * KWIN, WINY + y * KWIN];        // a point of the app's window → the stage
+  const SCROLL = Math.max(0, Math.min(W.draw.y - 36, SHOTS["main-dark"].h - W.main.h));   // down to the live draw and the app list
+  const rings = ["watts", "cost", "energy"].map((key) => {
+    const el = $("ring-" + key), b = W.stats[key];
+    el.style.cssText = `left:${W.main.x + b.x - 7}px; top:${W.main.y + b.y - 7}px; width:${b.w + 14}px; height:${b.h + 14}px`;
+    return el;
+  });
+  const TOGGLE = [W.toggle.light.x + W.toggle.light.w / 2, W.toggle.light.y + W.toggle.light.h / 2];
+  $("themepress").style.left = TOGGLE[0] + "px"; $("themepress").style.top = TOGGLE[1] + "px";
+  // The camera's close-up: the four stat cards
+  const sb = [W.stats.watts, W.stats.energy, W.stats.cost, W.stats.bill];
+  const FOCUS = onStage(W.main.x + (Math.min(...sb.map((b) => b.x)) + Math.max(...sb.map((b) => b.x + b.w))) / 2,
+                        W.main.y + (Math.min(...sb.map((b) => b.y)) + Math.max(...sb.map((b) => b.y + b.h))) / 2);
+
+  // ---------- 5. forecast: the steps and the chart ----------
+  const FC = F.forecast, D = FC.daily;
+  const short = (iso) => new Date(iso + "T00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  // Two of the device's models, the apps this video shows first
+  const fitted = Object.entries(FC.models || {}).filter(([, spec]) => /ARIMA/.test(spec));
+  const specs = [...fitted.filter(([app]) => running.has(app)), ...fitted.filter(([app]) => !running.has(app))].slice(0, 2);
+  $("specs").innerHTML = specs.length ? specs.map(([app, spec]) => `<span><b>${html(app)}</b> ${html(spec)}</span>`).join("<span>·</span>") : "one model for each AI app";
+  const SCORES = F.accuracy ? [["Accuracy", F.accuracy.accuracy], ["Precision", F.accuracy.precision], ["Recall", F.accuracy.recall], ["F1", F.accuracy.f1]] : [];
+  $("scores").innerHTML = SCORES.length ? SCORES.map(([name, v]) => `<div class="score">${name}<b>${num(v * 100, 1)}%</b><u><s style="width:${v * 100}%"></s></u></div>`).join("")
+    : "scored on held-out readings in the app";
+  const scoreBars = [...document.querySelectorAll(".score s")];
+  $("cyclelabel").textContent = `Projected bill, ${short(FC.cycle.start)} – ${short(FC.cycle.end)}`;
+  $("fcsum").innerHTML = `${peso(FC.baseline)} before AI + <b>${peso(FC.ai_cost, 2)}</b> from AI`;
+  $("interval").textContent = FC.range ? `${Math.round((FC.interval || 0.8) * 100)}% range` : "";
+  $("fcrange").textContent = FC.range ? `${Math.round((FC.interval || 0.8) * 100)}% range: ${peso(FC.range.low, 2)} – ${peso(FC.range.high, 2)}` : "";
+
+  // Running AI cost through the cycle, as the app's chart draws it: measured up to today, forecast after.
+  let run = 0;
+  const cum = D.map((d) => (run += d.ai_cost));
+  const fit = cum[cum.length - 1] ? FC.ai_cost / cum[cum.length - 1] : 1;    // the days are rounded; end on the app's total
+  cum.forEach((v, i) => (cum[i] = v * fit));
+  const iT = Math.max(D.findIndex((d) => d.today), 0), iEnd = D.length - 1;
+  const lo = FC.range ? FC.range.low - FC.baseline : cum[iEnd], hi = FC.range ? FC.range.high - FC.baseline : cum[iEnd];
+  const yStep = Math.max(hi, cum[iEnd]) > 40 ? 20 : Math.max(hi, cum[iEnd]) > 20 ? 10 : 5;
+  const yMax = Math.ceil(Math.max(hi, cum[iEnd]) * 1.05 / yStep) * yStep;
+  const CX0 = 74, CX1 = 800, CY0 = 22, CY1 = 312;
+  const X = (i) => CX0 + (CX1 - CX0) * i / iEnd, Y = (v) => CY1 - (CY1 - CY0) * v / yMax;
+  const pts = (from, to) => cum.slice(from, to + 1).map((v, k) => `${k ? "L" : "M"}${X(from + k).toFixed(1)} ${Y(v).toFixed(1)}`).join(" ");
+  let g = "";
+  for (let v = 0; v <= yMax; v += yStep) g += `<line class="grid" x1="${CX0}" x2="${CX1}" y1="${Y(v)}" y2="${Y(v)}"/><text class="axis" x="${CX0 - 14}" y="${Y(v) + 7}" text-anchor="end">₱${v}</text>`;
+  for (let i = 0; i <= iEnd; i += 10) g += `<text class="axis" x="${X(i)}" y="${CY1 + 36}" text-anchor="middle">${short(D[i].date)}</text>`;
+  g += `<g id="todaymark"><line class="today" x1="${X(iT)}" x2="${X(iT)}" y1="${CY0 - 6}" y2="${CY1}"/><text class="axis" x="${X(iT)}" y="${CY0 - 14}" text-anchor="middle">Today</text></g>`;
+  g += `<clipPath id="aheadclip"><rect id="aheadrect" x="${X(iT)}" y="-20" width="0" height="400"/></clipPath>`;
+  g += `<g clip-path="url(#aheadclip)"><polygon class="band" points="${X(iT)},${Y(cum[iT])} ${X(iEnd)},${Y(hi)} ${X(iEnd)},${Y(lo)}"/><path class="ahead" d="${pts(iT, iEnd)}"/></g>`;
+  g += `<path id="measured" class="measured" pathLength="1" d="${pts(0, iT)}"/>`;
+  g += `<g id="endmarkr"><circle cx="${X(iEnd)}" cy="${Y(cum[iEnd])}" r="9" class="f-volt"/><text class="end" x="${X(iEnd) + 20}" y="${Y(cum[iEnd]) + 12}">${peso(FC.ai_cost, 2)}</text>` +
+       (FC.range ? `<text class="axis" x="${X(iEnd) + 20}" y="${Y(hi) + 6}">${peso(hi, 2)}</text><text class="axis" x="${X(iEnd) + 20}" y="${Y(lo) + 8}">${peso(lo, 2)}</text>` : "") + `</g>`;
+  $("chart").innerHTML = g;
+
+  // ---------- 6. kilo: the question, the figures the app hands over, the reply ----------
+  const K = F.kilo;
+  $("question").textContent = K.question;
+  $("kmodel").textContent = `${K.model} in Ollama`;
+  $("kwatts").textContent = `Measured too: ${num(K.watts_while_answering, 1)} W while answering`;
+  const figures = [...new Set(K.figures)].sort((a, b) => b.length - a.length);
+  const figRe = figures.length ? new RegExp("(" + figures.map((f) => f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")", "g") : null;
+  const marked = (text) => (figRe ? html(text).replace(figRe, "<mark>$1</mark>") : html(text));   // the figures Kilo quotes
+  K.data.forEach((line, i) => {
+    const p = $("datalines").appendChild(make("p", "", marked(line)));
+    p.dataset.in = `math+${(0.05 + i * 0.2).toFixed(2)}`;
+    p.dataset.fx = "right"; p.dataset.dur = "0.35";
+    p.dataset.sfx = `tick gain=0.7`;
+  });
+  // The bubble keeps the size of the whole reply while it fills; a long reply is set smaller
+  const replyBox = $("reply").parentElement;
+  replyBox.style.fontSize = (K.reply.length > 310 ? 23 : K.reply.length > 250 ? 25 : 27) + "px";
+  $("reply").innerHTML = `<span style="visibility:hidden">${marked(K.reply)}</span>`;
+
+  // ---------- 7. fix: the verdict card and the recommendations ----------
+  $("jump").textContent = peso(F.bill.increase);
+  $("aieffect").textContent = `${peso(F.bill.ai_effect, 2)} of it`;
+  const KCARD = 1728 / SHOTS.verdict.w;
+  $("verdictimg").src = SHOTS.verdict.src;
+  $("verdictwin").style.height = Math.min(W.verdict.cut - 14, SHOTS.verdict.h) * KCARD + "px";
+  $("recsimg").src = SHOTS.recs.src;
+  $("recswin").style.height = SHOTS.recs.h * KCARD + "px";
+  const R = W.recs;
+  const fixRing = (b, label, pad = 8) => {
+    const el = $("fixrings").appendChild(make("div", "ringbox", label ? `<b>${label}</b>` : ""));
+    el.style.cssText = `left:${(b.x - pad) * KCARD}px; top:${(b.y - pad) * KCARD}px; width:${(b.w + 2 * pad) * KCARD}px; height:${(b.h + 2 * pad) * KCARD}px`;
+    return el;
+  };
+  const applyRing = R.apply && fixRing(R.apply, "One click", 7);
+  const saveRings = R.saves.map((b) => fixRing(b, ""));
+  const totalRing = fixRing(R.savings, "What you'll save");
+  totalRing.classList.add("beside");
+
+  // ---------- the rail: where the explanation has got to ----------
+  const STEPS = [["Read", at("$read")], ["Split", at("split-0.15")], ["See", at("$see")], ["Forecast", at("$forecast")], ["Ask", at("$kilo")], ["Fix", at("$fix")]];
+  const railEls = STEPS.map(([name]) => $("rail").appendChild(make("div", "", name)));
+
+  // ---------- entrances ----------
+  const animated = [...document.querySelectorAll("[data-in], [data-out]")].map((el) => ({
+    el,
+    tin: el.dataset.in != null ? at(el.dataset.in) : -1,
+    tout: el.dataset.out != null ? at(el.dataset.out) : null,
+    dur: parseFloat(el.dataset.dur || 0.6),
+    fx: el.dataset.fx || "rise",
+  }));
+  const FADE = 0.3;
+
+  function enter(o, t) {
+    const p = o.tin < 0 ? 1 : clamp((t - o.tin) / o.dur);
+    const e = outCubic(p);
+    let opacity = e, transform = "";
+    if (o.fx === "rise") transform = `translateY(${(1 - e) * 36}px)`;
+    else if (o.fx === "left") transform = `translateX(${(1 - e) * 48}px)`;
+    else if (o.fx === "right") transform = `translateX(${-(1 - e) * 48}px)`;
+    else if (o.fx === "drop") transform = `translateY(${-(1 - e) * 40}px)`;
+    else if (o.fx === "pop") { transform = `scale(${0.7 + 0.3 * outBack(p)})`; opacity = clamp(p * 3); }
+    else if (o.fx === "stamp") { transform = `scale(${lerp(1.8, 1, inQuad(p))})`; opacity = clamp(p * 4); }
+    else if (o.fx === "slam") { transform = `scale(${lerp(1.28, 1, inQuad(p))})`; opacity = clamp(p * 4); }
+    else if (o.fx === "tilt") { transform = `perspective(1800px) rotateX(${(1 - e) * 14}deg) translateY(${(1 - e) * 80}px)`; }
+    else if (o.fx === "growx") { transform = `scaleX(${outCubic(p)})`; opacity = p > 0 ? 1 : 0; }
+    else if (o.fx === "draw") { o.el.style.strokeDashoffset = 1 - inOut(p); opacity = p > 0 ? 1 : 0; }
+    else if (o.fx === "fade") opacity = e;
+    if (o.tout != null) opacity *= 1 - ramp(t, o.tout, FADE);
+    o.el.style.opacity = opacity.toFixed(3);
+    if (o.fx !== "draw") o.el.style.transform = p < 1 ? transform : "";   // settled: no transform left to scale a layer by
+  }
+
+  // ---------- scenes: a wipe behind a stripe, except where the mark does it ----------
+  const WIPE_LEAD = 0.18, WIPE = 0.52;
+  const CUT = { meet: 0, close: 0.42 };            // cut in, this long before the scene's start (under the folding yellow)
+  const STRIPE = { read: "paper", see: "paper", forecast: "paper", kilo: "volt", fix: "ink" };
+  const sceneEls = [...document.querySelectorAll(".scene")].map((el) => ({ el, cam: el.querySelector(".cam"), ...scenes[el.dataset.scene] }));
+  sceneEls.forEach((s, i) => {
+    s.cut = s.id in CUT;
+    s.shown = i === 0 ? 0 : s.cut ? s.start - CUT[s.id] : s.start - WIPE_LEAD;   // first on screen
+    s.covers = i === 0 ? 0 : s.cut ? s.shown : s.shown + WIPE;                    // the scene before it is gone
+  });
+
+  function showScenes(now) {
+    let wiping = null;
+    sceneEls.forEach((s, i) => {
+      const next = sceneEls[i + 1];
+      const on = now >= s.shown && (!next || now < next.covers);
+      s.el.style.visibility = on ? "visible" : "hidden";
+      const p = i === 0 || s.cut ? 1 : inOut(ramp(now, s.shown, WIPE));
+      if (on && p < 1) {
+        const x = lerp(-9, 109, p);   // the slanted edge, in % of the width: top ahead of the bottom, as the bolt leans
+        s.el.style.clipPath = `polygon(0 0, ${x + 7}% 0, ${x - 7}% 100%, 0 100%)`;
+        wiping = { x, colour: STRIPE[s.id] || "volt" };
+      } else s.el.style.clipPath = "";
+      if (s.id !== "see") {            // a slow push-in keeps the frame alive; "see" moves its own camera
+        const q = clamp((now - s.start) / (s.end - s.start));
+        s.cam.style.transform = `scale(${lerp(1, 1.03, q)})`;
+      }
+    });
+    const edge = $("edge");
+    edge.style.opacity = wiping ? 1 : 0;
+    if (wiping) {
+      edge.style.left = wiping.x + "%";
+      edge.style.background = `rgb(var(--${wiping.colour}))`;
+      edge.style.transform = "skewX(-14deg)";   // 14% of 1920 px across 1080 px
+    }
+  }
+
+  // ---------- sound effects: from data-sfx, plus the ones placed below ----------
+  const SFX = [];
+  function sfx(t, kind, opts = {}) { SFX.push({ t: +t.toFixed(3), kind, ...opts }); }
+  function panOf(el) {
+    const r = el.getBoundingClientRect(), s = $("stage").getBoundingClientRect();
+    if (!r.width) return 0;
+    return +(((r.left + r.width / 2 - s.left) / s.width - 0.5) * 1.1).toFixed(2);
+  }
+
+  const M = at("$meet"), C = at("$close");
+  const t = {
+    billA: at("jumped+0.25"), billB: at("jumped.end+0.35"), pick: at("blame+0.3"), guess: at("nobody-0.1"), stamp: at("nobody.end-0.2"),
+    dim: M - 0.9, tile: M - 0.52, arcA: M - 0.42, arcB: M - 0.06, flood: 0.4, moveA: M + 0.1, moveB: M + 0.66,
+    read: at("$read"), readEnd: at("$read.end"), streamOff: at("apps-0.3"), split: at("split"),
+    see: at("$see"), zoomIn: at("live#1-0.45"), zoomOut: at("live.end+0.05"), curA: at("theme-0.25"), click: at("theme@0.62"),
+    fcMeasured: at("forecast-0.15"), pre: at("trained-0.1"), fine: at("trained#1-0.1"), test: at("tested-0.1"),
+    reply: at("math#1-0.3"), replyEnd: at("math.end-0.1"),
+    pct: at("verdict#1-0.25"), fixA: at("fix-0.2"), curB: at("fix+0.15"), press: at("fix@0.5"), saves: at("fix#1-0.1"),
+    fold: C - 0.42,
+  };
+  const PULSES = [];                                  // a reading every 2 s
+  for (let p = at("sensors+0.15"); p < t.readEnd - 0.3; p += 2) PULSES.push(p);
+  const BASE = Math.max(READ.length - 1 - PULSES.length, 0);   // the reading shown first; the last pulse brings the newest
+  const ROW_H = 58, ROWS = 4;
+
+  sfx(0.25, "hum", { dur: +(t.dim - 0.15).toFixed(2), gain: 0.55 });
+  sfx(t.billA, "ticker", { dur: +(t.billB - t.billA).toFixed(2), gain: 0.8, pan: -0.4 });
+  sfx(t.dim, "riser", { dur: +(M - t.dim - 0.03).toFixed(2), gain: 0.9 });
+  sfx(t.tile, "zap", { gain: 0.5 });
+  sfx(M, "hit", { gain: 0.85 });
+  sceneEls.filter((s) => s.shown > 0 && !s.cut).forEach((s, i) => sfx(s.shown, "whoosh", { dur: 0.5, gain: 0.42, up: i % 2 }));
+  PULSES.forEach((p, i) => sfx(p, "ping", { gain: i ? 0.42 : 0.8, pan: -0.3 }));
+  sfx(PULSES[0] + 0.05, "ticker", { dur: 0.7, gain: 0.5, pan: 0.3 });
+  sfx(t.split + 0.15, "ticker", { dur: 0.8, gain: 0.55, pan: 0.3 });
+  ["live#1", "live#1+0.52", "live#1+1.04"].forEach((s, i) => sfx(at(s), "pop", { pitch: 1 + i * 0.18, gain: 0.6, pan: -0.2 + i * 0.1 }));
+  sfx(t.click, "tick", { gain: 1, pan: 0.5 });
+  sfx(t.click + 0.03, "whoosh", { dur: 0.75, gain: 0.5 });
+  sfx(t.fcMeasured, "ticker", { dur: 1.1, gain: 0.4, pan: 0.2 });
+  [t.pre, t.fine, t.test].forEach((x, i) => sfx(x, "pop", { pitch: 1 + i * 0.15, gain: 0.6, pan: -0.5 }));
+  sfx(t.fine + 0.1, "surge", { dur: 1.4, gain: 0.5, pan: 0.3 });
+  sfx(t.test + 0.5, "chime", { gain: 0.6, pan: 0.3 });
+  sfx(t.reply, "type", { dur: +(t.replyEnd - t.reply).toFixed(2), gain: 0.6, pan: 0.5 });
+  sfx(t.replyEnd + 0.05, "chime", { gain: 0.45, pan: 0.5 });
+  sfx(t.pct, "ticker", { dur: 0.5, gain: 0.5, pan: -0.4 });
+  sfx(t.press, "relay", { gain: 0.9, pan: 0.5 });
+  sfx(t.saves, "chime", { gain: 0.6, pan: 0.4 });
+  sfx(t.fold, "whoosh", { dur: 0.42, gain: 0.6, up: 0 });
+  sfx(C, "hit", { gain: 0.85 });
+
+  // ---------- the mark: the dial charges up, then the bolt drops into it ----------
+  function drawGlyph(svg, now, land, arcA, arcB) {
+    const arc = svg.querySelector(".m-arc"), rest = svg.querySelector(".m-rest"), bolt = svg.querySelector(".m-bolt");
+    const a = inOut(ramp(now, arcA, arcB - arcA));
+    arc.style.strokeDasharray = `${a} 2`;
+    arc.style.opacity = a > 0.004 ? 1 : 0;
+    rest.style.opacity = ramp(now, arcB - 0.04, 0.12);
+    const fall = clamp((now - land + 0.13) / 0.13), settle = ramp(now, land, 0.25);   // the bolt lands exactly at `land`
+    bolt.style.opacity = now < land - 0.13 ? 0 : 1;
+    bolt.style.transform = `translateY(${((1 - inQuad(fall)) * -150 + Math.sin(settle * Math.PI) * 1.6 * (1 - settle)).toFixed(2)}px)`;
+  }
+
+  const GUESSES = [347, 85, 512, 129, 268, 44, 731, 196, 403, 58, 612, 23];
+  const HERO = { x: 306, y: 196, size: 420 };         // where "meet" draws the mark's glyph
+
+  function extras(now) {
+    // --- hook: the bill climbs and the current under it speeds up; the line-up turns on AI; the guess never settles
+    const climb = inOut(ramp(now, t.billA, t.billB - t.billA));
+    $("billval").textContent = num(Math.round(lerp(F.bill.baseline_bill, F.bill.current_bill, climb) / 10) * 10);
+    const v0 = 40, v1 = 260, tA = t.billA, tB = t.billB;   // distance = integral of speed, which rises with the bill
+    const d = now < tA ? v0 * now : now < tB ? v0 * tA + v0 * (now - tA) + (v1 - v0) * (now - tA) ** 2 / (2 * (tB - tA))
+      : v0 * tA + (v0 + v1) / 2 * (tB - tA) + v1 * (now - tB);
+    $("hookflow").style.strokeDashoffset = (-d).toFixed(1);
+    const pick = ramp(now, t.pick, 0.35);
+    suspects.forEach((el, i) => {
+      if (i < suspects.length - 1) el.style.opacity = (parseFloat(el.style.opacity) * lerp(1, 0.3, pick)).toFixed(3);
+      else if (pick > 0) {
+        el.style.transform = `scale(${1 + 0.07 * outBack(pick)})`;
+        el.style.borderColor = "rgb(var(--volt))"; el.style.color = "rgb(var(--volt))";
+      } else { el.style.borderColor = ""; el.style.color = ""; }
+    });
+    $("guessval").textContent = now >= t.stamp ? "???" : GUESSES[Math.max(Math.floor((now - t.guess) * 9), 0) % GUESSES.length];
+
+    // --- the mark strikes: the frame dims, the tile pops, the dial charges, the bolt lands on the beat and the tile floods the frame
+    const on = now >= t.dim && now < t.moveB;
+    $("intro").style.visibility = on ? "visible" : "hidden";
+    if (on) {
+      $("introdim").style.opacity = now < M ? (0.95 * ramp(now, t.dim, 0.34)).toFixed(3) : now < M + t.flood ? 1 : 0;
+      const pop = clamp((now - t.tile) / 0.26);
+      const size = now < M ? (pop > 0 ? 0.6 + 0.4 * outBack(pop) : 0) : 1;
+      $("introtile").style.transform = `scale(${now < M ? size : lerp(1, 9.6, outCubic(ramp(now, M, t.flood)))})`;
+      $("introtile").style.opacity = now < M + t.flood ? clamp(pop * 4) : 0;
+      const glyph = $("introglyph");
+      drawGlyph(glyph, now, M, t.arcA, t.arcB);
+      glyph.style.opacity = clamp(pop * 4);
+      if (now < M) { glyph.style.transformOrigin = "50% 50%"; glyph.style.transform = `scale(${size})`; }
+      else {                                          // ...and its glyph takes its place beside the name
+        const mv = inOut(ramp(now, t.moveA, t.moveB - t.moveA));
+        glyph.style.transformOrigin = "0 0";
+        glyph.style.transform = `translate(${lerp(0, HERO.x - 830, mv)}px, ${lerp(0, HERO.y - 340, mv)}px) scale(${lerp(1, HERO.size / 260, mv)})`;
+      }
+    }
+    $("hero").style.opacity = now >= t.moveB ? 1 : 0;
+    let flash = 0, shake = 0;
+    for (const t0 of [M, C]) {
+      if (now >= t0) {
+        flash = Math.max(flash, 0.5 * Math.exp(-(now - t0) / 0.07));
+        shake = Math.max(shake, 14 * Math.exp(-(now - t0) / 0.09));
+      }
+    }
+    $("flash").style.opacity = flash.toFixed(3);
+    $("world").style.transform = shake > 0.3 ? `translate(${(Math.sin(now * 91) * shake).toFixed(1)}px, ${(Math.cos(now * 73) * shake).toFixed(1)}px)` : "";
+
+    // --- read: a reading every 2 s. The scan passes each part, a row joins the list, the 2-second ring starts again
+    const passed = PULSES.filter((p) => now >= p).length;
+    const last = passed ? PULSES[passed - 1] : -9;
+    const since = now - last;
+    $("ring2s").style.strokeDasharray = `${clamp(((now - PULSES[0]) % 2 + 2) % 2 / 2)} 2`;
+    const sweep = ramp(now, last, 0.55);
+    const first = partEls[0], end = partEls[partEls.length - 1];
+    $("scan").style.top = lerp(first.offsetTop - 4, end.offsetTop + end.offsetHeight + 2, outCubic(sweep)) + "px";
+    $("scan").style.opacity = passed && sweep < 1 ? 0.9 : 0;
+    partEls.forEach((el, i) => {
+      const lit = passed && since >= 0.05 + i * 0.07 && since < 0.6 + i * 0.07;
+      el.style.borderColor = lit ? "rgb(var(--volt))" : "";
+    });
+    $("livew").textContent = num(F.live.watts * outCubic(ramp(now, PULSES[0], 0.7)), 1);
+    $("livew").style.color = passed > 1 && since < 0.45 ? "rgb(var(--volt))" : "";
+    const newest = BASE + passed - 1 + outCubic(ramp(now, last, 0.35));   // glides to the next reading on each pulse
+    rowEls.forEach((el, i) => {
+      const slot = newest - i;
+      el.style.transform = `translateY(${(slot * ROW_H).toFixed(1)}px)`;
+      el.style.opacity = (slot < 0 ? clamp(1 + slot * 1.6) : clamp(ROWS - slot)).toFixed(3);
+      el.classList.toggle("new", passed > 0 && i === BASE + passed && since < 0.7);
+    });
+    $("readflow").style.strokeDashoffset = (-now * 46).toFixed(1);
+    splitEls.forEach((r, i) => {
+      const grow = outCubic(ramp(now, t.split + 0.1 + i * 0.12, 0.7));
+      r.bar.style.transform = `scaleX(${grow})`;
+      r.val.textContent = watts(r.watts * grow);
+      r.row.style.opacity = ramp(now, t.split + 0.05 + i * 0.12, 0.35).toFixed(3);
+    });
+
+    // --- see: the camera closes in on the stat cards, pulls back as the page scrolls, and the theme switch opens the light theme
+    const zoom = inOut(ramp(now, t.zoomIn, 0.6)) * (1 - inOut(ramp(now, t.zoomOut, 0.6)));
+    const z = lerp(1, 1.52, zoom) * lerp(1, 1.02, clamp((now - t.see) / (scenes.see.end - t.see)));
+    const fx = lerp(960, FOCUS[0], zoom), fy = lerp(540, FOCUS[1] + 12, zoom);
+    $("seecam").style.transformOrigin = "0 0";
+    $("seecam").style.transform = `translate(${(960 - z * fx).toFixed(2)}px, ${(540 - z * fy).toFixed(2)}px) scale(${z.toFixed(4)})`;
+    const scroll = SCROLL * inOut(ramp(now, t.zoomOut, 0.7));
+    mains.forEach((img) => (img.style.transform = `translateY(${(-scroll).toFixed(1)}px)`));
+    rings.forEach((el, i) => {
+      const a = at("live#1") + i * 0.52;
+      el.style.opacity = (ramp(now, a, 0.14) * (1 - ramp(now, i < 2 ? a + 0.52 : t.zoomOut - 0.1, 0.16))).toFixed(3);
+      el.style.transform = `scale(${lerp(1.06, 1, outCubic(ramp(now, a, 0.3)))})`;
+    });
+    const open = outCubic(ramp(now, t.click, 0.8));
+    $("lightlayer").style.clipPath = `circle(${(open * 1820).toFixed(1)}px at ${TOGGLE[0]}px ${TOGGLE[1]}px)`;
+    const press = ramp(now, t.click, 0.45);
+    $("themepress").style.opacity = press > 0 && press < 1 ? (1 - press).toFixed(3) : 0;
+    $("themepress").style.transform = `scale(${1 + press * 1.6})`;
+    const to = onStage(TOGGLE[0], TOGGLE[1]);
+    const mv1 = inOut(ramp(now, t.curA, t.click - t.curA - 0.06));
+    $("cursor1").style.opacity = (ramp(now, t.curA - 0.1, 0.2) * (1 - ramp(now, t.click + 0.7, 0.3))).toFixed(3);
+    $("cursor1").style.transform = `translate(${lerp(1250, to[0] - 8, mv1)}px, ${lerp(520, to[1] - 6, mv1)}px) scale(${1 - 0.12 * ramp(now, t.click - 0.05, 0.06) * (1 - ramp(now, t.click + 0.04, 0.14))})`;
+
+    // --- forecast: the measured line is drawn; each step lights as it is named; the forecast and its range run on to the cycle's end
+    $("stepflow").style.strokeDashoffset = (-now * 40).toFixed(1);
+    [[$("step1"), t.pre], [$("step2"), t.fine], [$("step3"), t.test]].forEach(([el, when]) => {
+      el.classList.toggle("on", now >= when);
+      el.style.opacity = (parseFloat(el.style.opacity) * (now >= when ? 1 : 0.42)).toFixed(3);
+    });
+    scoreBars.forEach((b, i) => (b.style.transform = `scaleX(${outCubic(ramp(now, t.test + 0.15 + i * 0.1, 0.6))})`));
+    const mp = inOut(ramp(now, t.fcMeasured, 1.2));
+    $("measured").style.strokeDasharray = `${mp} 2`;
+    $("measured").style.opacity = mp > 0.003 ? 1 : 0;
+    $("todaymark").style.opacity = ramp(now, t.fcMeasured + 0.9, 0.3);
+    const ap = inOut(ramp(now, t.fine + 0.15, 1.5));
+    $("aheadrect").setAttribute("width", ((X(iEnd) - X(iT) + 14) * ap).toFixed(1));
+    const done = ramp(now, t.fine + 1.45, 0.3);
+    $("endmarkr").style.opacity = done.toFixed(3);
+    $("fcbill").textContent = peso(lerp(FC.baseline, FC.bill, outCubic(ramp(now, t.fine + 0.4, 1.2))), 2);
+
+    // --- kilo: the reply fills in; the lines that carry the question along keep flowing
+    $("kflow1").style.strokeDashoffset = $("kflow2").style.strokeDashoffset = (-now * 46).toFixed(1);
+    const typed = Math.floor(K.reply.length * ramp(now, t.reply, t.replyEnd - t.reply));
+    const key = typed + ":" + (now >= t.reply);
+    if (replyBox.dataset.key !== key) {              // the rest of the reply stays in place, unseen, so the bubble doesn't grow
+      $("reply").innerHTML = marked(K.reply.slice(0, typed)) + `<span style="visibility:hidden">${html(K.reply.slice(typed))}</span>`;
+      replyBox.dataset.key = key;
+    }
+
+    // --- fix: the share counts up; then the recommendations, the one-click button and what each saves
+    $("pctval").textContent = num(F.ai_share_pct * outCubic(ramp(now, t.pct, 0.5)), 1);
+    const show = (el, a, b) => {
+      el.style.opacity = (ramp(now, a, 0.15) * (1 - ramp(now, b, 0.2))).toFixed(3);
+      el.style.transform = `scale(${lerp(1.08, 1, outCubic(ramp(now, a, 0.3)))})`;
+    };
+    if (applyRing) show(applyRing, t.press - 0.05, t.saves - 0.15);
+    saveRings.forEach((el) => show(el, t.saves, C - 1));
+    show(totalRing, t.saves + 0.25, C - 1);
+    if (R.apply) {
+      const bx = 96 + (R.apply.x + R.apply.w * 0.55) * KCARD, by = 265 + (R.apply.y + R.apply.h * 0.6) * KCARD;
+      const mv2 = inOut(ramp(now, t.curB, t.press - t.curB - 0.08));
+      $("cursor2").style.opacity = (ramp(now, t.curB - 0.1, 0.2) * (1 - ramp(now, t.saves, 0.3))).toFixed(3);
+      $("cursor2").style.transform = `translate(${lerp(1500, bx, mv2)}px, ${lerp(900, by, mv2)}px) scale(${1 - 0.12 * ramp(now, t.press - 0.05, 0.06) * (1 - ramp(now, t.press + 0.04, 0.14))})`;
+    }
+
+    // --- close: the yellow folds back into the tile, the dial charges, the bolt lands, the current runs on
+    const fold = inOut(ramp(now, t.fold, 0.4));
+    $("endtile").style.transform = `scale(${Math.pow(18, 1 - fold).toFixed(4)})`;
+    drawGlyph($("endglyph"), now, C, C - 0.3, C - 0.05);
+    const cf = ramp(now, C + 1.6, 0.3);
+    $("closeflow").setAttribute("opacity", cf.toFixed(3));
+    $("closeflow").style.strokeDashoffset = (-(now - C) * 90).toFixed(1);
+
+    // --- the rail
+    const step = STEPS.filter(([, when]) => now >= when).length - 1;
+    railEls.forEach((el, i) => { el.className = i === step ? "now" : i < step ? "done" : ""; });
+  }
+
+  // ---------- captions ----------
+  const cap = $("cap"), capBox = cap.querySelector(".box");
+  const captions = T.cues.flatMap((c) => c.captions.map((k) => ({ ...k, scene: c.scene })));
+  let shown = null;
+  function caption(now) {
+    let cur = null;
+    captions.forEach((k, i) => {
+      const next = captions[i + 1];
+      const until = next && next.start - k.end < 0.7 ? next.start : k.end + 0.35;   // hold through short pauses
+      if (now >= k.start - 0.08 && now < until) cur = { k, until };
+    });
+    if (!cur || cur.k.scene === "close") { cap.style.opacity = 0; return; }   // the end card is its own caption
+    if (shown !== cur.k) { capBox.textContent = cur.k.text; shown = cur.k; }
+    cap.style.opacity = Math.min(ramp(now, cur.k.start - 0.08, 0.12), 1 - ramp(now, cur.until - 0.15, 0.15)).toFixed(3);
+  }
+
+  window.seek = function (now) {
+    showScenes(now);
+    for (const o of animated) enter(o, now);
+    extras(now);
+    caption(now);
+  };
+
+  // ---------- ready, and the in-browser preview ----------
+  const rendering = new URLSearchParams(location.search).has("render");
+  const images = [...document.images].map((img) => img.decode().catch(() => {}));
+  const fonts = [400, 500, 600, 700].map((w) => document.fonts.load(`${w} 40px "DM Sans"`, "A₱"));
+  Promise.all([...images, ...fonts, document.fonts.ready]).then(() => {
+    window.seek(0);
+    // Sound effects named on elements play when the element enters, panned to where it is on screen.
+    window.seek(T.duration);
+    for (const el of document.querySelectorAll("[data-sfx]")) {
+      const [kind, ...rest] = el.dataset.sfx.split(/\s+/);
+      const opts = {};
+      let when = el.dataset.in != null ? at(el.dataset.in) : null;
+      for (const kv of rest) {
+        const [k, v] = kv.split("=");
+        if (k === "at") when = at(v);
+        else opts[k] = parseFloat(v);
+      }
+      if (when == null) throw new Error("No time for the sound on " + el.outerHTML.slice(0, 80));
+      if (opts.pan == null) opts.pan = panOf(el);
+      sfx(when, kind, opts);
+    }
+    SFX.sort((a, b) => a.t - b.t);
+    window.SFX = SFX;
+    window.seek(0);
+    window.READY = true;
+    if (rendering) return;
+
+    const stage = $("stage"), hint = $("hint");
+    const fit = () => {
+      const k = Math.min(innerWidth / 1920, innerHeight / 1080);
+      stage.style.transform = `scale(${k})`;
+      stage.style.left = (innerWidth - 1920 * k) / 2 + "px";
+      stage.style.top = (innerHeight - 1080 * k) / 2 + "px";
+    };
+    addEventListener("resize", fit);
+    fit();
+    const audio = new Audio("out/audio.m4a");
+    const toggle = () => (audio.paused ? audio.play() : audio.pause());
+    stage.addEventListener("click", toggle);
+    addEventListener("keydown", (e) => {
+      if (e.code === "Space") { e.preventDefault(); toggle(); }
+      if (e.code === "ArrowRight") audio.currentTime = Math.min(audio.currentTime + (e.shiftKey ? 5 : 1 / T.fps), T.duration);
+      if (e.code === "ArrowLeft") audio.currentTime = Math.max(audio.currentTime - (e.shiftKey ? 5 : 1 / T.fps), 0);
+    });
+    (function frame() {
+      window.seek(audio.currentTime);
+      hint.textContent = `${audio.currentTime.toFixed(2)} s · click or Space to play · arrows step a frame (Shift: 5 s)`;
+      requestAnimationFrame(frame);
+    })();
+  });
+})();
+</script>
+</body>
+</html>

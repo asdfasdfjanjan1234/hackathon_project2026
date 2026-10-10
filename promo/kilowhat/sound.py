@@ -1,6 +1,7 @@
 """Music and sound effects for the Kilo What? promo, synthesized here so there's nothing to license.
 
 build.py calls music(timeline, sr) and effects(cues, duration, sr); both return stereo float arrays.
+Another cut can have the same score follow its own story with score() (howitworks/sound.py does).
 
 The music follows the story, not fixed seconds:
   hook, guess   a low drone in D minor with a meter-like tick; tension, no beat
@@ -97,17 +98,21 @@ FINAL = (29, (53, 57, 60, 65, 67), ())   # F major add9, low F underneath
 
 
 def music(timeline, sr):
-    T = float(timeline["duration"])
-    n = int(T * sr)
-    t = np.arange(n) / sr
     scene = {s["id"]: s for s in timeline["scenes"]}
     cue = {c["id"]: c for c in timeline["cues"]}
-    t0 = scene["meet"]["start"]                 # the bolt: first downbeat
-    t_close = scene["close"]["start"]
     fix = cue["fix"]["segments"]
-    t_click = fix[1][0] if len(fix) > 1 else cue["fix"]["start"] + 1.0
+    return score(float(timeline["duration"]), sr, t0=scene["meet"]["start"], t_close=scene["close"]["start"],
+                 t_click=fix[1][0] if len(fix) > 1 else cue["fix"]["start"] + 1.0,
+                 hats_on=scene["sense"]["start"], claps_on=scene["verdict"]["start"], t_open=scene["guess"]["start"])
+
+
+def score(T, sr, t0, t_close, t_click, hats_on, claps_on, t_open):
+    """The score, placed by the story's moments (seconds): t0 the bolt and first downbeat, t_open
+    when the intro drone has opened up, hats_on and claps_on when they join, t_click where
+    everything but the pad drops out until a bar line, t_close the final chord."""
+    n = int(T * sr)
+    t = np.arange(n) / sr
     t_back = t0 + np.ceil((t_click + 1.0 - t0) / (4 * BEAT)) * 4 * BEAT   # the beat returns on a bar line
-    hats_on, claps_on = scene["sense"]["start"], scene["verdict"]["start"]
 
     dry = np.zeros((n, 2))
     wet = np.zeros((n, 2))   # sent to the reverb
@@ -133,7 +138,7 @@ def music(timeline, sr):
     # The drone's filter opens as the bill climbs, then closes during the guess.
     cutoff_lo = _filt(dry, "lowpass", 380, sr)
     cutoff_hi = _filt(dry, "lowpass", 1400, sr)
-    open_amt = np.clip(t / scene["guess"]["start"], 0, 1) * np.clip((t0 - t) / 2.0, 0, 1)
+    open_amt = np.clip(t / t_open, 0, 1) * np.clip((t0 - t) / 2.0, 0, 1)
     dry = cutoff_lo * (1 - open_amt[:, None]) + cutoff_hi * open_amt[:, None]
     dry *= 0.9
 

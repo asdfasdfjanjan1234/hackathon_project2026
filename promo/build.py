@@ -10,6 +10,7 @@
 
 Cuts (default kilowhat):
     kilowhat    KiloWhat-promo.mp4, from kilowhat/ (narration.json, video.html, sound.py, shots.py)
+    howitworks  KiloWhat-how-it-works.mp4, from howitworks/: how the app reads, forecasts and explains
     watttrace   WattTrace-promo.mp4, the first release, from this folder
 
 Everything runs on this computer. Needs:
@@ -39,6 +40,7 @@ import soundfile as sf
 ROOT = Path(__file__).resolve().parent
 CUTS = {
     "kilowhat": (ROOT / "kilowhat", ROOT / "KiloWhat-promo.mp4"),
+    "howitworks": (ROOT / "howitworks", ROOT / "KiloWhat-how-it-works.mp4"),
     "watttrace": (ROOT, ROOT / "WattTrace-promo.mp4"),
 }
 CUT = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--cut=")), "kilowhat")
@@ -423,9 +425,11 @@ def step_mux():
                "[voice][bed][fx]amix=inputs=3:normalize=0[a]")
     run([ffmpeg(), "-y", *inputs, "-filter_complex", mix, "-map", "[a]", "-ar", SR, OUT / "mix.wav"])
     # Bring the mix to LOUDNESS_LUFS, the level video sites play at, and catch the peaks that pushes over.
+    # The limiter runs at 4x the sample rate, where the peaks between samples show up too.
     measured = run([ffmpeg(), "-hide_banner", "-nostats", "-i", OUT / "mix.wav", "-af", "ebur128", "-f", "null", "-"])
     loudness = float(re.findall(r"I:\s+(-?[\d.]+) LUFS", measured.stderr)[-1])
-    master = f"volume={LOUDNESS_LUFS - loudness:.2f}dB,alimiter=limit=0.84:attack=3:release=60:level=disabled"
+    master = (f"volume={LOUDNESS_LUFS - loudness:.2f}dB,aresample={SR * 4},"
+              f"alimiter=limit=0.84:attack=3:release=60:level=disabled,aresample={SR}")
     run([ffmpeg(), "-y", "-i", OUT / "silent.mp4", "-i", OUT / "mix.wav", "-af", master, "-map", "0:v", "-map", "1:a",
          "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", SR, "-t", DURATION, "-movflags", "+faststart", VIDEO])
     run([ffmpeg(), "-y", "-i", VIDEO, "-vn", "-c:a", "copy", OUT / "audio.m4a"])   # for the preview in video.html
