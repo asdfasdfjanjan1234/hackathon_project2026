@@ -9,6 +9,7 @@
 
 ## Frontend styling conventions
 - Light and dark themes come from CSS variables in `frontend/src/App.css` (`:root` = light, `.dark` = dark), mapped to Tailwind colours in `tailwind.config.js`: `canvas`, `surface`, `sunken`, `line`, `line-strong`, `ink` / `ink-soft` / `ink-muted`, `accent` (electric blue), `volt` (energy yellow: fills and icons, not body text in light mode), `pos`, `warn`, `neg`, `viz-*`.
+- The UI scales with the window on screens 1024px and wider (root font size in `App.css`: 16px at 1710px wide, 13px to 18px), so the layout looks the same on a MacBook and on a Windows laptop at 125% or 150% scaling. Size things in rem (Tailwind spacing, `max-w-[17.5rem]`), not px. Use `text-2xs` (not `text-[11px]`) for the smallest text; it and `text-xs` never drop below 11px.
 - Use those tokens only. Do not use raw palette classes (`slate-*`, `sky-*`, `text-white`, `bg-black/…`) or hex colours in components.
 - Charts and SVG: use `color("viz-blue")` / `color("ink", 0.04)` from `src/theme.jsx`, which emits `rgb(var(--…))` so charts follow the theme.
 - Theme preference (System / Light / Dark) lives in `ThemeProvider` (`src/theme.jsx`), stored in `localStorage["watttrace-theme"]`; `index.html` applies it before first paint.

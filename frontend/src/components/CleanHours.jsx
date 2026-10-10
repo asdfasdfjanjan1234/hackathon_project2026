@@ -178,8 +178,8 @@ export default function CleanHours({ info }) {
             <p>
               The DOE grid factor is one number for the whole year, so it can't tell clean hours from dirty ones.
               Get a free personal token at app.electricitymaps.com, then add{" "}
-              <code className="font-mono text-[11px] px-1 py-0.5 rounded bg-sunken border border-line text-ink">ELECTRICITYMAPS_TOKEN=…</code> to{" "}
-              <code className="font-mono text-[11px] px-1 py-0.5 rounded bg-sunken border border-line text-ink">backend/.env</code>{" "}
+              <code className="font-mono text-2xs px-1 py-0.5 rounded bg-sunken border border-line text-ink">ELECTRICITYMAPS_TOKEN=…</code> to{" "}
+              <code className="font-mono text-2xs px-1 py-0.5 rounded bg-sunken border border-line text-ink">backend/.env</code>{" "}
               and restart the backend.
             </p>
             {info.configured && info.error && <p className="text-xs text-neg">Electricity Maps: {info.error}</p>}

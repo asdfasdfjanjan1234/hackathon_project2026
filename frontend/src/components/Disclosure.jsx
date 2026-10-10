@@ -57,7 +57,7 @@ export default function Disclosure() {
             </span>
           )}
         </CardHeader>
-        <Table head={["Model", "Runs with", "What it does", "Where", "Note"]} minWidth="min-w-[860px]">
+        <Table head={["Model", "Runs with", "What it does", "Where", "Note"]} minWidth="min-w-[53.75rem]">
           {MODELS.map((m) => (
             <tr key={m.name} className="align-top">
               <td className="py-2.5 px-2 font-semibold text-ink">{m.name}</td>
@@ -74,7 +74,7 @@ export default function Disclosure() {
 
       <section className="dash-card p-5 min-w-0">
         <CardHeader title="Python libraries" sub="Pinned in backend/requirements.txt and training/arima_forecast/requirements.txt" />
-        <Table head={["Package", "Version", "Part", "What we use it for"]} minWidth="min-w-[640px]">
+        <Table head={["Package", "Version", "Part", "What we use it for"]} minWidth="min-w-[40rem]">
           {PYTHON_LIBRARIES.map((l) => (
             <tr key={l.name}>
               <td className="py-2 px-2 font-semibold text-ink whitespace-nowrap">{l.name}</td>
@@ -93,7 +93,7 @@ export default function Disclosure() {
 
       <section className="dash-card p-5 min-w-0">
         <CardHeader title="Tech stack" sub="Frontend versions as installed from package-lock.json" />
-        <Table head={["Layer", "Technologies"]} minWidth="min-w-[560px]">
+        <Table head={["Layer", "Technologies"]} minWidth="min-w-[35rem]">
           {STACK.map((s) => (
             <tr key={s.layer} className="align-top">
               <td className="py-2 px-2 font-semibold text-ink whitespace-nowrap">{s.layer}</td>
@@ -105,7 +105,7 @@ export default function Disclosure() {
 
       <section className="dash-card p-5 min-w-0">
         <CardHeader title="APIs and online services" sub="What reaches the internet, and what leaves this computer when it does" />
-        <Table head={["Service", "Used for", "Needed", "What leaves this computer", "Without it"]} minWidth="min-w-[860px]">
+        <Table head={["Service", "Used for", "Needed", "What leaves this computer", "Without it"]} minWidth="min-w-[53.75rem]">
           {SERVICES.map((s) => (
             <tr key={s.name} className="align-top">
               <td className="py-2.5 px-2 font-semibold text-ink">{s.name}</td>

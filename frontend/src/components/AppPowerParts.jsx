@@ -30,7 +30,7 @@ export default function AppPowerParts({ app }) {
       {split && (
         <>
           <PartsBar values={PARTS.map((p) => app[`${p.key}_watts`])} />
-          <div className="flex flex-wrap gap-x-2.5 text-[11px] tabular-nums">
+          <div className="flex flex-wrap gap-x-2.5 text-2xs tabular-nums">
             {PARTS.map((p) => (
               <span key={p.key} className="inline-flex items-center gap-1 text-ink-soft">
                 <span className={`w-1.5 h-1.5 rounded-full ${p.bar}`} />
@@ -40,7 +40,7 @@ export default function AppPowerParts({ app }) {
           </div>
         </>
       )}
-      <div className="text-[11px] text-ink-muted truncate tabular-nums">
+      <div className="text-2xs text-ink-muted truncate tabular-nums">
         holds {formatMb(app.rss_mb)} RAM
         {app.vram_mb != null && ` · ${formatMb(app.vram_mb)} VRAM`}
         {onGpu != null && ` · ${onGpu >= 100 ? "runs on GPU" : onGpu <= 0 ? "runs on CPU" : `${onGpu}% on GPU`}`}

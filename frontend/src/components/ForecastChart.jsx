@@ -65,7 +65,7 @@ function ChartTooltip({ active, payload, view, pathColor, methodName }) {
   const ahead = d.status === "PROJECTED" || d.status === "TODAY";
   const status = { TODAY: "Today", MEASURED: "Measured", ESTIMATED: "Estimated", PROJECTED: `Forecast · ${methodName}` }[d.status];
   return (
-    <div className="rounded-lg bg-surface border border-line p-2.5 shadow-pop text-xs min-w-[210px]">
+    <div className="rounded-lg bg-surface border border-line p-2.5 shadow-pop text-xs min-w-[13.125rem]">
       <div className="font-medium text-ink pb-1.5 mb-1.5 border-b border-line flex justify-between gap-3">
         <span>{view === "daily" ? d.day : `Up to ${d.day}`}</span>
         <span className="text-ink-muted">{status}</span>
@@ -210,9 +210,9 @@ export default function ForecastChart({ forecast, recs, className = "" }) {
         </div>
       </CardHeader>
 
-      <div className="pt-4 pb-1 flex-1 min-h-[260px] sm:min-h-[280px] w-full min-w-0 overflow-hidden">
+      <div className="pt-4 pb-1 flex-1 min-h-[16.25rem] sm:min-h-[17.5rem] w-full min-w-0 overflow-hidden">
         {/* minHeight keeps the chart visible when the card isn't stretched to a fixed height (Billing Projection view). */}
-        <ResponsiveContainer width="100%" height="100%" minHeight={260}>
+        <ResponsiveContainer width="100%" height="100%" minHeight="16.25rem">
           <ComposedChart data={chartData} margin={{ top: 16, right: view === "daily" ? 16 : 44, left: 0, bottom: 0 }} barCategoryGap={2}>
             <CartesianGrid stroke={color("line")} vertical={false} />
 

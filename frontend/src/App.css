@@ -66,6 +66,16 @@
     --shadow-pop: 0 4px 10px -2px rgb(0 0 0 / 0.5), 0 20px 44px -8px rgb(0 0 0 / 0.7);
   }
 
+  /* On laptops and desktops the whole UI scales with the window, the way browser zoom would:
+     16px at 1710px wide (the MacBook it was designed on), down to 13px on a 1280-1390px window
+     (1920x1080 at 150% Windows scaling), up to 18px at 1924px and wider. Everything sized in rem
+     follows; text-xs and text-2xs never drop below 11px. Phones and tablets keep 16px. */
+  @media (min-width: 1024px) {
+    html {
+      font-size: clamp(13px, 0.9357vw, 18px);
+    }
+  }
+
   body {
     @apply bg-canvas text-ink;
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -121,12 +131,12 @@
   }
 
   .card-title {
-    @apply text-[15px] font-bold leading-snug text-ink;
+    @apply text-[0.9375rem] font-bold leading-snug text-ink;
   }
 
   /* Headline figure of a stat card */
   .stat-value {
-    @apply text-[28px] font-bold leading-none tracking-tight tabular-nums;
+    @apply text-[1.75rem] font-bold leading-none tracking-tight tabular-nums;
   }
 
   .card-sub {
@@ -141,7 +151,7 @@
   /* Status pills: neutral pill, status shown by a coloured dot (or a leading icon).
      Never tint the background in the same hue as the text. */
   .tech-tag {
-    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] font-semibold leading-4 text-ink-soft;
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-2 py-0.5 text-2xs font-semibold leading-4 text-ink-soft;
   }
   .tech-tag-live,
   .tech-tag-sim,
@@ -172,7 +182,7 @@
 
   /* Small count badge (sidebar etc.) */
   .count-badge {
-    @apply min-w-[1.25rem] rounded-full border border-line bg-surface px-1.5 text-center text-[11px] font-semibold leading-5 text-ink tabular-nums;
+    @apply min-w-[1.25rem] rounded-full border border-line bg-surface px-1.5 text-center text-2xs font-semibold leading-5 text-ink tabular-nums;
   }
 
   /* Buttons */

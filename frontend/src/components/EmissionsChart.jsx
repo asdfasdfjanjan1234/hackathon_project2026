@@ -53,7 +53,7 @@ function ChartTooltip({ active, payload, view, show, avgDays }) {
   const cum = view === "total";
   const rows = SERIES.filter((s) => show[s.key]);
   return (
-    <div className="rounded-lg bg-surface border border-line p-2.5 shadow-pop text-xs min-w-[190px]">
+    <div className="rounded-lg bg-surface border border-line p-2.5 shadow-pop text-xs min-w-[11.875rem]">
       <div className="font-medium text-ink pb-1.5 mb-1.5 border-b border-line">
         {cum ? `Up to ${d.day}` : d.day}
       </div>

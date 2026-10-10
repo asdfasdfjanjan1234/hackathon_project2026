@@ -154,7 +154,7 @@ export default function KiloInsight({ params, range, view, question, cacheKey, f
       {error && <p className="text-sm text-neg mt-2.5 leading-relaxed">{error}</p>}
 
       {state === "done" && stats && (
-        <p className="text-[11px] text-ink-muted tabular-nums mt-1.5">
+        <p className="text-2xs text-ink-muted tabular-nums mt-1.5">
           {stats.tokens} tokens in {stats.seconds.toFixed(1)} s on this computer
         </p>
       )}

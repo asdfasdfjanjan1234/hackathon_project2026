@@ -101,7 +101,7 @@ export default function LiveWattage({ reading }) {
 
           {/* Dial */}
           <div className="py-3 flex flex-col items-center justify-center min-w-0">
-            <div className="w-full max-w-[280px]">
+            <div className="w-full max-w-[17.5rem]">
               <svg
                 viewBox="0 0 240 142"
                 className="w-full h-auto overflow-visible"
@@ -199,14 +199,14 @@ export default function LiveWattage({ reading }) {
             </div>
 
             {/* 30s history */}
-            <div className="w-full max-w-[280px] flex items-center justify-between text-xs text-ink-muted mt-2 px-3 py-1.5 inset-panel">
+            <div className="w-full max-w-[17.5rem] flex items-center justify-between text-xs text-ink-muted mt-2 px-3 py-1.5 inset-panel">
               <span className="shrink-0">{HISTORY * 2}s history</span>
               <div className="flex items-end gap-1 h-4 mx-2" aria-hidden>
                 {history.map((val, idx) => (
                   <div
                     key={idx}
                     className="w-1.5 bg-accent/60 rounded-t-sm transition-all duration-300"
-                    style={{ height: `${Math.max(2, Math.min(16, (val / maxWatts) * 16))}px` }}
+                    style={{ height: `${Math.max(0.125, Math.min(1, val / maxWatts))}rem` }}
                     title={`${val.toFixed(1)} W`}
                   />
                 ))}
@@ -216,7 +216,7 @@ export default function LiveWattage({ reading }) {
 
             {/* Why the computer draws what it draws, updated with every reading */}
             {summary.length > 0 && (
-              <div className="notice notice-info w-full mt-3 text-[13px]">
+              <div className="notice notice-info w-full mt-3 text-[0.8125rem]">
                 <Info />
                 <div className="min-w-0">
                   <div className="text-xs font-semibold text-ink mb-1">Right now</div>
@@ -256,7 +256,7 @@ export default function LiveWattage({ reading }) {
             </div>
 
             {/* Scrollable process list: capped on narrow screens, fills the card on wide ones */}
-            <div className="flex-1 min-h-[140px] max-h-[360px] lg:max-h-none overflow-y-auto overscroll-contain space-y-1.5 pr-1">
+            <div className="flex-1 min-h-[8.75rem] max-h-[22.5rem] lg:max-h-none overflow-y-auto overscroll-contain space-y-1.5 pr-1">
               {processList.length === 0 && (
                 <div className="empty-state">
                   {collecting

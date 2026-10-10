@@ -89,7 +89,7 @@ export default function UsageLog({ params, range }) {
         </CardHeader>
 
         <div className="overflow-x-auto my-2 -mx-5 sm:mx-0 px-5 sm:px-0">
-          <table className="w-full text-left text-sm border-collapse min-w-[680px]">
+          <table className="w-full text-left text-sm border-collapse min-w-[42.5rem]">
             <thead>
               <tr className="border-b border-line">
                 <th className="th">{dim.column}</th>
@@ -114,7 +114,7 @@ export default function UsageLog({ params, range }) {
                   <td className="py-2.5 px-2 font-semibold text-ink">
                     <GroupName dimension={dimension} value={r.key} none={dim.none} />
                   </td>
-                  <td className="py-2.5 px-2 min-w-[150px]">
+                  <td className="py-2.5 px-2 min-w-[9.375rem]">
                     <div className="font-semibold text-ink">{energy(r.wh)}</div>
                     <div className="meter w-full bg-line rounded-full h-1.5 overflow-hidden mt-1.5">
                       <div className="h-full rounded-full bg-accent" style={{ width: `${r.share * 100}%` }} />
@@ -180,7 +180,7 @@ export default function UsageLog({ params, range }) {
         </CardHeader>
 
         <div className="overflow-x-auto my-2 -mx-5 sm:mx-0 px-5 sm:px-0">
-          <table className="w-full text-left text-sm border-collapse min-w-[860px]">
+          <table className="w-full text-left text-sm border-collapse min-w-[53.75rem]">
             <thead>
               <tr className="border-b border-line">
                 <th className="th">First reading</th>
@@ -332,7 +332,7 @@ function Equation({ name, children }) {
   return (
     <div>
       <div className="text-xs text-ink-muted">{name}</div>
-      <div className="text-base font-semibold [&_sub]:text-[11px] [&_sub]:font-medium">{children}</div>
+      <div className="text-base font-semibold [&_sub]:text-2xs [&_sub]:font-medium">{children}</div>
     </div>
   );
 }
@@ -340,7 +340,7 @@ function Equation({ name, children }) {
 function Term({ symbol, children }) {
   return (
     <div className="flex gap-3">
-      <dt className="w-10 shrink-0 font-semibold text-ink [&_sub]:text-[11px]">{symbol}</dt>
+      <dt className="w-10 shrink-0 font-semibold text-ink [&_sub]:text-2xs">{symbol}</dt>
       <dd className="min-w-0">{children}</dd>
     </div>
   );

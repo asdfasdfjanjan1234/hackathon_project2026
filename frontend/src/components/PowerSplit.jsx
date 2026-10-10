@@ -68,7 +68,7 @@ function Breakdown({ title, rows }) {
             <span className="flex items-center gap-1.5 min-w-0">
               <span className={`w-2 h-2 rounded-full shrink-0 ${r.bar}`} />
               <span className={`truncate ${r.text}`}>{r.label}</span>
-              <span className="text-[11px] text-ink-muted shrink-0">{r.measured ? "meas." : "est."}</span>
+              <span className="text-2xs text-ink-muted shrink-0">{r.measured ? "meas." : "est."}</span>
             </span>
             <span className="font-semibold text-ink shrink-0">
               {formatAppWatts(r.watts)} <span className="font-normal text-ink-muted">· {pct(r.watts)}%</span>

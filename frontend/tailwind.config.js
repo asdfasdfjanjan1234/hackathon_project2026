@@ -43,6 +43,12 @@ export default {
           grey: token('viz-grey'),
         },
       },
+      // The root font size scales with the window (App.css), so the two smallest sizes
+      // are floored at 11px to stay readable on narrow laptop windows.
+      fontSize: {
+        '2xs': 'max(11px, 0.6875rem)',
+        xs: ['max(11px, 0.75rem)', { lineHeight: '1.3333' }],
+      },
       fontFamily: {
         sans: ['"DM Sans"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],

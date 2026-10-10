@@ -214,7 +214,7 @@ export default function CarbonFootprint({ carbon, params, range, onAsk, onOpenRe
         <section className="dash-card p-5 lg:col-span-7 min-w-0">
           <CardHeader title="Footprint by model" sub={`CO₂ per model, ${window?.label?.toLowerCase()}`} />
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm border-collapse min-w-[520px] whitespace-nowrap">
+            <table className="w-full text-left text-sm border-collapse min-w-[32.5rem] whitespace-nowrap">
               <thead>
                 <tr className="border-b border-line">
                   <th className="th">Model</th>
@@ -237,7 +237,7 @@ export default function CarbonFootprint({ carbon, params, range, onAsk, onOpenRe
                 )}
                 {shown.map((m) => (
                   <tr key={`${m.scope}|${m.model}`} className="hover:bg-sunken">
-                    <td className="py-2.5 px-2 font-medium text-ink truncate max-w-[240px]" title={m.model}>
+                    <td className="py-2.5 px-2 font-medium text-ink truncate max-w-[15rem]" title={m.model}>
                       {m.model.replace(/^Claude Code · claude-/, "Claude Code · ")}
                     </td>
                     <td className="py-2.5 px-2">

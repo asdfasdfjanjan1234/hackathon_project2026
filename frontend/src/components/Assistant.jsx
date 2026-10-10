@@ -515,7 +515,7 @@ export default function Assistant({ params, range, view, alerts = [], askRequest
                 </button>
               )}
             </div>
-            <p className="mt-2 text-[11px] text-ink-muted leading-snug tabular-nums">
+            <p className="mt-2 text-2xs text-ink-muted leading-snug tabular-nums">
               A small model on this computer: check figures on the dashboard.
               {status?.energy?.kwh_30d > 0 &&
                 ` Its replies used ${formatWh(status.energy.kwh_30d * 1000)} (${peso(status.energy.cost_30d)}) in 30 days.`}
@@ -555,7 +555,7 @@ function Message({ message: m, onOpenView }) {
       )}
       {m.error && <p className="text-sm text-neg leading-relaxed">{m.error}</p>}
       {m.stats && !m.streaming && (
-        <div className="text-[11px] text-ink-muted tabular-nums">
+        <div className="text-2xs text-ink-muted tabular-nums">
           {m.stats.first_word_seconds != null && `First word in ${m.stats.first_word_seconds.toFixed(1)} s · `}
           {m.stats.tokens} tokens{m.stats.tokens_per_second ? ` at ${m.stats.tokens_per_second} per second` : ""}
         </div>

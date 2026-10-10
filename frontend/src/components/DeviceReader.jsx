@@ -145,7 +145,7 @@ function ModelsPanel({ models }) {
             </div>
             <div className="text-right shrink-0">
               <div className="text-sm font-semibold tabular-nums text-ink">{formatWh(m.datacenter_wh)}</div>
-              <div className="text-[11px] text-ink-muted">data center · est.</div>
+              <div className="text-2xs text-ink-muted">data center · est.</div>
               {m.device_kwh != null && (
                 <div className="tabular-nums text-xs text-accent mt-0.5">
                   {formatWh(m.device_kwh * 1000)} · {peso(m.device_cost)} <span className="text-ink-muted">on this device</span>

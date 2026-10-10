@@ -270,7 +270,7 @@ export default function App() {
 
         {/* Scrollable View */}
         <main ref={mainRef} className="flex-1 overflow-y-auto px-4 py-5 sm:p-6 lg:p-8 space-y-6 min-w-0">
-          <div className="mx-auto w-full max-w-[1400px] space-y-6 min-w-0">
+          <div className="mx-auto w-full max-w-[87.5rem] space-y-6 min-w-0">
             <ViewHeader view={VIEWS[activeTab]} />
 
             {/* A failed refresh keeps the last figures on screen */}

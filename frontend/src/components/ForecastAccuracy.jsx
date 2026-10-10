@@ -163,7 +163,7 @@ export default function ForecastAccuracy() {
       </div>
 
       <section className="dash-card p-5 min-w-0">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 min-w-0">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_17.5rem] gap-6 min-w-0">
           <div className="min-w-0">
             <CardHeader title="Every model tried, and the baselines" sub="Same held-out windows for all of them" />
             {agents.map(([agent, rows]) => (

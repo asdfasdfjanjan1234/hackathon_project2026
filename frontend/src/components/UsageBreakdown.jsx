@@ -100,7 +100,7 @@ export default function UsageBreakdown({ usage }) {
 
       {/* Model table: scrolls sideways on small screens */}
       <div className="overflow-x-auto my-2 -mx-5 sm:mx-0 px-5 sm:px-0">
-        <table className="w-full text-left text-sm border-collapse min-w-[640px]">
+        <table className="w-full text-left text-sm border-collapse min-w-[40rem]">
           <thead>
             <tr className="border-b border-line">
               <th className="th">Model</th>
@@ -144,7 +144,7 @@ export default function UsageBreakdown({ usage }) {
                 </td>
 
                 {/* Energy with Progress Bar */}
-                <td className="py-3 px-2 min-w-[140px]">
+                <td className="py-3 px-2 min-w-[8.75rem]">
                   <div className="space-y-1.5">
                     <div className="font-semibold text-ink tabular-nums">{formatKwh(m.kwh, 2)}</div>
                     {m.partKwh ? (
@@ -156,7 +156,7 @@ export default function UsageBreakdown({ usage }) {
                             ))}
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-x-2 text-[11px] tabular-nums text-ink-muted">
+                        <div className="flex flex-wrap gap-x-2 text-2xs tabular-nums text-ink-muted">
                           {PARTS.map((p, i) => (
                             <span key={p.key} className="inline-flex items-center gap-1">
                               <span className={`w-1.5 h-1.5 rounded-full ${p.bar}`} />
@@ -187,7 +187,7 @@ export default function UsageBreakdown({ usage }) {
                   <span className={`tech-tag ${m.efficiency.tag}`} title={m.efficiency.label}>
                     {m.efficiency.grade}
                   </span>
-                  <div className="text-[11px] text-ink-muted mt-1 whitespace-nowrap tabular-nums">{m.efficiency.label}</div>
+                  <div className="text-2xs text-ink-muted mt-1 whitespace-nowrap tabular-nums">{m.efficiency.label}</div>
                 </td>
 
                 {/* Source badge */}
